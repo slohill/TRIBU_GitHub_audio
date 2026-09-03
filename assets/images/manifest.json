@@ -1,0 +1,415 @@
+[
+  {
+    "index": 1,
+    "path": "assets/images/maps/map_initial.png",
+    "width": 2047,
+    "height": 1463,
+    "source_mime": "image/png"
+  },
+  {
+    "index": 2,
+    "path": "assets/images/cards/main/assassin.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 3,
+    "path": "assets/images/cards/main/balistes.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 4,
+    "path": "assets/images/cards/main/caravane_de_commerce.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 5,
+    "path": "assets/images/cards/main/catapultes.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 6,
+    "path": "assets/images/cards/main/conseil_de_guerre.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 7,
+    "path": "assets/images/cards/main/egnobombe.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 8,
+    "path": "assets/images/cards/main/divination_oracle.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 9,
+    "path": "assets/images/cards/main/embuscade.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 10,
+    "path": "assets/images/cards/main/espion.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 11,
+    "path": "assets/images/cards/main/forteresse.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 12,
+    "path": "assets/images/cards/main/icenia.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 13,
+    "path": "assets/images/cards/main/mur_de_pique.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 14,
+    "path": "assets/images/cards/main/montures.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 15,
+    "path": "assets/images/cards/main/murs_frontaliers.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 16,
+    "path": "assets/images/cards/main/pluie_de_fleches.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 17,
+    "path": "assets/images/cards/main/sundo.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 18,
+    "path": "assets/images/cards/main/taxe.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 19,
+    "path": "assets/images/cards/main/voleur.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 20,
+    "path": "assets/images/cards/main/section_de_l_ombre.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 21,
+    "path": "assets/images/cards/main/plan_des_trebuchets.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 22,
+    "path": "assets/images/cards/main/pyrodontes_de_guerre.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 23,
+    "path": "assets/images/cards/oracle/canicule.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 24,
+    "path": "assets/images/cards/oracle/en_quete_de_destruction.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 25,
+    "path": "assets/images/cards/oracle/givre_mortel.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 26,
+    "path": "assets/images/cards/oracle/tempete_de_sable.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 27,
+    "path": "assets/images/cards/oracle/tempete_en_mer.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 28,
+    "path": "assets/images/cards/oracle/vague_de_froid.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 29,
+    "path": "assets/images/cards/backs/back_tribu.png",
+    "width": 496,
+    "height": 693,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 30,
+    "path": "assets/images/cards/backs/back_oracle.png",
+    "width": 496,
+    "height": 693,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 31,
+    "path": "assets/images/cards/main/portails.png",
+    "width": 1654,
+    "height": 2339,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 32,
+    "path": "assets/images/factions/griffe_blanche_a.png",
+    "width": 703,
+    "height": 700,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 33,
+    "path": "assets/images/factions/griffe_blanche_b.png",
+    "width": 703,
+    "height": 700,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 34,
+    "path": "assets/images/factions/reptone_a.png",
+    "width": 703,
+    "height": 700,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 35,
+    "path": "assets/images/factions/reptone_b.png",
+    "width": 703,
+    "height": 700,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 36,
+    "path": "assets/images/factions/yonkai_a.png",
+    "width": 703,
+    "height": 700,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 37,
+    "path": "assets/images/factions/yonkai_b.png",
+    "width": 703,
+    "height": 700,
+    "source_mime": "image/webp"
+  },
+  {
+    "index": 38,
+    "path": "assets/images/maps/map_normal.png",
+    "width": 2047,
+    "height": 1463,
+    "source_mime": "image/png"
+  },
+  {
+    "index": 39,
+    "path": "assets/images/maps/map_vague_de_froid.png",
+    "width": 2047,
+    "height": 1463,
+    "source_mime": "image/png"
+  },
+  {
+    "index": 40,
+    "path": "assets/images/maps/map_canicule.png",
+    "width": 2047,
+    "height": 1463,
+    "source_mime": "image/png"
+  },
+  {
+    "index": 41,
+    "path": "assets/images/dice/griffes_blanches_1.png",
+    "width": 512,
+    "height": 512,
+    "source_mime": "image/png"
+  },
+  {
+    "index": 42,
+    "path": "assets/images/dice/griffes_blanches_2.png",
+    "width": 512,
+    "height": 512,
+    "source_mime": "image/png"
+  },
+  {
+    "index": 43,
+    "path": "assets/images/dice/griffes_blanches_3.png",
+    "width": 512,
+    "height": 512,
+    "source_mime": "image/png"
+  },
+  {
+    "index": 44,
+    "path": "assets/images/dice/griffes_blanches_4.png",
+    "width": 512,
+    "height": 512,
+    "source_mime": "image/png"
+  },
+  {
+    "index": 45,
+    "path": "assets/images/dice/griffes_blanches_5.png",
+    "width": 512,
+    "height": 512,
+    "source_mime": "image/png"
+  },
+  {
+    "index": 46,
+    "path": "assets/images/dice/reptones_1.png",
+    "width": 512,
+    "height": 512,
+    "source_mime": "image/png"
+  },
+  {
+    "index": 47,
+    "path": "assets/images/dice/reptones_2.png",
+    "width": 512,
+    "height": 512,
+    "source_mime": "image/png"
+  },
+  {
+    "index": 48,
+    "path": "assets/images/dice/reptones_3.png",
+    "width": 512,
+    "height": 512,
+    "source_mime": "image/png"
+  },
+  {
+    "index": 49,
+    "path": "assets/images/dice/reptones_4.png",
+    "width": 512,
+    "height": 512,
+    "source_mime": "image/png"
+  },
+  {
+    "index": 50,
+    "path": "assets/images/dice/reptones_5.png",
+    "width": 512,
+    "height": 512,
+    "source_mime": "image/png"
+  },
+  {
+    "index": 51,
+    "path": "assets/images/dice/yonkais_1.png",
+    "width": 512,
+    "height": 512,
+    "source_mime": "image/png"
+  },
+  {
+    "index": 52,
+    "path": "assets/images/dice/yonkais_2.png",
+    "width": 512,
+    "height": 512,
+    "source_mime": "image/png"
+  },
+  {
+    "index": 53,
+    "path": "assets/images/dice/yonkais_3.png",
+    "width": 512,
+    "height": 512,
+    "source_mime": "image/png"
+  },
+  {
+    "index": 54,
+    "path": "assets/images/dice/yonkais_4.png",
+    "width": 512,
+    "height": 512,
+    "source_mime": "image/png"
+  },
+  {
+    "index": 55,
+    "path": "assets/images/dice/yonkais_5.png",
+    "width": 512,
+    "height": 512,
+    "source_mime": "image/png"
+  },
+  {
+    "index": 56,
+    "path": "assets/images/tokens/portail.png",
+    "width": 516,
+    "height": 516,
+    "source_mime": "image/png"
+  },
+  {
+    "index": 57,
+    "path": "assets/images/tokens/forteresse.png",
+    "width": 561,
+    "height": 1033,
+    "source_mime": "image/png"
+  },
+  {
+    "index": 58,
+    "path": "assets/images/tokens/cite.png",
+    "width": 1014,
+    "height": 1011,
+    "source_mime": "image/png"
+  },
+  {
+    "index": 59,
+    "path": "assets/images/tokens/dragon.png",
+    "width": 250,
+    "height": 250,
+    "source_mime": "image/png"
+  }
+]
