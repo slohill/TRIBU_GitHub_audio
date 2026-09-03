@@ -836,7 +836,7 @@ function audioStartAmbient(index=0,time=0,fade=true){
  other.pause();
  a.onended=()=>{if(audioMode!=='ambient'||audioBattleActive)return;audioAmbientIndex=1-audioAmbientIndex;audioStartAmbient(audioAmbientIndex,0,false)};
  if(!audioMusicEnabled)return;
- a.volume=fade?0:.48;audioSafePlay(a,time);if(fade)audioFadeTo(a,.48,900);
+ a.volume=fade?0:.36;audioSafePlay(a,time);if(fade)audioFadeTo(a,.36,900);
 }
 function audioEnterGame(){
  audioStopTrack(audioTrack('welcome'),false);
@@ -852,23 +852,23 @@ function audioBattleBegin(){
  audioBattleActive=true;
  const amb=audioTrack(audioAmbientIndex===0?'ambient1':'ambient2');
  audioAmbientResume={index:audioAmbientIndex,time:Number.isFinite(amb.currentTime)?amb.currentTime:0};
- if(!amb.paused)audioFadeTo(amb,0,650,()=>{amb.pause();amb.volume=.48});
+ if(!amb.paused)audioFadeTo(amb,0,650,()=>{amb.pause();amb.volume=.36});
  audioMode='battle';
- const b=audioTrack('battle');b.onended=()=>{if(audioBattleActive&&audioMusicEnabled){b.volume=.56;audioSafePlay(b,28)}};
- if(audioMusicEnabled){b.volume=0;audioSafePlay(b,28);audioFadeTo(b,.56,800)}
+ const b=audioTrack('battle');b.onended=()=>{if(audioBattleActive&&audioMusicEnabled){b.volume=.39;audioSafePlay(b,28)}};
+ if(audioMusicEnabled){b.volume=0;audioSafePlay(b,28);audioFadeTo(b,.39,800)}
 }
 function audioBattleEnd(){
  if(!audioBattleActive)return;
  audioBattleActive=false;
  const b=audioTrack('battle');
- const resume=()=>{b.pause();b.volume=.56;audioStartAmbient(audioAmbientResume.index,audioAmbientResume.time,true)};
+ const resume=()=>{b.pause();b.volume=.39;audioStartAmbient(audioAmbientResume.index,audioAmbientResume.time,true)};
  if(!b.paused)audioFadeTo(b,0,900,resume);else resume();
 }
 function audioSetMusic(on){
  audioMusicEnabled=!!on;try{localStorage.setItem('tribu_music',on?'on':'off')}catch(e){}audioUpdateButtons();
  if(!on){Object.values(audioTracks).forEach(a=>a.pause());return}
  if($('start')&&!$('start').classList.contains('hidden')){audioMaybeWelcome();return}
- if(audioBattleActive){const b=audioTrack('battle');b.volume=.56;audioSafePlay(b,Math.max(28,b.currentTime||28));return}
+ if(audioBattleActive){const b=audioTrack('battle');b.volume=.39;audioSafePlay(b,Math.max(28,b.currentTime||28));return}
  const a=audioTrack(audioAmbientIndex===0?'ambient1':'ambient2');audioStartAmbient(audioAmbientIndex,a.currentTime||0,true);
 }
 function audioSetSfx(on){audioSfxEnabled=!!on;try{localStorage.setItem('tribu_sfx',on?'on':'off')}catch(e){}audioUpdateButtons()}
@@ -3667,7 +3667,6 @@ function renderMap(){
      minus.onpointerdown=e=>e.stopPropagation();
      minus.onclick=e=>{e.stopPropagation();adjust(id,-1)};
      b.appendChild(minus);
-     const badge=document.createElement('span');badge.className='sourcePickBadge';badge.textContent=q+' en déplacement';b.appendChild(badge);
    }
  }
  if(G.dragon===id){
