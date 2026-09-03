@@ -634,7 +634,7 @@ function draw(i,n=1){
  for(let k=0;k<n;k++){
    if(!G.deck.length)refillDeckFromDiscard();
    if(!G.deck.length)break;
-   G.players[i].hand.push(G.deck.pop());
+   G.players[i].hand.push(G.deck.pop());audioCardMove();
  }
 }
 
@@ -795,7 +795,10 @@ const AUDIO_SRC={
  thief:"assets/audio/voleur.wav",
  fail:"assets/audio/echec.wav",
  drums:"assets/audio/tambours.wav",
- horn:"assets/audio/cor.wav"
+ horn:"assets/audio/cor.wav",
+ cardMove:"assets/audio/card_move.mp3",
+ construction:"assets/audio/construction.mp3",
+ victory:"assets/audio/victory.mp3"
 };
 const audioTracks={};
 function audioLoadPrefs(){
@@ -830,13 +833,20 @@ function audioPlaySfx(name,vol=.8){
  const a=new Audio(AUDIO_SRC[name]);a.volume=vol;const p=a.play();if(p&&p.catch)p.catch(()=>{});
 }
 function audioBattleCue(){audioPlaySfx('drums',.72);audioPlaySfx('horn',.92)}
+function audioCardMove(){audioPlaySfx('cardMove',.72)}
+function audioConstruction(){audioPlaySfx('construction',.72)}
+function audioVictory(){
+ audioBattleActive=false;audioMode='victory';
+ ['welcome','ambient1','ambient2','battle'].forEach(n=>audioStopTrack(audioTrack(n),false));
+ const v=audioTrack('victory');v.loop=false;v.currentTime=0;v.volume=.42;if(audioMusicEnabled)audioSafePlay(v,0);
+}
 function audioStartAmbient(index=0,time=0,fade=true){
  audioAmbientIndex=index%2;audioMode='ambient';
  const name=audioAmbientIndex===0?'ambient1':'ambient2',a=audioTrack(name),other=audioTrack(audioAmbientIndex===0?'ambient2':'ambient1');
  other.pause();
  a.onended=()=>{if(audioMode!=='ambient'||audioBattleActive)return;audioAmbientIndex=1-audioAmbientIndex;audioStartAmbient(audioAmbientIndex,0,false)};
  if(!audioMusicEnabled)return;
- a.volume=fade?0:.48;audioSafePlay(a,time);if(fade)audioFadeTo(a,.48,900);
+ a.volume=fade?0:.36;audioSafePlay(a,time);if(fade)audioFadeTo(a,.36,900);
 }
 function audioEnterGame(){
  audioStopTrack(audioTrack('welcome'),false);
@@ -852,23 +862,23 @@ function audioBattleBegin(){
  audioBattleActive=true;
  const amb=audioTrack(audioAmbientIndex===0?'ambient1':'ambient2');
  audioAmbientResume={index:audioAmbientIndex,time:Number.isFinite(amb.currentTime)?amb.currentTime:0};
- if(!amb.paused)audioFadeTo(amb,0,650,()=>{amb.pause();amb.volume=.48});
+ if(!amb.paused)audioFadeTo(amb,0,650,()=>{amb.pause();amb.volume=.36});
  audioMode='battle';
- const b=audioTrack('battle');b.onended=()=>{if(audioBattleActive&&audioMusicEnabled){b.volume=.56;audioSafePlay(b,28)}};
- if(audioMusicEnabled){b.volume=0;audioSafePlay(b,28);audioFadeTo(b,.56,800)}
+ const b=audioTrack('battle');b.onended=()=>{if(audioBattleActive&&audioMusicEnabled){b.volume=.39;audioSafePlay(b,28)}};
+ if(audioMusicEnabled){b.volume=0;audioSafePlay(b,28);audioFadeTo(b,.39,800)}
 }
 function audioBattleEnd(){
  if(!audioBattleActive)return;
  audioBattleActive=false;
  const b=audioTrack('battle');
- const resume=()=>{b.pause();b.volume=.56;audioStartAmbient(audioAmbientResume.index,audioAmbientResume.time,true)};
+ const resume=()=>{b.pause();b.volume=.39;audioStartAmbient(audioAmbientResume.index,audioAmbientResume.time,true)};
  if(!b.paused)audioFadeTo(b,0,900,resume);else resume();
 }
 function audioSetMusic(on){
  audioMusicEnabled=!!on;try{localStorage.setItem('tribu_music',on?'on':'off')}catch(e){}audioUpdateButtons();
  if(!on){Object.values(audioTracks).forEach(a=>a.pause());return}
  if($('start')&&!$('start').classList.contains('hidden')){audioMaybeWelcome();return}
- if(audioBattleActive){const b=audioTrack('battle');b.volume=.56;audioSafePlay(b,Math.max(28,b.currentTime||28));return}
+ if(audioBattleActive){const b=audioTrack('battle');b.volume=.39;audioSafePlay(b,Math.max(28,b.currentTime||28));return}
  const a=audioTrack(audioAmbientIndex===0?'ambient1':'ambient2');audioStartAmbient(audioAmbientIndex,a.currentTime||0,true);
 }
 function audioSetSfx(on){audioSfxEnabled=!!on;try{localStorage.setItem('tribu_sfx',on?'on':'off')}catch(e){}audioUpdateButtons()}
@@ -1183,7 +1193,7 @@ function cardFromViewerHand(handIndex,name){
 function discardHandCard(actor,handIndex){
  const id=G.players[actor].hand[handIndex];
  if(id===undefined)return null;
- G.players[actor].hand.splice(handIndex,1);G.discard.push(id);return id;
+ G.players[actor].hand.splice(handIndex,1);G.discard.push(id);audioCardMove();return id;
 }
 function assassinTargets(actor){
  const out=[];
@@ -1249,7 +1259,7 @@ function resolveAssassin(target){
 function caravanRevealCount(){return G.players.length}
 function drawOneToPool(){
  if(!G.deck.length)refillDeckFromDiscard();
- return G.deck.length?G.deck.pop():null;
+ if(!G.deck.length)return null;const id=G.deck.pop();audioCardMove();return id;
 }
 function startCaravan(handIndex){
  const actor=localViewer(),id=G.players[actor].hand[handIndex];
@@ -1286,7 +1296,7 @@ function chooseCaravanCard(j){
  if(!caravanState||j<0||j>=caravanState.revealed.length)return;
  const chooser=caravanState.order[caravanState.pick];
  const id=caravanState.revealed.splice(j,1)[0];
- G.players[chooser].hand.push(id);
+ G.players[chooser].hand.push(id);audioCardMove();
  log(p(chooser).name+' choisit '+CARDS[id].name+' dans la Caravane.');
  caravanState.pick++;
  showCaravanChoice();
@@ -1726,7 +1736,7 @@ function playCouncil(handIndex){
    if(currentPriorityPlayer()!==actor)return;
    clearInterval(battleTick);clearTimeout(botReactionTimer);
  }
- G.players[actor].hand.splice(handIndex,1);G.discard.push(found.id);draw(actor,2);
+ G.players[actor].hand.splice(handIndex,1);G.discard.push(found.id);audioCardMove();draw(actor,2);
  choiceState={kind:'council',selected:[],player:actor,battleCouncil,battleRef:battle,battleSeconds:battle?battle.seconds:null};
  $('choiceTitle').textContent='Conseil de guerre';
  $('choiceText').textContent='Vous avez pioché 2 cartes. Choisissez exactement 2 cartes de votre main à défausser.';
@@ -1750,7 +1760,7 @@ function confirmCouncil(){
  inds.forEach(idx=>{
    if(idx<0||idx>=G.players[actor].hand.length)return;
    const id=G.players[actor].hand.splice(idx,1)[0];if(id===undefined)return;
-   names.push(CARDS[id].name);G.discard.push(id);
+   names.push(CARDS[id].name);G.discard.push(id);audioCardMove();
  });
  const wasBattle=choiceState.battleCouncil&&choiceState.battleRef===battle;
  const savedSeconds=choiceState.battleSeconds;
@@ -1788,7 +1798,7 @@ function inPlayCountByName(i,name){
 function playAgentFromHand(handIndex,name){
  if(G.phase!=='play'||G.active!==localViewer()||isBot()||isDecimated(G.active))return;
  const id=p().hand[handIndex];if(id===undefined||CARDS[id].name!==name)return;
- p().hand.splice(handIndex,1);p().inPlay.push(id);agentDefaults(G.active);p().inPlayUID[p().inPlay.length-1]='a'+G.active+'_'+(++p().agentSeq);
+ p().hand.splice(handIndex,1);p().inPlay.push(id);audioCardMove();agentDefaults(G.active);p().inPlayUID[p().inPlay.length-1]='a'+G.active+'_'+(++p().agentSeq);
  log(p().name+' met '+name+' en jeu.');
  render();
 }
@@ -1921,7 +1931,7 @@ function portalMate(r){const b=G.b[r]&&G.b[r].building;return b&&b.type==='Porta
 function portalRegions(){return Object.keys(G.b).filter(r=>G.b[r].building&&G.b[r].building.type==='Portail')}
 function beginWalls(handIndex){
  if(isBot()||G.phase!=='play')return;const id=p().hand[handIndex];if(id===undefined||CARDS[id].name!=='Murs frontaliers')return;
- p().hand.splice(handIndex,1);p().inPlay.push(id);
+ p().hand.splice(handIndex,1);p().inPlay.push(id);audioCardMove();
  log(p().name+' pose Murs frontaliers : bonus global de Défense désormais +'+wallCount(G.active)+'.');render();
 }
 function beginPortals(handIndex){
@@ -1944,7 +1954,7 @@ function choosePortalRegion(r){
  if(!portalMode.first){portalMode.first=r;log('Premier Portail : '+r+'. Choisissez la seconde région.');render();return}
  const a=portalMode.first,b=r,id=portalMode.cardId,owner=portalMode.owner,idx=G.players[owner].hand.indexOf(id);
  if(idx<0){portalMode=null;clearTopBanner();render();return}
- G.players[owner].hand.splice(idx,1);G.players[owner].inPlay.push(id);
+ G.players[owner].hand.splice(idx,1);G.players[owner].inPlay.push(id);audioCardMove();
  G.b[a].building={type:'Portail',cardId:id,owner,pair:b};G.b[b].building={type:'Portail',cardId:id,owner,pair:a};
  portalMode=null;clearTopBanner();log(p(owner).name+' pose les Portails : '+a+' ↔ '+b+'. Ces régions sont maintenant adjacentes pour les unités.');render();
 }
@@ -2038,8 +2048,8 @@ function placeBuilding(r){
  if(!buildingMode||!canPlaceBuilding(r))return;
  const id=buildingMode.cardId,idx=p().hand.indexOf(id);if(idx<0){buildingMode=null;render();return}
  const type=buildingMode.type;
- p().hand.splice(idx,1);p().inPlay.push(id);
- G.b[r].building={type,cardId:id,owner:G.active};buildingMode=null;
+ p().hand.splice(idx,1);p().inPlay.push(id);audioCardMove();
+ G.b[r].building={type,cardId:id,owner:G.active};buildingMode=null;audioConstruction();
  if(type==='Forteresse')log(p().name+' construit une Forteresse sur '+r+' : +10 Défense.');
  if(type==='Icenia, la cité blanche')log(p().name+' fonde Icenia sur '+r+' : +10 Défense, +5 Or à la Récolte, climat enneigé verrouillé.');
  if(type==='Sundo, cité du soleil')log(p().name+' fonde Sundo sur '+r+' : +10 Défense, +5 Or à la Récolte, climat désertique verrouillé.');
@@ -2283,7 +2293,7 @@ function botPlayUsefulCard(){
      if(regs.length){
        regs.sort((a,b)=>G.b[b].units-G.b[a].units);
        const r=regs[0],id=hand.splice(idx,1)[0];
-       p().inPlay.push(id);G.b[r].building={type:cityName,cardId:id,owner:G.active};
+       p().inPlay.push(id);audioCardMove();G.b[r].building={type:cityName,cardId:id,owner:G.active};audioConstruction();
        log(p().name+' (bot) construit '+cityName+' sur '+r+'.');
        return true;
      }
@@ -2297,7 +2307,7 @@ function botPlayUsefulCard(){
    if(regs.length){
      regs.sort((a,b)=>G.b[b].units-G.b[a].units);
      const r=regs[0],id=hand.splice(idx,1)[0];
-     p().inPlay.push(id);G.b[r].building={type:'Forteresse',cardId:id,owner:G.active};
+     p().inPlay.push(id);audioCardMove();G.b[r].building={type:'Forteresse',cardId:id,owner:G.active};audioConstruction();
      log(p().name+' (bot) construit une Forteresse sur '+r+'.');
      return true;
    }
@@ -3667,7 +3677,6 @@ function renderMap(){
      minus.onpointerdown=e=>e.stopPropagation();
      minus.onclick=e=>{e.stopPropagation();adjust(id,-1)};
      b.appendChild(minus);
-     const badge=document.createElement('span');badge.className='sourcePickBadge';badge.textContent=q+' en déplacement';b.appendChild(badge);
    }
  }
  if(G.dragon===id){
@@ -3723,7 +3732,7 @@ function checkVictory(){
  clearTimeout(botTimer);clearTimeout(botReactionTimer);clearInterval(battleTick);clearInterval(shadowTick);
  $('victoryTitle').textContent='🏆 '+p(winner).name.toUpperCase()+' REMPORTE LA PARTIE !';
  $('victoryText').textContent=p(winner).name+' atteint '+best+' Point'+(best>1?'s':'')+' de victoire. Objectif du mode : '+G.victoryTarget+' PV.';
- $('victoryOverlay').classList.remove('hidden');
+ $('victoryOverlay').classList.remove('hidden');audioVictory();
  log('🏆 '+p(winner).name+' remporte la partie avec '+best+' PV.');
  return true;
 }
@@ -4230,7 +4239,7 @@ function render(){
    d.classList.add('playablePermanent');d.title='Mettre Plan des trébuchets en jeu';
    d.onclick=()=>{
      const idx=p().hand.indexOf(id);if(idx<0)return;
-     p().hand.splice(idx,1);p().inPlay.push(id);
+     p().hand.splice(idx,1);p().inPlay.push(id);audioCardMove();
      log(p().name+' met Plan des trébuchets en jeu.');
      render();
    };
