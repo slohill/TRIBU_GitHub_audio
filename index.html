@@ -910,7 +910,7 @@ function init(){audioEnterGame();commerceDeals=[];commerceSeq=1;commerceDraft=nu
    const label=mode==='2v3'?'2 joueurs + 3 bots — même support':
                mode==='1v3'?'1 joueur + 3 bots':
                mode==='1v4'?'1 joueur + 4 bots':
-               count+' joueurs — en ligne';
+               count+' joueurs — local / hot-seat';
    pcb.textContent=label+' — victoire à '+G.victoryTarget+' PV';
  }
  Object.entries(R).forEach(([r,v])=>G.b[r]={owner:null,units:0,hostile:!!v[2],originalHostile:!!v[2],building:null});
@@ -1189,7 +1189,7 @@ function cardFromViewerHand(handIndex,name){
 function discardHandCard(actor,handIndex){
  const id=G.players[actor].hand[handIndex];
  if(id===undefined)return null;
- G.players[actor].hand.splice(handIndex,1);G.discard.push(id);return id;
+ G.players[actor].hand.splice(handIndex,1);G.discard.push(id);audioCardMove();return id;
 }
 function assassinTargets(actor){
  const out=[];
@@ -1255,7 +1255,7 @@ function resolveAssassin(target){
 function caravanRevealCount(){return G.players.length}
 function drawOneToPool(){
  if(!G.deck.length)refillDeckFromDiscard();
- return G.deck.length?G.deck.pop():null;
+ const id=G.deck.length?G.deck.pop():null;if(id!==null)audioCardMove();return id;
 }
 function startCaravan(handIndex){
  const actor=localViewer(),id=G.players[actor].hand[handIndex];
@@ -1276,6 +1276,7 @@ function showCaravanChoice(){
  if(!caravanState)return;
  if(!caravanState.revealed.length||caravanState.pick>=caravanState.order.length){finishCaravan();return}
  const chooser=caravanState.order[caravanState.pick];
+ if(G.players[chooser].bot){const j=Math.floor(Math.random()*caravanState.revealed.length);setTimeout(()=>chooseCaravanCard(j),300);return}
  agentModalState={kind:'caravan',chooser};
  openAgentModal('Caravane de commerce',p(chooser).name+' choisit une carte.');
  const close=$('agentClose');if(close){close.disabled=true;close.textContent='Choix obligatoire'}
@@ -1292,7 +1293,7 @@ function chooseCaravanCard(j){
  if(!caravanState||j<0||j>=caravanState.revealed.length)return;
  const chooser=caravanState.order[caravanState.pick];
  const id=caravanState.revealed.splice(j,1)[0];
- G.players[chooser].hand.push(id);
+ G.players[chooser].hand.push(id);audioCardMove();
  log(p(chooser).name+' choisit '+CARDS[id].name+' dans la Caravane.');
  caravanState.pick++;
  showCaravanChoice();
@@ -1544,7 +1545,7 @@ function startShadow(handIndex){
  shadowState={stage:'gather',player:actor,cardId:id,handIndex,seconds:20,picks:{},parentBattle:battle||null,parentBattleSeconds:battle?battle.seconds:null};
  if(battle){clearInterval(battleTick);clearTimeout(botReactionTimer)}
  log(p(actor).name+' prépare une action secrète.');
- shadowTick=setInterval(()=>{if(!shadowState||shadowState.stage!=='gather'){clearInterval(shadowTick);return}shadowState.seconds--;if(shadowState.seconds<=0){cancelShadow(true);return}render()},1000);
+ if(!isHotseatMode())shadowTick=setInterval(()=>{if(!shadowState||shadowState.stage!=='gather'){clearInterval(shadowTick);return}shadowState.seconds--;if(shadowState.seconds<=0){cancelShadow(true);return}render()},1000);
  render();
 }
 function adjustShadow(r,d){
@@ -1609,7 +1610,7 @@ function consumeShadowUnits(){
    }
 
    c.units=Math.max(0,c.units-n);
-   if(c.units===0){c.owner=null;c.hostile=c.originalHostile}
+   if(c.units===0){c.owner=null;const neutralized=neutralizeSurvivingDefensiveBuilding(r);c.hostile=neutralized?false:c.originalHostile}
  }
  const idx=G.players[actor].hand.indexOf(s.cardId);if(idx>=0)G.players[actor].hand.splice(idx,1);
  G.discard.push(s.cardId);
@@ -1668,7 +1669,7 @@ function renderShadowBanner(){
  const el=$('battleBanner'),viewer=localViewer(),s=shadowState;
  el.classList.remove('hidden');
  if(s.stage==='gather'){
-   if(viewer===s.player){el.innerHTML='<h3>SECTION DE L’OMBRE <span class="shadowDie">'+shadowTotal()+'</span></h3><div class="battleDetail">Préparation : '+s.seconds+' s — choisissez 1 à 6 unités sur vos régions.</div><div class="shadowControls"><button id="shadowCancel">Annuler</button><button id="shadowValidate">Valider '+shadowTotal()+'/6</button></div>';setTimeout(()=>{const a=$('shadowCancel'),v=$('shadowValidate');if(a)a.onclick=()=>cancelShadow(false);if(v){v.disabled=shadowTotal()<1;v.onclick=validateShadowUnits}},0)}
+   if(viewer===s.player){el.innerHTML='<h3>SECTION DE L’OMBRE <span class="shadowDie">'+shadowTotal()+'</span></h3><div class="battleDetail">Préparation : '+(isHotseatMode()?'Sans chrono':s.seconds+' s')+' — choisissez 1 à 6 unités sur vos régions.</div><div class="shadowControls"><button id="shadowCancel">Annuler</button><button id="shadowValidate">Valider '+shadowTotal()+'/6</button></div>';setTimeout(()=>{const a=$('shadowCancel'),v=$('shadowValidate');if(a)a.onclick=()=>cancelShadow(false);if(v){v.disabled=shadowTotal()<1;v.onclick=validateShadowUnits}},0)}
    else el.innerHTML='<h3>RÉACTION EN COURS</h3><div class="battleDetail">15 s</div>';
  }else el.innerHTML='<h3>SECTION DE L’OMBRE <span class="shadowDie">'+s.units+'</span></h3><div class="battleDetail">Choisissez une région à conquérir, ou votre région actuellement attaquée pour la renforcer.</div>';
  return true;
@@ -1794,7 +1795,7 @@ function inPlayCountByName(i,name){
 function playAgentFromHand(handIndex,name){
  if(G.phase!=='play'||G.active!==localViewer()||isBot()||isDecimated(G.active))return;
  const id=p().hand[handIndex];if(id===undefined||CARDS[id].name!==name)return;
- p().hand.splice(handIndex,1);p().inPlay.push(id);agentDefaults(G.active);p().inPlayUID[p().inPlay.length-1]='a'+G.active+'_'+(++p().agentSeq);
+ p().hand.splice(handIndex,1);p().inPlay.push(id);audioCardMove();agentDefaults(G.active);p().inPlayUID[p().inPlay.length-1]='a'+G.active+'_'+(++p().agentSeq);
  log(p().name+' met '+name+' en jeu.');
  render();
 }
@@ -2669,9 +2670,8 @@ function battleCardLegality(cardId, owner){
     return {ok:true,complex:true,reason:'Piochez 2 cartes puis défaussez-en 2.'};
   }
 
-  // Les autres Tactiques peuvent légalement interrompre la bataille,
-  // mais leur effet complexe n'est pas encore automatisé.
-  return {ok:true,complex:true,reason:'Jouable maintenant — effet complexe à automatiser.'};
+  // Une Tactique non automatisée ne peut pas être consommée pendant une bataille.
+  return {ok:false,reason:'Cette carte n’a pas d’effet de bataille automatisé dans cette situation.'};
 }
 
 function chooseBattleSideForCard(cardId, legality){
@@ -2995,7 +2995,7 @@ function takeMovers(s,n){
  if(isSea(s))G.sea[s].fleets[G.active]=(G.sea[s].fleets[G.active]||0)-taken.length;
  else{
    const c=G.b[s];c.units-=taken.length;
-   if(c.units===0){c.owner=null;c.hostile=c.originalHostile}
+   if(c.units===0){c.owner=null;const neutralized=neutralizeSurvivingDefensiveBuilding(r);c.hostile=neutralized?false:c.originalHostile}
  }
  return taken;
 }
@@ -3100,7 +3100,7 @@ function startLandBattle(target,n){
  const defender=hostile?null:(c.owner!==null?c.owner:(db&&db.owner!==null?db.owner:null));
  const defBase=(hostile?5:(defender===null?0:c.units*FACTIONS[p(defender).faction].def))+buildingDefense(target);
  attacked.add(target);
- battle={kind:'land',target,attacker:G.active,defender,attackUnits:n,defenseBase:defBase,defOriginalUnits:c.units,epicDefenderUnits:c.units,hostile:hostile,stack:[],seconds:10,reactionSide:'defender'};
+ battle={kind:'land',target,attacker:G.active,defender,attackUnits:n,defenseBase:defBase,defOriginalUnits:c.units,epicDefenderUnits:c.units,hostile:hostile,stack:[],seconds:15,reactionSide:'defender'};
  log('Bataille terrestre en '+target+' : '+n+' Att contre '+defBase+' Déf.');
  audioBattleBegin();
  startReactionWindow();
@@ -3110,7 +3110,7 @@ function startSeaBattle(target,n,defender){
  const defCoeff=FACTIONS[p(defender).faction].def;
  const defBase=defUnits*defCoeff;
  attacked.add(target);
- battle={kind:'sea',target,attacker:G.active,defender,attackUnits:n,defenseBase:defBase,defOriginalUnits:defUnits,epicDefenderUnits:defUnits,hostile:false,stack:[],seconds:10,reactionSide:'defender'};
+ battle={kind:'sea',target,attacker:G.active,defender,attackUnits:n,defenseBase:defBase,defOriginalUnits:defUnits,epicDefenderUnits:defUnits,hostile:false,stack:[],seconds:15,reactionSide:'defender'};
  log('Bataille maritime en '+target+' : '+n+' Att contre '+defBase+' Déf ('+defUnits+' unité(s) ×'+defCoeff+').');
  audioBattleBegin();
  startReactionWindow();
@@ -3398,7 +3398,7 @@ function activateOracle(afterResolution=null,activator=G.active){
      beginOracleSacrifices('d','Tempête de sable','Sundo, cité du soleil');return;
    }
    if(o.name==='En quête de destruction'){
-     oracleState={kind:'dragon5',player:activator,remaining:5,visited:new Set([G.dragon])};
+     oracleState={kind:'dragon5',player:activator,remaining:5,visited:new Set([G.dragon]),start:G.dragon};
      log('En quête de destruction : le Dragon doit parcourir 5 cases différentes.');
      if(G.players[activator].bot){botOracleDragonStep();return}
      render();return;
@@ -3465,11 +3465,25 @@ function oracleSacrificeClick(r){
    oracleState.index++;advanceOracleSacrifice();
  }else render();
 }
+function dragonSimplePathExists(from,steps,blocked){
+ if(steps<=0)return true;
+ for(const id of physicalNeighbors(from)){
+   if(blocked.has(id))continue;
+   const next=new Set(blocked);next.add(id);
+   if(dragonSimplePathExists(id,steps-1,next))return true;
+ }
+ return false;
+}
 function oracleDragonChoices(){
  if(!oracleState||oracleState.kind!=='dragon5')return [];
- const neigh=physicalNeighbors(G.dragon);
- const fresh=neigh.filter(id=>!oracleState.visited.has(id));
- return fresh.length?fresh:neigh;
+ const fresh=physicalNeighbors(G.dragon).filter(id=>!oracleState.visited.has(id));
+ if(oracleState.remaining<=1)return fresh;
+ return fresh.filter(id=>{const blocked=new Set(oracleState.visited);blocked.add(id);return dragonSimplePathExists(id,oracleState.remaining-1,blocked)});
+}
+function restartOracleDragonMovement(){
+ if(!oracleState||oracleState.kind!=='dragon5'||oracleState.player!==localViewer()||G.players[oracleState.player].bot)return;
+ G.dragon=oracleState.start;oracleState.remaining=5;oracleState.visited=new Set([oracleState.start]);
+ log('Déplacement du Dragon recommencé depuis '+oracleState.start+'.');render();
 }
 function botOracleDragonStep(){
  if(!oracleState||oracleState.kind!=='dragon5')return;
@@ -3598,7 +3612,8 @@ function floatingActionPosition(target){
 }
 
 function renderMap(){
- map.querySelectorAll('.spot,.floatActions').forEach(x=>x.remove());
+ map.querySelectorAll('.spot,.floatActions,.dragonRestart').forEach(x=>x.remove());
+ if(oracleState&&oracleState.kind==='dragon5'&&oracleState.player===localViewer()&&!G.players[oracleState.player].bot){const rb=document.createElement('button');rb.className='dragonRestart';rb.textContent='Recommencer déplacement du Dragon';rb.style.cssText='position:absolute;left:50%;top:1%;transform:translateX(-50%);z-index:35';rb.onclick=restartOracleDragonMovement;map.appendChild(rb)}
  Object.entries(POS).forEach(([id,xy])=>{const b=document.createElement('button');b.className='spot'+(isSea(id)?' sea':'');b.style.left=xy[0]+'%';b.style.top=xy[1]+'%';
  if(dest===id)b.classList.add('dest');
  if(setupState&&setupState.stage==='regions'){
