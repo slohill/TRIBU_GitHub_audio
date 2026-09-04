@@ -20,14 +20,18 @@ jobs:
           new="if(c.units===0){const neutralized=neutralizeSurvivingDefensiveBuilding(s);c.owner=null;c.hostile=neutralized?false:c.originalHostile}"
           if old not in s: raise SystemExit('live takeMovers anchor not found')
           s=s.replace(old,new,1)
+          if old in s: raise SystemExit('takeMovers replacement failed')
+          if new not in s: raise SystemExit('takeMovers corrected block missing')
           p.write_text(s,encoding='utf-8')
           PY
           python3 - <<'PY'
           from pathlib import Path
           import re
           s=Path('index.html').read_text(encoding='utf-8')
-          assert 'neutralizeSurvivingDefensiveBuilding(r)' not in s
-          assert 'neutralizeSurvivingDefensiveBuilding(s)' in s
+          old="if(c.units===0){c.owner=null;const neutralized=neutralizeSurvivingDefensiveBuilding(r);c.hostile=neutralized?false:c.originalHostile}"
+          new="if(c.units===0){const neutralized=neutralizeSurvivingDefensiveBuilding(s);c.owner=null;c.hostile=neutralized?false:c.originalHostile}"
+          assert old not in s
+          assert new in s
           Path('/tmp/tribu.js').write_text('\n'.join(re.findall(r'<script[^>]*>(.*?)</script>',s,re.S)),encoding='utf-8')
           PY
           node --check /tmp/tribu.js
