@@ -1,0 +1,77 @@
+name: Restore TRIBU audio hooks
+on:
+  push:
+    paths:
+      - '.github/workflows/restore-audio-hooks.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch index.html
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+
+          old="""function draw(i,n=1){
+           for(let k=0;k<n;k++){
+             if(!G.deck.length)refillDeckFromDiscard();
+             if(!G.deck.length)break;
+             G.players[i].hand.push(G.deck.pop());
+           }
+          }"""
+          new="""function draw(i,n=1,withSound=true){
+           let drawn=0;
+           for(let k=0;k<n;k++){
+             if(!G.deck.length)refillDeckFromDiscard();
+             if(!G.deck.length)break;
+             G.players[i].hand.push(G.deck.pop());drawn++;
+           }
+           if(drawn&&withSound)audioCardMove();
+          }"""
+          assert old in s, 'draw() pattern not found'
+          s=s.replace(old,new,1)
+          s=s.replace('draw(i,3);agentDefaults(i)', 'draw(i,3,false);agentDefaults(i)')
+
+          old=''' horn:"assets/audio/cor.wav"\n};'''
+          new=''' horn:"assets/audio/cor.wav",\n cardMove:"assets/audio/card_move.mp3",\n construction:"assets/audio/construction.mp3"\n};'''
+          assert old in s, 'AUDIO_SRC pattern not found'
+          s=s.replace(old,new,1)
+
+          old="""function audioPlaySfx(name,vol=.8){
+           if(!audioSfxEnabled||!AUDIO_SRC[name])return;
+           const a=new Audio(AUDIO_SRC[name]);a.volume=vol;const p=a.play();if(p&&p.catch)p.catch(()=>{});
+          }"""
+          new=old+"""
+          function audioCardMove(){audioPlaySfx('cardMove',.72)}
+          function audioConstruction(){audioPlaySfx('construction',.72)}"""
+          assert old in s, 'audioPlaySfx pattern not found'
+          s=s.replace(old,new,1)
+
+          old='''p().hand.splice(idx,1);p().inPlay.push(id);\n G.b[r].building={type,cardId:id,owner:G.active};buildingMode=null;'''
+          new='''p().hand.splice(idx,1);p().inPlay.push(id);audioCardMove();\n G.b[r].building={type,cardId:id,owner:G.active};buildingMode=null;audioConstruction();'''
+          assert old in s, 'human building pattern not found'
+          s=s.replace(old,new,1)
+
+          old='''p().inPlay.push(id);G.b[r].building={type:cityName,cardId:id,owner:G.active};'''
+          new='''p().inPlay.push(id);audioCardMove();G.b[r].building={type:cityName,cardId:id,owner:G.active};audioConstruction();'''
+          assert old in s, 'bot city pattern not found'
+          s=s.replace(old,new,1)
+
+          old="""p().inPlay.push(id);G.b[r].building={type:'Forteresse',cardId:id,owner:G.active};"""
+          new="""p().inPlay.push(id);audioCardMove();G.b[r].building={type:'Forteresse',cardId:id,owner:G.active};audioConstruction();"""
+          assert old in s, 'bot fortress pattern not found'
+          s=s.replace(old,new,1)
+
+          p.write_text(s,encoding='utf-8')
+      - name: Commit patch
+        run: |
+          git config user.name "TRIBU audio fix"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html
+          git commit -m "Rétablit les sons de cartes et de construction"
+          git push
