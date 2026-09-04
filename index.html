@@ -867,8 +867,12 @@ function audioBattleEnd(){
  if(!audioBattleActive)return;
  audioBattleActive=false;
  const b=audioTrack('battle');
- const resume=()=>{b.pause();b.volume=.39;audioStartAmbient(audioAmbientResume.index,audioAmbientResume.time,true)};
- if(!b.paused)audioFadeTo(b,0,900,resume);else resume();
+ b.onended=null;
+ // La bataille est terminée : couper réellement la piste avant de reprendre l'ambiance.
+ b.pause();
+ try{b.currentTime=28}catch(e){}
+ b.volume=.39;
+ audioStartAmbient(audioAmbientResume.index,audioAmbientResume.time,true);
 }
 function audioSetMusic(on){
  audioMusicEnabled=!!on;try{localStorage.setItem('tribu_music',on?'on':'off')}catch(e){}audioUpdateButtons();
@@ -1610,7 +1614,7 @@ function consumeShadowUnits(){
    }
 
    c.units=Math.max(0,c.units-n);
-   if(c.units===0){c.owner=null;const neutralized=neutralizeSurvivingDefensiveBuilding(r);c.hostile=neutralized?false:c.originalHostile}
+   if(c.units===0){const neutralized=neutralizeSurvivingDefensiveBuilding(s);c.owner=null;c.hostile=neutralized?false:c.originalHostile}
  }
  const idx=G.players[actor].hand.indexOf(s.cardId);if(idx>=0)G.players[actor].hand.splice(idx,1);
  G.discard.push(s.cardId);
@@ -1928,7 +1932,7 @@ function portalMate(r){const b=G.b[r]&&G.b[r].building;return b&&b.type==='Porta
 function portalRegions(){return Object.keys(G.b).filter(r=>G.b[r].building&&G.b[r].building.type==='Portail')}
 function beginWalls(handIndex){
  if(isBot()||G.phase!=='play')return;const id=p().hand[handIndex];if(id===undefined||CARDS[id].name!=='Murs frontaliers')return;
- p().hand.splice(handIndex,1);p().inPlay.push(id);
+ p().hand.splice(handIndex,1);p().inPlay.push(id);audioCardMove();audioConstruction();
  log(p().name+' pose Murs frontaliers : bonus global de Défense désormais +'+wallCount(G.active)+'.');render();
 }
 function beginPortals(handIndex){
@@ -2259,7 +2263,7 @@ function botPlayUsefulCard(){
  // Murs frontaliers : simple et utile.
  let idx=hand.findIndex(id=>CARDS[id].name==='Murs frontaliers');
  if(idx>=0){
-   const id=hand.splice(idx,1)[0];p().inPlay.push(id);
+   const id=hand.splice(idx,1)[0];p().inPlay.push(id);audioCardMove();audioConstruction();
    log(p().name+' (bot) joue Murs frontaliers.');
    return true;
  }
