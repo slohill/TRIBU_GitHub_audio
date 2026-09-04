@@ -16,96 +16,39 @@ jobs:
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text(encoding='utf-8')
-
-          # Section de l'ombre: neutraliser la vraie région source, pas l'objet d'état.
           old="if(c.units===0){const neutralized=neutralizeSurvivingDefensiveBuilding(s);c.owner=null;c.hostile=neutralized?false:c.originalHostile}"
           new="if(c.units===0){const neutralized=neutralizeSurvivingDefensiveBuilding(r);c.owner=null;c.hostile=neutralized?false:c.originalHostile}"
-          if old not in s: raise SystemExit('shadow neutralization anchor not found')
+          if old not in s: raise SystemExit('shadow anchor missing')
           s=s.replace(old,new,1)
-
-          # takeMovers doit continuer à neutraliser sa source `s`.
-          take_anchor="function takeMovers(s,n){"
-          pos=s.find(take_anchor)
-          if pos<0: raise SystemExit('takeMovers missing')
-          end=s.find("\nfunction validate()",pos)
-          block=s[pos:end]
-          wrong="neutralizeSurvivingDefensiveBuilding(r)"
-          right="neutralizeSurvivingDefensiveBuilding(s)"
-          if wrong in block: block=block.replace(wrong,right,1)
-          if right not in block: raise SystemExit('takeMovers source neutralization missing')
+          pos=s.find('function takeMovers(s,n){');end=s.find('\nfunction validate()',pos);block=s[pos:end]
+          if 'neutralizeSurvivingDefensiveBuilding(r)' in block: block=block.replace('neutralizeSurvivingDefensiveBuilding(r)','neutralizeSurvivingDefensiveBuilding(s)',1)
+          if 'neutralizeSurvivingDefensiveBuilding(s)' not in block: raise SystemExit('takeMovers anchor missing')
           s=s[:pos]+block+s[end:]
-
-          # Le nombre réellement retiré devient l'unique vérité du transfert.
-          old=""" const carried=consumePickedSources();
- if(isSea(target)){"""
-          new=""" const carried=consumePickedSources();
- const moved=carried.length;
- if(moved!==n)log('Sécurité déplacement : '+n+' unité(s) demandée(s), '+moved+' réellement disponible(s).');
- if(moved<=0){dest=null;picks={};render();return}
- n=moved;
- if(isSea(target)){"""
-          if old not in s: raise SystemExit('commit movement accounting anchor missing')
+          old=" const carried=consumePickedSources();\n if(isSea(target)){"
+          new=" const carried=consumePickedSources();\n const moved=carried.length;\n if(moved!==n)log('Sécurité déplacement : '+n+' unité(s) demandée(s), '+moved+' réellement disponible(s).');\n if(moved<=0){dest=null;picks={};render();return}\n n=moved;\n if(isSea(target)){"
+          if old not in s: raise SystemExit('accounting anchor missing')
           s=s.replace(old,new,1)
-
-          # Conserver les points de mouvement restants lors d'une attaque (Montures).
-          old="startSeaBattle(target,n,seaDefender);"
-          new="startSeaBattle(target,n,seaDefender,carried);"
-          if old not in s: raise SystemExit('sea battle call missing')
+          pairs=[('startSeaBattle(target,n,seaDefender);','startSeaBattle(target,n,seaDefender,carried);'),('startLandBattle(target,n);','startLandBattle(target,n,carried);'),('function startLandBattle(target,n){','function startLandBattle(target,n,attackMove=[]){'),("reactionSide:'defender'};\n log('Bataille terrestre","reactionSide:'defender',attackMove:attackMove.slice()};\n log('Bataille terrestre"),('function startSeaBattle(target,n,defender){','function startSeaBattle(target,n,defender,attackMove=[]){'),("reactionSide:'defender'};\n log('Bataille maritime","reactionSide:'defender',attackMove:attackMove.slice()};\n log('Bataille maritime")]
+          for a,b in pairs:
+           if a not in s: raise SystemExit('battle anchor missing: '+a[:32])
+           s=s.replace(a,b,1)
+          old="     const c=G.b[target];c.owner=attacker;c.units=surv;c.hostile=false;\n     if(battle.fromShadow&&attacker===G.active){\n       movable[target]=(movable[target]||[]).concat((battle.shadowMove||[]).slice(0,surv));\n     }"
+          new="     const c=G.b[target];c.owner=attacker;c.units=surv;c.hostile=false;\n     if(attacker===G.active){\n       const remainingMove=battle.fromShadow?(battle.shadowMove||[]):(battle.attackMove||[]);\n       movable[target]=(movable[target]||[]).concat(remainingMove.slice(0,surv));\n     }"
+          if old not in s: raise SystemExit('land survivor anchor missing')
           s=s.replace(old,new,1)
-          old="startLandBattle(target,n);"
-          new="startLandBattle(target,n,carried);"
-          if old not in s: raise SystemExit('land battle call missing')
+          old="     G.sea[target].fleets[defender]=0;\n     G.sea[target].fleets[attacker]=(G.sea[target].fleets[attacker]||0)+surv;"
+          new="     G.sea[target].fleets[defender]=0;\n     G.sea[target].fleets[attacker]=(G.sea[target].fleets[attacker]||0)+surv;\n     if(attacker===G.active)movable[target]=(movable[target]||[]).concat((battle.attackMove||[]).slice(0,surv));"
+          if old not in s: raise SystemExit('sea survivor anchor missing')
           s=s.replace(old,new,1)
-
-          old="function startLandBattle(target,n){"
-          new="function startLandBattle(target,n,attackMove=[]){"
-          if old not in s: raise SystemExit('land battle signature missing')
-          s=s.replace(old,new,1)
-          old="reactionSide:'defender'};\n log('Bataille terrestre"
-          new="reactionSide:'defender',attackMove:attackMove.slice()};\n log('Bataille terrestre"
-          if old not in s: raise SystemExit('land battle state anchor missing')
-          s=s.replace(old,new,1)
-
-          old="function startSeaBattle(target,n,defender){"
-          new="function startSeaBattle(target,n,defender,attackMove=[]){"
-          if old not in s: raise SystemExit('sea battle signature missing')
-          s=s.replace(old,new,1)
-          old="reactionSide:'defender'};\n log('Bataille maritime"
-          new="reactionSide:'defender',attackMove:attackMove.slice()};\n log('Bataille maritime"
-          if old not in s: raise SystemExit('sea battle state anchor missing')
-          s=s.replace(old,new,1)
-
-          # Après victoire, seuls les survivants transportent leurs points restants.
-          old="""     const c=G.b[target];c.owner=attacker;c.units=surv;c.hostile=false;
-     if(battle.fromShadow&&attacker===G.active){
-       movable[target]=(movable[target]||[]).concat((battle.shadowMove||[]).slice(0,surv));
-     }"""
-          new="""     const c=G.b[target];c.owner=attacker;c.units=surv;c.hostile=false;
-     if(attacker===G.active){
-       const remainingMove=battle.fromShadow?(battle.shadowMove||[]):(battle.attackMove||[]);
-       movable[target]=(movable[target]||[]).concat(remainingMove.slice(0,surv));
-     }"""
-          if old not in s: raise SystemExit('land survivor movement anchor missing')
-          s=s.replace(old,new,1)
-
-          old="""     G.sea[target].fleets[defender]=0;
-     G.sea[target].fleets[attacker]=(G.sea[target].fleets[attacker]||0)+surv;"""
-          new="""     G.sea[target].fleets[defender]=0;
-     G.sea[target].fleets[attacker]=(G.sea[target].fleets[attacker]||0)+surv;
-     if(attacker===G.active)movable[target]=(movable[target]||[]).concat((battle.attackMove||[]).slice(0,surv));"""
-          if old not in s: raise SystemExit('sea survivor movement anchor missing')
-          s=s.replace(old,new,1)
-
           p.write_text(s,encoding='utf-8')
           PY
           python3 - <<'PY'
           from pathlib import Path
           import re
           s=Path('index.html').read_text(encoding='utf-8')
-          assert "const moved=carried.length;" in s
-          assert "startLandBattle(target,n,carried)" in s
-          assert "startSeaBattle(target,n,seaDefender,carried)" in s
-          assert "neutralizeSurvivingDefensiveBuilding(r);c.owner=null" in s
+          assert 'const moved=carried.length;' in s
+          assert 'startLandBattle(target,n,carried)' in s
+          assert 'startSeaBattle(target,n,seaDefender,carried)' in s
           Path('/tmp/tribu.js').write_text('\n'.join(re.findall(r'<script[^>]*>(.*?)</script>',s,re.S)),encoding='utf-8')
           PY
           node --check /tmp/tribu.js
