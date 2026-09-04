@@ -630,12 +630,14 @@ function refillDeckFromDiscard(){
  log('♻ La pioche est vide : la défausse est mélangée pour former une nouvelle pioche.');
  return true;
 }
-function draw(i,n=1){
+function draw(i,n=1,withSound=true){
+ let drawn=0;
  for(let k=0;k<n;k++){
    if(!G.deck.length)refillDeckFromDiscard();
    if(!G.deck.length)break;
-   G.players[i].hand.push(G.deck.pop());
+   G.players[i].hand.push(G.deck.pop());drawn++;
  }
+ if(drawn&&withSound)audioCardMove();
 }
 
 function isHumanOnlyMode(mode=$('gameMode').value){return ['3h','4h','5h'].includes(mode)}
@@ -775,7 +777,7 @@ function confirmSetupRegions(){
  renderSetupIdentity();
 }
 function finishHumanSetup(){
- G.players.forEach((pl,i)=>{draw(i,3);agentDefaults(i)});
+ G.players.forEach((pl,i)=>{draw(i,3,false);agentDefaults(i)});
  setupState=null;
  $('setupPanel').classList.add('hidden');
  G.active=0;G.turn=1;G.phase='start';resetMove();
@@ -795,7 +797,9 @@ const AUDIO_SRC={
  thief:"assets/audio/voleur.wav",
  fail:"assets/audio/echec.wav",
  drums:"assets/audio/tambours.wav",
- horn:"assets/audio/cor.wav"
+ horn:"assets/audio/cor.wav",
+ cardMove:"assets/audio/card_move.mp3",
+ construction:"assets/audio/construction.mp3"
 };
 const audioTracks={};
 function audioLoadPrefs(){
@@ -829,6 +833,8 @@ function audioPlaySfx(name,vol=.8){
  if(!audioSfxEnabled||!AUDIO_SRC[name])return;
  const a=new Audio(AUDIO_SRC[name]);a.volume=vol;const p=a.play();if(p&&p.catch)p.catch(()=>{});
 }
+function audioCardMove(){audioPlaySfx('cardMove',.72)}
+function audioConstruction(){audioPlaySfx('construction',.72)}
 function audioBattleCue(){audioPlaySfx('drums',.72);audioPlaySfx('horn',.92)}
 function audioStartAmbient(index=0,time=0,fade=true){
  audioAmbientIndex=index%2;audioMode='ambient';
@@ -918,7 +924,7 @@ function init(){audioEnterGame();commerceDeals=[];commerceSeq=1;commerceDraft=nu
      pair.forEach(r=>{G.b[r].owner=i;G.b[r].units=3;G.b[r].hostile=false});
      G.log.push(p(i).name+' commence en province '+prov+' : '+pair.join(' + ')+'.');
    });
-   G.players.forEach((pl,i)=>{draw(i,3);agentDefaults(i)});
+   G.players.forEach((pl,i)=>{draw(i,3,false);agentDefaults(i)});
  }
  resetMove();dest=null;picks={};battle=null;buildingMode=null;shadowState=null;egnoState=null;battleStack=[];
  clearInterval(shadowTick);clearInterval(battleTick);clearTimeout(botTimer);clearTimeout(botReactionTimer);clearInterval(paidDrawTick);
@@ -2038,8 +2044,8 @@ function placeBuilding(r){
  if(!buildingMode||!canPlaceBuilding(r))return;
  const id=buildingMode.cardId,idx=p().hand.indexOf(id);if(idx<0){buildingMode=null;render();return}
  const type=buildingMode.type;
- p().hand.splice(idx,1);p().inPlay.push(id);
- G.b[r].building={type,cardId:id,owner:G.active};buildingMode=null;
+ p().hand.splice(idx,1);p().inPlay.push(id);audioCardMove();
+ G.b[r].building={type,cardId:id,owner:G.active};buildingMode=null;audioConstruction();
  if(type==='Forteresse')log(p().name+' construit une Forteresse sur '+r+' : +10 Défense.');
  if(type==='Icenia, la cité blanche')log(p().name+' fonde Icenia sur '+r+' : +10 Défense, +5 Or à la Récolte, climat enneigé verrouillé.');
  if(type==='Sundo, cité du soleil')log(p().name+' fonde Sundo sur '+r+' : +10 Défense, +5 Or à la Récolte, climat désertique verrouillé.');
@@ -2283,7 +2289,7 @@ function botPlayUsefulCard(){
      if(regs.length){
        regs.sort((a,b)=>G.b[b].units-G.b[a].units);
        const r=regs[0],id=hand.splice(idx,1)[0];
-       p().inPlay.push(id);G.b[r].building={type:cityName,cardId:id,owner:G.active};
+       p().inPlay.push(id);audioCardMove();G.b[r].building={type:cityName,cardId:id,owner:G.active};audioConstruction();
        log(p().name+' (bot) construit '+cityName+' sur '+r+'.');
        return true;
      }
@@ -2297,7 +2303,7 @@ function botPlayUsefulCard(){
    if(regs.length){
      regs.sort((a,b)=>G.b[b].units-G.b[a].units);
      const r=regs[0],id=hand.splice(idx,1)[0];
-     p().inPlay.push(id);G.b[r].building={type:'Forteresse',cardId:id,owner:G.active};
+     p().inPlay.push(id);audioCardMove();G.b[r].building={type:'Forteresse',cardId:id,owner:G.active};audioConstruction();
      log(p().name+' (bot) construit une Forteresse sur '+r+'.');
      return true;
    }
