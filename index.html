@@ -2999,7 +2999,7 @@ function takeMovers(s,n){
  if(isSea(s))G.sea[s].fleets[G.active]=(G.sea[s].fleets[G.active]||0)-taken.length;
  else{
    const c=G.b[s];c.units-=taken.length;
-   if(c.units===0){c.owner=null;const neutralized=neutralizeSurvivingDefensiveBuilding(r);c.hostile=neutralized?false:c.originalHostile}
+   if(c.units===0){const neutralized=neutralizeSurvivingDefensiveBuilding(s);c.owner=null;c.hostile=neutralized?false:c.originalHostile}
  }
  return taken;
 }
