@@ -1,4 +1,4 @@
-name: Preload TRIBU images
+name: Preload TRIBU card art
 on:
   push:
     paths:
@@ -10,60 +10,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Restore image preload
+      - name: Preload official card art
         run: |
           python3 - <<'PY'
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text(encoding='utf-8')
-          if 'function preloadGameCardImages()' in s:
-              raise SystemExit('preloadGameCardImages already exists')
-          marker='</script>'
-          pos=s.rfind(marker)
-          if pos < 0: raise SystemExit('closing script not found')
-          code=r'''
-
-// Précharge les illustrations du jeu en arrière-plan afin d'éviter
-// l'attente au premier affichage d'une carte, d'une faction ou d'un pion.
-function preloadGameCardImages(){
- const urls=new Set();
- const add=v=>{if(typeof v==='string'&&v.startsWith('assets/images/'))urls.add(v)};
- const scan=v=>{
-  if(!v)return;
-  if(typeof v==='string'){add(v);return}
-  if(Array.isArray(v)){v.forEach(scan);return}
-  if(typeof v==='object')Object.values(v).forEach(scan);
- };
- // Les tables d'images déjà déclarées dans le jeu sont la source de vérité.
- ['CARD_IMAGES','CARD_IMG','CARD_ART','ORACLE_IMAGES','ORACLE_IMG','FACTION_PORTRAITS','DICE_IMAGES','DIE_IMAGES','TOKEN_IMAGES','MAP_IMAGES','MAP_IMG'].forEach(name=>{
-  try{if(typeof globalThis[name]!=='undefined')scan(globalThis[name])}catch(_e){}
- });
- // Complément : récupère aussi les chemins d'images littéraux présents dans le document.
- const html=document.documentElement.innerHTML;
- for(const m of html.matchAll(/assets\/images\/[A-Za-z0-9_./%()' -]+?\.(?:png|jpg|jpeg|webp)/gi))add(m[0]);
- const queue=[...urls];
- let active=0;
- const pump=()=>{
-  while(active<6&&queue.length){
-   const src=queue.shift();active++;
-   const img=new Image();
-   img.decoding='async';
-   img.onload=img.onerror=()=>{active--;pump()};
-   img.src=src;
-  }
- };
- pump();
-}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(preloadGameCardImages,0),{once:true});
-else setTimeout(preloadGameCardImages,0);
-'''
-          s=s[:pos]+code+s[pos:]
+          old="['CARD_IMAGES','CARD_IMG','CARD_ART','ORACLE_IMAGES','ORACLE_IMG','FACTION_PORTRAITS','DICE_IMAGES','DIE_IMAGES','TOKEN_IMAGES','MAP_IMAGES','MAP_IMG']"
+          new="['OFFICIAL_CARD_ART','OFFICIAL_ORACLE_ART','ORACLE_CARD_ART','CARD_IMAGES','CARD_IMG','CARD_ART','ORACLE_IMAGES','ORACLE_IMG','FACTION_PORTRAITS','DICE_IMAGES','DIE_IMAGES','TOKEN_IMAGES','MAP_IMAGES','MAP_IMG']"
+          if old not in s: raise SystemExit('preload table list not found')
+          s=s.replace(old,new,1)
           p.write_text(s,encoding='utf-8')
           PY
           python3 - <<'PY'
           from pathlib import Path
           import re
           s=Path('index.html').read_text(encoding='utf-8')
+          if "'OFFICIAL_CARD_ART'" not in s: raise SystemExit('OFFICIAL_CARD_ART preload missing')
           Path('/tmp/tribu.js').write_text('\n'.join(re.findall(r'<script[^>]*>(.*?)</script>',s,re.S)),encoding='utf-8')
           PY
           node --check /tmp/tribu.js
@@ -72,5 +35,5 @@ else setTimeout(preloadGameCardImages,0);
           git config user.name "TRIBU fixes"
           git config user.email "actions@users.noreply.github.com"
           git add index.html
-          git commit -m "Rétablit le préchargement des images"
+          git commit -m "Précharge les illustrations des cartes TRIBU"
           git push
