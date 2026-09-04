@@ -1614,7 +1614,7 @@ function consumeShadowUnits(){
    }
 
    c.units=Math.max(0,c.units-n);
-   if(c.units===0){const neutralized=neutralizeSurvivingDefensiveBuilding(s);c.owner=null;c.hostile=neutralized?false:c.originalHostile}
+   if(c.units===0){const neutralized=neutralizeSurvivingDefensiveBuilding(r);c.owner=null;c.hostile=neutralized?false:c.originalHostile}
  }
  const idx=G.players[actor].hand.indexOf(s.cardId);if(idx>=0)G.players[actor].hand.splice(idx,1);
  G.discard.push(s.cardId);
@@ -3034,9 +3034,13 @@ function commitMovement(n,seaDefender){
    // Pair : le déplacement se poursuit normalement.
  }
  const carried=consumePickedSources();
+ const moved=carried.length;
+ if(moved!==n)log('Sécurité déplacement : '+n+' unité(s) demandée(s), '+moved+' réellement disponible(s).');
+ if(moved<=0){dest=null;picks={};render();return}
+ n=moved;
  if(isSea(target)){
    if(seaDefender!==null && seaDefender!==undefined){
-     startSeaBattle(target,n,seaDefender);
+     startSeaBattle(target,n,seaDefender,carried);
      dest=null;picks={};render();return;
    }
    G.sea[target].fleets[G.active]=(G.sea[target].fleets[G.active]||0)+n;
@@ -3053,7 +3057,7 @@ function commitMovement(n,seaDefender){
    log(p().name+' récupère '+label+' vide en '+target+', sans bataille.');
    log(n+' unité(s) rejoignent '+target+'.');
  }else if(enemyRegion(target)){
-   startLandBattle(target,n);
+   startLandBattle(target,n,carried);
    dest=null;picks={};render();return;
  }else{
    const c=G.b[target];
@@ -3099,22 +3103,22 @@ function openSeaChoice(n){
  cancel.onclick=()=>{hideBattle();battle=null};
  actions.appendChild(cancel);
 }
-function startLandBattle(target,n){
+function startLandBattle(target,n,attackMove=[]){
  const c=G.b[target],hostile=effectiveHostile(target),db=defensiveBuildingAt(target);
  const defender=hostile?null:(c.owner!==null?c.owner:(db&&db.owner!==null?db.owner:null));
  const defBase=(hostile?5:(defender===null?0:c.units*FACTIONS[p(defender).faction].def))+buildingDefense(target);
  attacked.add(target);
- battle={kind:'land',target,attacker:G.active,defender,attackUnits:n,defenseBase:defBase,defOriginalUnits:c.units,epicDefenderUnits:c.units,hostile:hostile,stack:[],seconds:15,reactionSide:'defender'};
+ battle={kind:'land',target,attacker:G.active,defender,attackUnits:n,defenseBase:defBase,defOriginalUnits:c.units,epicDefenderUnits:c.units,hostile:hostile,stack:[],seconds:15,reactionSide:'defender',attackMove:attackMove.slice()};
  log('Bataille terrestre en '+target+' : '+n+' Att contre '+defBase+' Déf.');
  audioBattleBegin();
  startReactionWindow();
 }
-function startSeaBattle(target,n,defender){
+function startSeaBattle(target,n,defender,attackMove=[]){
  const defUnits=G.sea[target].fleets[defender]||0;
  const defCoeff=FACTIONS[p(defender).faction].def;
  const defBase=defUnits*defCoeff;
  attacked.add(target);
- battle={kind:'sea',target,attacker:G.active,defender,attackUnits:n,defenseBase:defBase,defOriginalUnits:defUnits,epicDefenderUnits:defUnits,hostile:false,stack:[],seconds:15,reactionSide:'defender'};
+ battle={kind:'sea',target,attacker:G.active,defender,attackUnits:n,defenseBase:defBase,defOriginalUnits:defUnits,epicDefenderUnits:defUnits,hostile:false,stack:[],seconds:15,reactionSide:'defender',attackMove:attackMove.slice()};
  log('Bataille maritime en '+target+' : '+n+' Att contre '+defBase+' Déf ('+defUnits+' unité(s) ×'+defCoeff+').');
  audioBattleBegin();
  startReactionWindow();
@@ -3143,8 +3147,9 @@ function resolveBattle(){
    }
    if(battle.kind==='land'){
      const c=G.b[target];c.owner=attacker;c.units=surv;c.hostile=false;
-     if(battle.fromShadow&&attacker===G.active){
-       movable[target]=(movable[target]||[]).concat((battle.shadowMove||[]).slice(0,surv));
+     if(attacker===G.active){
+       const remainingMove=battle.fromShadow?(battle.shadowMove||[]):(battle.attackMove||[]);
+       movable[target]=(movable[target]||[]).concat(remainingMove.slice(0,surv));
      }
      if(c.building&&['Forteresse','Icenia, la cité blanche','Sundo, cité du soleil'].includes(c.building.type)){
        if(battle.trebuchetsUsed){
@@ -3159,6 +3164,7 @@ function resolveBattle(){
    }else{
      G.sea[target].fleets[defender]=0;
      G.sea[target].fleets[attacker]=(G.sea[target].fleets[attacker]||0)+surv;
+     if(attacker===G.active)movable[target]=(movable[target]||[]).concat((battle.attackMove||[]).slice(0,surv));
    }
    log('Victoire de '+p(attacker).name+' en '+target+' : '+a+' contre '+d+', '+surv+' survivant(s).');
  }else{
