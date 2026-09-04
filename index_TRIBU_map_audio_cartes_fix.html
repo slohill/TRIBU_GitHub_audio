@@ -340,8 +340,8 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 
 /* v86 — encarts de faction */
 .playerCard{overflow:visible;background-color:#19201d}
-.playerCard::before{content:"";position:absolute;inset:0;border-radius:6px;background-image:var(--faction-card-bg);background-size:cover;background-position:center;opacity:.46;z-index:0;pointer-events:none}
-.playerCard::after{content:"";position:absolute;inset:0;border-radius:6px;background:rgba(245,248,244,.20);z-index:0;pointer-events:none}
+.playerCard::before{content:"";position:absolute;inset:0;border-radius:6px;background-image:var(--faction-card-bg);background-size:cover;background-position:center;background-repeat:no-repeat;opacity:.72;z-index:0;pointer-events:none}
+.playerCard::after{content:"";position:absolute;inset:0;border-radius:6px;background:rgba(10,14,12,.10);z-index:0;pointer-events:none}
 .playerCard>*{position:relative;z-index:1}
 .setupFactionPortrait{width:112px;height:112px;padding:0;border:3px solid #777;border-radius:10px;overflow:hidden;background:#111;position:relative}
 .setupFactionPortrait img{width:100%;height:100%;object-fit:cover;display:block}
@@ -409,7 +409,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
       <div id="divinationChoices" class="divinationChoices"></div>
     </div>
     <div id="inPlayPreview" class="inPlayPreview hidden"></div>
-    <img id="boardMapImage" src="assets/images/maps/map_initial.png" alt="Carte simplifiée de Tribu">
+    <img id="boardMapImage" src="assets/images/maps/map_normal.png" alt="Carte de Tribu">
     <div id="battleBanner" class="battleBanner hidden"></div>
     <div id="assassinMapMessage" class="assassinMapMessage hidden"></div>
   </div>
@@ -548,6 +548,13 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 <script>
 const DATA={"POS":{"A1":[9.46,28.86],"A2":[9.26,39.04],"A3":[14.84,43.36],"A4":[18.03,47.96],"A5":[13.15,59.53],"B1":[9.46,66.37],"B2":[16.14,68.32],"B3":[8.96,83.79],"B4":[13.94,81.7],"B5":[23.41,87.28],"C1":[26.1,23.84],"C2":[25.9,34.02],"C3":[26.79,44.62],"C4":[33.96,29.56],"C5":[41.33,35.97],"D1":[51.89,37.37],"D2":[59.76,31.79],"D3":[70.42,29.42],"D4":[64.94,38.34],"D5":[57.97,44.34],"E1":[35.46,46.71],"E2":[47.41,45.45],"E3":[55.28,53.12],"E4":[43.13,54.52],"E5":[50.7,61.9],"F1":[28.19,56.61],"F2":[36.25,60.79],"F3":[34.06,69.02],"F4":[43.23,69.57],"F5":[50.9,71.66],"G1":[64.84,52.28],"G2":[64.14,62.04],"G3":[60.66,73.06],"G4":[69.72,70.69],"G5":[67.63,82.26],"H1":[84.26,23.84],"H2":[88.45,28.16],"H3":[83.07,35.0],"H4":[81.57,46.57],"H5":[86.85,42.52],"I1":[82.17,55.21],"I2":[89.14,56.19],"I3":[82.57,64.83],"I4":[89.04,67.48],"I5":[85.76,77.1],"U":[16.24,17.01],"V":[29.88,79.61],"W":[48.8,24.12],"X":[73.41,49.36],"Y":[95.22,37.23],"Z":[77.79,87.42]},"R":{"A1":["A","e",0,["A2"],["U"]],"A2":["A","e",0,["A1"],[]],"A3":["A","e",0,["A4"],["U"]],"A4":["A","e",0,["A3"],[]],"A5":["A","e",1,["B1","B2"],["U"]],"B1":["B","e",0,["A5","B2"],[]],"B2":["B","e",0,["A5","B1"],["V"]],"B3":["B","t",1,["B4"],[]],"B4":["B","t",0,["B3"],["V"]],"B5":["B","t",0,[],["V"]],"C1":["C","e",0,["C2","C4"],["U"]],"C2":["C","e",0,["C1","C3","C4"],[]],"C3":["C","e",1,["C2","C4","E1","F1"],[]],"C4":["C","t",0,["C1","C2","C3","C5","E1"],[]],"C5":["C","t",0,["C4","E1","E2","D1"],["W"]],"D1":["D","t",0,["C5","E2","D2","D5"],["W"]],"D2":["D","t",0,["D1","D3","D4","D5"],[]],"D3":["D","t",0,["D2","D4"],[]],"D4":["D","t",0,["D2","D3","D5","G1"],["X"]],"D5":["D","t",1,["D1","D2","D4","E2","E3","G1"],[]],"E1":["E","t",0,["C3","C4","C5","E2","E4","F1","F2"],[]],"E2":["E","t",0,["E1","E3","E4","C5","D1","D5"],[]],"E3":["E","t",0,["E2","E4","E5","D5","G1","G2"],[]],"E4":["E","t",1,["E1","E2","E3","E5","F2","F4"],[]],"E5":["E","t",0,["E3","E4","F4","F5","G2","G3"],[]],"F1":["F","t",0,["C3","E1","F2","F3"],["V"]],"F2":["F","t",0,["E1","E4","F1","F3","F4"],[]],"F3":["F","t",1,["F1","F2","F4"],[]],"F4":["F","t",0,["F2","F3","F5","E4","E5"],[]],"F5":["F","t",0,["E5","F4","G3"],["V"]],"G1":["G","t",0,["D4","D5","E3","G2"],["X"]],"G2":["G","d",1,["G1","G3","G4","E3","E5"],[]],"G3":["G","d",0,["G2","G4","G5","F5","E5"],[]],"G4":["G","d",0,["G2","G3","G5"],[]],"G5":["G","d",0,["G3","G4"],["Z"]],"H1":["H","t",0,["H2","H3"],[]],"H2":["H","t",0,["H1","H3","H5"],[]],"H3":["H","t",1,["H1","H2","H4","H5"],[]],"H4":["H","t",0,["H3","H5","I1"],["X"]],"H5":["H","d",0,["H2","H3","H4","I1","I2"],["Y"]],"I1":["I","d",0,["H4","H5","I2","I3"],[]],"I2":["I","d",0,["H5","I1","I3","I4"],["Y"]],"I3":["I","d",0,["I1","I2","I4","I5"],[]],"I4":["I","d",0,["I2","I3","I5"],[]],"I5":["I","d",1,["I3","I4"],["Z"]]},"SEA":{"U":["W","V"],"V":["U","Z"],"W":["U","X","Y"],"X":["W","Z","Y"],"Y":["W","X","Z"],"Z":["V","X","Y"]},"PORTS":{"U":["A1","A3","A5","C1"],"V":["B2","B4","B5","F1","F5"],"W":["C5","D1"],"X":["D4","G1","H4"],"Y":["H5","I2"],"Z":["G5","I5"]},"cards":[{"name":"Assassin","count":4,"type":"Tactique","effect":"Lancez un dé. Sur 4, 5 ou 6, éliminez l’Agent ou le Héros ciblé. Sur 1, 2 ou 3, l’effet échoue."},{"name":"Balistes","count":4,"type":"Tactique","effect":"+2 d’Attaque sur toutes vos attaques jusqu’à la fin du tour, ou +2 de Défense sur toutes vos défenses jusqu’à la fin du tour du joueur actif."},{"name":"Caravane de commerce","count":2,"type":"Tactique","effect":"Révélez autant de cartes Tribu qu’il y a de joueurs. Chacun choisit une carte dans le sens horaire."},{"name":"Catapultes","count":3,"type":"Tactique","effect":"+5 d’Attaque ou de Défense durant une bataille."},{"name":"Conseil de guerre","count":3,"type":"Tactique","effect":"Piochez 2 cartes puis défaussez 2 cartes."},{"name":"Egnobombe","count":1,"type":"Tactique","effect":"Sacrifiez toutes vos unités d’une région terrestre contenant au moins 5 soldats ; détruisez les unités des cases adjacentes et mers reliées."},{"name":"Divination de l’Oracle","count":2,"type":"Tactique","effect":"Activez l’Oracle visible ou choisissez une carte Oracle à placer au-dessus de la pile après mélange."},{"name":"Embuscade","count":3,"type":"Tactique","effect":"Prenez l’Or qu’un adversaire devait gagner par une Récolte ou une carte Tribu."},{"name":"Espion","count":4,"type":"Permanent — Agent","effect":"Une fois par tour pendant votre Phase de Jeu, regardez une carte au hasard dans la main d’un adversaire."},{"name":"Forteresse","count":3,"type":"Permanent — Bâtiment","effect":"+10 Défense sur une de vos régions ; peut changer de propriétaire."},{"name":"Icenia, la cité blanche","count":1,"type":"Permanent — Bâtiment","effect":"+10 Défense sur une région enneigée, +5 Or à la Récolte, immunité locale à Givre mortel."},{"name":"Mur de pique","count":4,"type":"Tactique","effect":"+4 de Défense sur une bataille."},{"name":"Montures","count":2,"type":"Tactique","effect":"Au choix : nouveau point de déplacement pour toutes vos unités jusqu’à la fin du tour, ou +4 Attaque sur une bataille."},{"name":"Murs frontaliers","count":3,"type":"Permanent — Bâtiment","effect":"Toutes vos régions gagnent +1 Défense ; cumulable."},{"name":"Pluie de flèches","count":4,"type":"Tactique","effect":"+3 d’Attaque ou de Défense sur une bataille."},{"name":"Sundo, cité du soleil","count":1,"type":"Permanent — Bâtiment","effect":"+10 Défense sur une région désertique, +5 Or à la Récolte, immunité locale à Tempête de sable."},{"name":"Taxe","count":4,"type":"Tactique","effect":"+1 Or pour chaque case où vous avez des unités."},{"name":"Voleur","count":3,"type":"Permanent — Agent","effect":"Une fois par tour, tentez de voler une carte ; sur 1 le Voleur est défaussé. Peut exploiter une carte vue par un Espion."},{"name":"Section de l’ombre","count":1,"type":"Tactique","effect":"Jusqu’à 6 unités peuvent conquérir une case de votre choix ou défendre une case attaquée, même hors de votre tour."},{"name":"Plan des trébuchets","count":2,"type":"Permanent — Objet","effect":"Bonus contre Murs frontaliers, Forteresses et Cités ; destruction des bâtiments si victoire ; non cumulable."},{"name":"Portails","count":1,"type":"Permanent — Bâtiment","effect":"Deux régions terrestres deviennent adjacentes. Portails inaltérables et inutilisables par le Dragon."},{"name":"Pyrodontes de guerre","count":3,"type":"Tactique","effect":"+5 d’Attaque sur une bataille en région tempérée ; effet perdu si le climat change avant résolution."}]},POS=DATA.POS,R=DATA.R,SEA=DATA.SEA,PORTS=DATA.PORTS,CARDS=DATA.cards;
 const OFFICIAL_CARD_ART={"Assassin":"assets/images/cards/main/assassin.png","Balistes":"assets/images/cards/main/balistes.png","Caravane de commerce":"assets/images/cards/main/caravane_de_commerce.png","Catapultes":"assets/images/cards/main/catapultes.png","Conseil de guerre":"assets/images/cards/main/conseil_de_guerre.png","Egnobombe":"assets/images/cards/main/egnobombe.png","Divination de l’Oracle":"assets/images/cards/main/divination_oracle.png","Embuscade":"assets/images/cards/main/embuscade.png","Espion":"assets/images/cards/main/espion.png","Forteresse":"assets/images/cards/main/forteresse.png","Icenia, la cité blanche":"assets/images/cards/main/icenia.png","Mur de pique":"assets/images/cards/main/mur_de_pique.png","Montures":"assets/images/cards/main/montures.png","Murs frontaliers":"assets/images/cards/main/murs_frontaliers.png","Pluie de flèches":"assets/images/cards/main/pluie_de_fleches.png","Sundo, cité du soleil":"assets/images/cards/main/sundo.png","Taxe":"assets/images/cards/main/taxe.png","Voleur":"assets/images/cards/main/voleur.png","Section de l’ombre":"assets/images/cards/main/section_de_l_ombre.png","Plan des trébuchets":"assets/images/cards/main/plan_des_trebuchets.png","Pyrodontes de guerre":"assets/images/cards/main/pyrodontes_de_guerre.png","Canicule":"assets/images/cards/oracle/canicule.png","En quête de destruction":"assets/images/cards/oracle/en_quete_de_destruction.png","Givre mortel":"assets/images/cards/oracle/givre_mortel.png","Tempête de sable":"assets/images/cards/oracle/tempete_de_sable.png","Tempête en mer":"assets/images/cards/oracle/tempete_en_mer.png","Vague de froid":"assets/images/cards/oracle/vague_de_froid.png","__BACK_TRIBU__":"assets/images/cards/backs/back_tribu.png","__BACK_ORACLE__":"assets/images/cards/backs/back_oracle.png","Portails":"assets/images/cards/main/portails.png"};
+// Précharge les illustrations avant leur première apparition pour éviter la latence à la pioche.
+function preloadGameCardImages(){
+ const urls=[...new Set(Object.values(OFFICIAL_CARD_ART))];
+ urls.forEach(src=>{const img=new Image();img.decoding='async';img.src=src;});
+}
+preloadGameCardImages();
+
 const CARD_ZOOM_RULES={"Assassin":"<p>Ciblez un <b>Agent</b> ou un <b>Héros</b> adverse. Lancez un dé :</p><ul><li><b>4, 5 ou 6 :</b> l’Agent ou le Héros ciblé est éliminé et défaussé.</li><li><b>1, 2 ou 3 :</b> l’assassinat échoue.</li></ul>","Balistes":"Jouez cette carte et choisissez Attaque ou Défense. Jusqu’à la fin du tour en cours, ajoutez +2 à chacune de vos attaques si vous avez choisi Attaque, ou +2 à chacune de vos défenses si vous avez choisi Défense. Le bonus s’applique à toutes les batailles concernées pendant cette durée.","Caravane de commerce":"<p>Révélez depuis la pioche autant de cartes TRIBU qu’il y a de joueurs.</p><p>Dans le sens des tours de jeu, les joueurs choisissent une carte et l’ajoutent à leur main.</p>","Catapultes":"Jouez cette carte pendant une bataille à laquelle vous participez. Ajoutez +5 à la puissance de votre camp : +5 Attaque si vous êtes l’attaquant, ou +5 Défense si vous êtes le défenseur. Le bonus s’applique uniquement à cette bataille.","Conseil de guerre":"<p>Piochez <b>2 cartes TRIBU</b>, puis défaussez <b>2 cartes</b> de votre main.</p>","Egnobombe":"<p>Choisissez une case contenant au moins <b>5 de vos unités</b>.</p><p>Toutes les unités de cette case sont détruites, puis les unités présentes sur les cases adjacentes et les aires maritimes directement reliées sont détruites.</p>","Divination de l’Oracle":"<p>Choisissez :</p><p><b>Activez la prochaine carte Oracle</b></p><p class=\"orLine\">OU</p><p><b>Choisissez une carte Oracle</b>, mettez-la sur le dessus du paquet après y avoir mélangé toutes les autres cartes Oracle.</p>","Embuscade":"<p>Gagnez l’Or qu’un adversaire doit récolter via sa Récolte ou une carte TRIBU.</p><p>Cet adversaire ne reçoit pas son Or.</p>","Espion":"<p>Une fois par tour, regardez au hasard une carte de la main d’un adversaire.</p>","Forteresse":"<p>Placez une Forteresse sur une de vos régions. Elle confère <b>+10 de Défense</b> à cette région.</p><p>Peut être détruite par le Dragon ou certaines cartes TRIBU.<br>Peut être récupérée par vos adversaires ou un PNJ.</p>","Icenia, la cité blanche":"<p>Placez une Cité sur une région enneigée que vous contrôlez. Elle confère :</p><ul><li><b>+10 de Défense</b> à cette région.</li><li><b>+5 Or à la Récolte</b> tant qu’elle est sous votre contrôle.</li><li>La région reste <b>enneigée</b> et est <b>immunisée à Givre mortel</b>.</li></ul><p>Peut être détruite par le Dragon ou certaines cartes TRIBU.<br>Peut être récupérée par un joueur adverse ou un PNJ.</p>","Mur de pique":"<p>Jouez cette carte pendant une bataille où vous défendez.</p><p>Ajoutez <b>+4 à votre Défense</b> pour cette bataille.</p>","Montures":"<p>Choisissez :</p><p><b>+4 d’Attaque</b> sur une bataille</p><p class=\"orLine\">OU</p><p>Vos unités ont <b>un point de déplacement supplémentaire</b> pour ce tour.</p>","Murs frontaliers":"<p>Toutes les régions que vous contrôlez gagnent <b>+1 en Défense</b>.</p><p>Cumulable avec d’autres cartes Murs frontaliers.</p>","Pluie de flèches":"Jouez cette carte pendant une bataille à laquelle vous participez. Ajoutez +3 Attaque si vous êtes l’attaquant, ou +3 Défense si vous êtes le défenseur. Le bonus s’applique uniquement à cette bataille.","Sundo, cité du soleil":"<p>Placez Sundo sur une région désertique que vous contrôlez. Elle confère :</p><ul><li><b>+10 de Défense</b> à cette région.</li><li><b>+5 Or à la Récolte</b> tant qu’elle est sous votre contrôle.</li><li>La région reste <b>désertique</b> et est <b>immunisée à Tempête de sable</b>.</li></ul><p>Peut être détruite par le Dragon ou certaines cartes TRIBU.<br>Peut être récupérée par un joueur adverse ou un PNJ.</p>","Taxe":"<p>Gagnez <b>1 Or</b> pour chaque case sur laquelle vous possédez au moins une unité.</p>","Voleur":"<p>Une fois par tour, vous pouvez lancer le dé :</p><ul><li><b>1 :</b> défaussez le Voleur.</li><li><b>2, 3 ou 4 :</b> rien ne se passe.</li><li><b>5 ou 6 :</b> vous pouvez voler une carte à un adversaire : une carte de son « En jeu » ou une carte prise aléatoirement dans sa main.</li></ul><p class=\"orLine\">OU</p><p>Prenez directement une carte vue par l’un de vos Espions durant ce tour.</p>","Section de l’ombre":"<p>Prenez jusqu’à <b>6 de vos unités</b> sur la map. Celles-ci peuvent :</p><p><b>Conquérir n’importe quelle case</b> <small>(ne compte pas pour un déplacement)</small></p><p class=\"orLine\">OU</p><p><b>Défendre une case</b> où vos unités sont attaquées.</p>","Plan des trébuchets":"<ul><li><b>+1 d’Attaque</b> contre chaque bonus « Murs frontaliers » adverse, détruit(s) en cas de victoire.</li><li><b>+5 d’Attaque</b> contre chaque Forteresse et Cité, détruite(s) en cas de victoire.</li></ul><p>Bonus optionnels et non cumulables avec d’autres Plans des trébuchets.</p>","Pyrodontes de guerre":"<p>Jouez cette carte lorsque vous attaquez une région tempérée.</p><p>Ajoutez <b>+5 Attaque</b> pour cette bataille.</p>","Canicule":"Lorsque Canicule est activée, les régions enneigées deviennent tempérées et les régions tempérées deviennent désertiques ; les régions naturellement désertiques restent désertiques. Les terrains verrouillés des Cités conservent leur type. L’effet persiste jusqu’au prochain changement ou à la fin prévue de l’effet climatique.","Vague de froid":"Lorsque Vague de froid est activée, les régions tempérées deviennent enneigées et les régions désertiques deviennent tempérées ; les régions naturellement enneigées restent enneigées. Les terrains verrouillés des Cités conservent leur type. L’effet persiste jusqu’au prochain changement ou à la fin prévue de l’effet climatique.","Givre mortel":"Les Griffes-Blanches sont immunisés. Les unités non immunisées présentes en Mer de glace sont détruites. Ensuite, chaque joueur non immunisé doit sacrifier la moitié, arrondie au supérieur, de ses régions enneigées éligibles. Icenia est protégée.","Tempête de sable":"Les Reptones sont immunisés. Chaque joueur non immunisé doit sacrifier la moitié, arrondie au supérieur, de ses régions désertiques éligibles. Sundo est protégée. Tempête de sable ne détruit rien en Mer de feu.","Tempête en mer":"Pendant l’effet de Tempête en mer, tout déplacement impliquant une mer est soumis à un jet : résultat pair, le déplacement réussit ; résultat impair, les unités engagées sont perdues et la destination ratée est verrouillée pour le reste du tour.","En quête de destruction":"Lorsque cet Oracle est activé, le Dragon doit parcourir 5 cases différentes. Le joueur qui a activé l’Oracle choisit successivement ses déplacements ; les bots effectuent ces choix automatiquement. Tant que cet Oracle est visible et actif, les résultats prévus par sa règle peuvent également déclencher la destruction du Dragon.","Portails":"<p>Placez les deux Portails sur deux régions terrestres de votre choix.</p><ul><li>Ces deux régions deviennent <b>adjacentes</b>.</li><li>Les Portails sont <b>inaltérables</b> et inutilisables par le Dragon.</li></ul>"};
 function openOfficialCard(name,type,effect){
  const src=OFFICIAL_CARD_ART[name];if(!src)return;
@@ -630,12 +637,15 @@ function refillDeckFromDiscard(){
  log('♻ La pioche est vide : la défausse est mélangée pour former une nouvelle pioche.');
  return true;
 }
-function draw(i,n=1){
+function draw(i,n=1,withSound=true){
+ let drawn=0;
  for(let k=0;k<n;k++){
    if(!G.deck.length)refillDeckFromDiscard();
    if(!G.deck.length)break;
-   G.players[i].hand.push(G.deck.pop());
+   G.players[i].hand.push(G.deck.pop());drawn++;
  }
+ // Un seul bruit par action de pioche : évite la superposition qui produisait un « bzzt ».
+ if(drawn&&withSound)audioCardMove();
 }
 
 function isHumanOnlyMode(mode=$('gameMode').value){return ['3h','4h','5h'].includes(mode)}
@@ -717,7 +727,7 @@ function renderSetupIdentity(){
  Object.entries(FACTION_PORTRAIT_META).forEach(([key,meta])=>{
    if(usedPortraits.has(key))return;
    const b=document.createElement('button');b.className='setupFactionPortrait';
-   b.innerHTML='<img src="'+FACTION_PORTRAITS[key]+'" alt="'+meta.label+'"><span>'+meta.label+'</span>';
+   b.innerHTML='<img src="'+FACTION_PORTRAITS[key]+'" alt="'+meta.label+'" loading="eager" decoding="sync"><span>'+meta.label+'</span>';
    b.onclick=()=>{
      setupState.selectedPortrait=key;setupState.selectedFaction=meta.faction;
      box.querySelectorAll('.setupFactionPortrait').forEach(x=>x.classList.remove('selected'));b.classList.add('selected');
@@ -775,7 +785,7 @@ function confirmSetupRegions(){
  renderSetupIdentity();
 }
 function finishHumanSetup(){
- G.players.forEach((pl,i)=>{draw(i,3);agentDefaults(i)});
+ G.players.forEach((pl,i)=>{draw(i,3,false);agentDefaults(i)});
  setupState=null;
  $('setupPanel').classList.add('hidden');
  G.active=0;G.turn=1;G.phase='start';resetMove();
@@ -795,7 +805,10 @@ const AUDIO_SRC={
  thief:"assets/audio/voleur.wav",
  fail:"assets/audio/echec.wav",
  drums:"assets/audio/tambours.wav",
- horn:"assets/audio/cor.wav"
+ horn:"assets/audio/cor.wav",
+ cardMove:"assets/audio/card_move.mp3",
+ construction:"assets/audio/construction.mp3",
+ victory:"assets/audio/victory.mp3"
 };
 const audioTracks={};
 function audioLoadPrefs(){
@@ -830,6 +843,13 @@ function audioPlaySfx(name,vol=.8){
  const a=new Audio(AUDIO_SRC[name]);a.volume=vol;const p=a.play();if(p&&p.catch)p.catch(()=>{});
 }
 function audioBattleCue(){audioPlaySfx('drums',.72);audioPlaySfx('horn',.92)}
+function audioCardMove(){audioPlaySfx('cardMove',.72)}
+function audioConstruction(){audioPlaySfx('construction',.72)}
+function audioVictory(){
+ audioBattleActive=false;audioMode='victory';
+ ['welcome','ambient1','ambient2','battle'].forEach(n=>audioStopTrack(audioTrack(n),false));
+ const v=audioTrack('victory');v.loop=false;v.currentTime=0;v.volume=.42;if(audioMusicEnabled)audioSafePlay(v,0);
+}
 function audioStartAmbient(index=0,time=0,fade=true){
  audioAmbientIndex=index%2;audioMode='ambient';
  const name=audioAmbientIndex===0?'ambient1':'ambient2',a=audioTrack(name),other=audioTrack(audioAmbientIndex===0?'ambient2':'ambient1');
@@ -918,7 +938,7 @@ function init(){audioEnterGame();commerceDeals=[];commerceSeq=1;commerceDraft=nu
      pair.forEach(r=>{G.b[r].owner=i;G.b[r].units=3;G.b[r].hostile=false});
      G.log.push(p(i).name+' commence en province '+prov+' : '+pair.join(' + ')+'.');
    });
-   G.players.forEach((pl,i)=>{draw(i,3);agentDefaults(i)});
+   G.players.forEach((pl,i)=>{draw(i,3,false);agentDefaults(i)});
  }
  resetMove();dest=null;picks={};battle=null;buildingMode=null;shadowState=null;egnoState=null;battleStack=[];
  clearInterval(shadowTick);clearInterval(battleTick);clearTimeout(botTimer);clearTimeout(botReactionTimer);clearInterval(paidDrawTick);
@@ -1183,7 +1203,7 @@ function cardFromViewerHand(handIndex,name){
 function discardHandCard(actor,handIndex){
  const id=G.players[actor].hand[handIndex];
  if(id===undefined)return null;
- G.players[actor].hand.splice(handIndex,1);G.discard.push(id);return id;
+ G.players[actor].hand.splice(handIndex,1);G.discard.push(id);audioCardMove();return id;
 }
 function assassinTargets(actor){
  const out=[];
@@ -1249,7 +1269,7 @@ function resolveAssassin(target){
 function caravanRevealCount(){return G.players.length}
 function drawOneToPool(){
  if(!G.deck.length)refillDeckFromDiscard();
- return G.deck.length?G.deck.pop():null;
+ if(!G.deck.length)return null;const id=G.deck.pop();audioCardMove();return id;
 }
 function startCaravan(handIndex){
  const actor=localViewer(),id=G.players[actor].hand[handIndex];
@@ -1286,7 +1306,7 @@ function chooseCaravanCard(j){
  if(!caravanState||j<0||j>=caravanState.revealed.length)return;
  const chooser=caravanState.order[caravanState.pick];
  const id=caravanState.revealed.splice(j,1)[0];
- G.players[chooser].hand.push(id);
+ G.players[chooser].hand.push(id);audioCardMove();
  log(p(chooser).name+' choisit '+CARDS[id].name+' dans la Caravane.');
  caravanState.pick++;
  showCaravanChoice();
@@ -1726,7 +1746,7 @@ function playCouncil(handIndex){
    if(currentPriorityPlayer()!==actor)return;
    clearInterval(battleTick);clearTimeout(botReactionTimer);
  }
- G.players[actor].hand.splice(handIndex,1);G.discard.push(found.id);draw(actor,2);
+ G.players[actor].hand.splice(handIndex,1);G.discard.push(found.id);audioCardMove();draw(actor,2);
  choiceState={kind:'council',selected:[],player:actor,battleCouncil,battleRef:battle,battleSeconds:battle?battle.seconds:null};
  $('choiceTitle').textContent='Conseil de guerre';
  $('choiceText').textContent='Vous avez pioché 2 cartes. Choisissez exactement 2 cartes de votre main à défausser.';
@@ -1750,7 +1770,7 @@ function confirmCouncil(){
  inds.forEach(idx=>{
    if(idx<0||idx>=G.players[actor].hand.length)return;
    const id=G.players[actor].hand.splice(idx,1)[0];if(id===undefined)return;
-   names.push(CARDS[id].name);G.discard.push(id);
+   names.push(CARDS[id].name);G.discard.push(id);audioCardMove();
  });
  const wasBattle=choiceState.battleCouncil&&choiceState.battleRef===battle;
  const savedSeconds=choiceState.battleSeconds;
@@ -1788,7 +1808,7 @@ function inPlayCountByName(i,name){
 function playAgentFromHand(handIndex,name){
  if(G.phase!=='play'||G.active!==localViewer()||isBot()||isDecimated(G.active))return;
  const id=p().hand[handIndex];if(id===undefined||CARDS[id].name!==name)return;
- p().hand.splice(handIndex,1);p().inPlay.push(id);agentDefaults(G.active);p().inPlayUID[p().inPlay.length-1]='a'+G.active+'_'+(++p().agentSeq);
+ p().hand.splice(handIndex,1);p().inPlay.push(id);audioCardMove();agentDefaults(G.active);p().inPlayUID[p().inPlay.length-1]='a'+G.active+'_'+(++p().agentSeq);
  log(p().name+' met '+name+' en jeu.');
  render();
 }
@@ -1921,7 +1941,7 @@ function portalMate(r){const b=G.b[r]&&G.b[r].building;return b&&b.type==='Porta
 function portalRegions(){return Object.keys(G.b).filter(r=>G.b[r].building&&G.b[r].building.type==='Portail')}
 function beginWalls(handIndex){
  if(isBot()||G.phase!=='play')return;const id=p().hand[handIndex];if(id===undefined||CARDS[id].name!=='Murs frontaliers')return;
- p().hand.splice(handIndex,1);p().inPlay.push(id);
+ p().hand.splice(handIndex,1);p().inPlay.push(id);audioCardMove();
  log(p().name+' pose Murs frontaliers : bonus global de Défense désormais +'+wallCount(G.active)+'.');render();
 }
 function beginPortals(handIndex){
@@ -1944,7 +1964,7 @@ function choosePortalRegion(r){
  if(!portalMode.first){portalMode.first=r;log('Premier Portail : '+r+'. Choisissez la seconde région.');render();return}
  const a=portalMode.first,b=r,id=portalMode.cardId,owner=portalMode.owner,idx=G.players[owner].hand.indexOf(id);
  if(idx<0){portalMode=null;clearTopBanner();render();return}
- G.players[owner].hand.splice(idx,1);G.players[owner].inPlay.push(id);
+ G.players[owner].hand.splice(idx,1);G.players[owner].inPlay.push(id);audioCardMove();
  G.b[a].building={type:'Portail',cardId:id,owner,pair:b};G.b[b].building={type:'Portail',cardId:id,owner,pair:a};
  portalMode=null;clearTopBanner();log(p(owner).name+' pose les Portails : '+a+' ↔ '+b+'. Ces régions sont maintenant adjacentes pour les unités.');render();
 }
@@ -2038,8 +2058,8 @@ function placeBuilding(r){
  if(!buildingMode||!canPlaceBuilding(r))return;
  const id=buildingMode.cardId,idx=p().hand.indexOf(id);if(idx<0){buildingMode=null;render();return}
  const type=buildingMode.type;
- p().hand.splice(idx,1);p().inPlay.push(id);
- G.b[r].building={type,cardId:id,owner:G.active};buildingMode=null;
+ p().hand.splice(idx,1);p().inPlay.push(id);audioCardMove();
+ G.b[r].building={type,cardId:id,owner:G.active};buildingMode=null;audioConstruction();
  if(type==='Forteresse')log(p().name+' construit une Forteresse sur '+r+' : +10 Défense.');
  if(type==='Icenia, la cité blanche')log(p().name+' fonde Icenia sur '+r+' : +10 Défense, +5 Or à la Récolte, climat enneigé verrouillé.');
  if(type==='Sundo, cité du soleil')log(p().name+' fonde Sundo sur '+r+' : +10 Défense, +5 Or à la Récolte, climat désertique verrouillé.');
@@ -2283,7 +2303,7 @@ function botPlayUsefulCard(){
      if(regs.length){
        regs.sort((a,b)=>G.b[b].units-G.b[a].units);
        const r=regs[0],id=hand.splice(idx,1)[0];
-       p().inPlay.push(id);G.b[r].building={type:cityName,cardId:id,owner:G.active};
+       p().inPlay.push(id);audioCardMove();G.b[r].building={type:cityName,cardId:id,owner:G.active};audioConstruction();
        log(p().name+' (bot) construit '+cityName+' sur '+r+'.');
        return true;
      }
@@ -2297,7 +2317,7 @@ function botPlayUsefulCard(){
    if(regs.length){
      regs.sort((a,b)=>G.b[b].units-G.b[a].units);
      const r=regs[0],id=hand.splice(idx,1)[0];
-     p().inPlay.push(id);G.b[r].building={type:'Forteresse',cardId:id,owner:G.active};
+     p().inPlay.push(id);audioCardMove();G.b[r].building={type:'Forteresse',cardId:id,owner:G.active};audioConstruction();
      log(p().name+' (bot) construit une Forteresse sur '+r+'.');
      return true;
    }
@@ -3722,7 +3742,7 @@ function checkVictory(){
  clearTimeout(botTimer);clearTimeout(botReactionTimer);clearInterval(battleTick);clearInterval(shadowTick);
  $('victoryTitle').textContent='🏆 '+p(winner).name.toUpperCase()+' REMPORTE LA PARTIE !';
  $('victoryText').textContent=p(winner).name+' atteint '+best+' Point'+(best>1?'s':'')+' de victoire. Objectif du mode : '+G.victoryTarget+' PV.';
- $('victoryOverlay').classList.remove('hidden');
+ $('victoryOverlay').classList.remove('hidden');audioVictory();
  log('🏆 '+p(winner).name+' remporte la partie avec '+best+' PV.');
  return true;
 }
@@ -4229,7 +4249,7 @@ function render(){
    d.classList.add('playablePermanent');d.title='Mettre Plan des trébuchets en jeu';
    d.onclick=()=>{
      const idx=p().hand.indexOf(id);if(idx<0)return;
-     p().hand.splice(idx,1);p().inPlay.push(id);
+     p().hand.splice(idx,1);p().inPlay.push(id);audioCardMove();
      log(p().name+' met Plan des trébuchets en jeu.');
      render();
    };
