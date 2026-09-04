@@ -1,4 +1,4 @@
-name: Preload TRIBU card art
+name: Fix TRIBU movement and battle audio
 on:
   push:
     paths:
@@ -10,23 +10,41 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Preload official card art
+      - name: Apply fixes
         run: |
           python3 - <<'PY'
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text(encoding='utf-8')
-          old="['CARD_IMAGES','CARD_IMG','CARD_ART','ORACLE_IMAGES','ORACLE_IMG','FACTION_PORTRAITS','DICE_IMAGES','DIE_IMAGES','TOKEN_IMAGES','MAP_IMAGES','MAP_IMG']"
-          new="['OFFICIAL_CARD_ART','OFFICIAL_ORACLE_ART','ORACLE_CARD_ART','CARD_IMAGES','CARD_IMG','CARD_ART','ORACLE_IMAGES','ORACLE_IMG','FACTION_PORTRAITS','DICE_IMAGES','DIE_IMAGES','TOKEN_IMAGES','MAP_IMAGES','MAP_IMG']"
-          if old not in s: raise SystemExit('preload table list not found')
+
+          old="if(c.units===0){c.owner=null;const neutralized=neutralizeSurvivingDefensiveBuilding(r);c.hostile=neutralized?false:c.originalHostile}"
+          new="if(c.units===0){const neutralized=neutralizeSurvivingDefensiveBuilding(s);c.owner=null;c.hostile=neutralized?false:c.originalHostile}"
+          if old not in s: raise SystemExit('takeMovers bug anchor not found')
           s=s.replace(old,new,1)
+
+          old="p().hand.splice(handIndex,1);p().inPlay.push(id);\n log(p().name+' pose Murs frontaliers : bonus global de Défense désormais +'"
+          new="p().hand.splice(handIndex,1);p().inPlay.push(id);audioCardMove();audioConstruction();\n log(p().name+' pose Murs frontaliers : bonus global de Défense désormais +'"
+          if old not in s: raise SystemExit('human walls anchor not found')
+          s=s.replace(old,new,1)
+
+          old="const id=hand.splice(idx,1)[0];p().inPlay.push(id);\n   log(p().name+' (bot) joue Murs frontaliers.');"
+          new="const id=hand.splice(idx,1)[0];p().inPlay.push(id);audioCardMove();audioConstruction();\n   log(p().name+' (bot) joue Murs frontaliers.');"
+          if old not in s: raise SystemExit('bot walls anchor not found')
+          s=s.replace(old,new,1)
+
+          old="function audioBattleEnd(){\n if(!audioBattleActive)return;\n audioBattleActive=false;\n const b=audioTrack('battle');\n const resume=()=>{b.pause();b.volume=.39;audioStartAmbient(audioAmbientResume.index,audioAmbientResume.time,true)};\n if(!b.paused)audioFadeTo(b,0,900,resume);else resume();\n}"
+          new="function audioBattleEnd(){\n if(!audioBattleActive)return;\n audioBattleActive=false;\n const b=audioTrack('battle');\n b.onended=null;\n // La bataille est terminée : couper réellement la piste avant de reprendre l'ambiance.\n b.pause();\n try{b.currentTime=28}catch(e){}\n b.volume=.39;\n audioStartAmbient(audioAmbientResume.index,audioAmbientResume.time,true);\n}"
+          if old not in s: raise SystemExit('audioBattleEnd anchor not found')
+          s=s.replace(old,new,1)
+
           p.write_text(s,encoding='utf-8')
           PY
           python3 - <<'PY'
           from pathlib import Path
           import re
           s=Path('index.html').read_text(encoding='utf-8')
-          if "'OFFICIAL_CARD_ART'" not in s: raise SystemExit('OFFICIAL_CARD_ART preload missing')
+          assert 'neutralizeSurvivingDefensiveBuilding(s)' in s
+          assert "p().inPlay.push(id);audioCardMove();audioConstruction();" in s
           Path('/tmp/tribu.js').write_text('\n'.join(re.findall(r'<script[^>]*>(.*?)</script>',s,re.S)),encoding='utf-8')
           PY
           node --check /tmp/tribu.js
@@ -35,5 +53,5 @@ jobs:
           git config user.name "TRIBU fixes"
           git config user.email "actions@users.noreply.github.com"
           git add index.html
-          git commit -m "Précharge les illustrations des cartes TRIBU"
+          git commit -m "Corrige déplacement total et audio de bataille"
           git push
