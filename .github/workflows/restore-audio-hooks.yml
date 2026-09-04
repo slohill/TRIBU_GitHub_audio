@@ -1,8 +1,8 @@
-name: Apply TRIBU audit fixes
+name: Apply TRIBU fixes
 on:
   push:
     paths:
-      - '.github/workflows/restore-audio-hooks.yml'
+      - .github/workflows/restore-audio-hooks.yml
 permissions:
   contents: write
 jobs:
@@ -10,95 +10,72 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Patch index.html
-        shell: python
+      - name: Patch game
         run: |
+          python3 - <<'PY'
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text(encoding='utf-8')
           def rep(old,new,count=1):
-            global s
-            assert old in s, 'pattern not found: '+old[:90]
-            s=s.replace(old,new,count)
-
-          # Battle reaction window: 15 s outside hot-seat.
-          rep("stack:[],seconds:10,reactionSide:'defender'", "stack:[],seconds:15,reactionSide:'defender'", 2)
-
-          # A card movement sound follows actual hand discards.
-          rep("G.players[actor].hand.splice(handIndex,1);G.discard.push(id);return id;", "G.players[actor].hand.splice(handIndex,1);G.discard.push(id);audioCardMove();return id;")
-
-          # Caravan: reveal/choice sounds + autonomous bot picks.
-          rep("return G.deck.length?G.deck.pop():null;", "const id=G.deck.length?G.deck.pop():null;if(id!==null)audioCardMove();return id;")
-          rep(" const chooser=caravanState.order[caravanState.pick];\n agentModalState={kind:'caravan',chooser};", " const chooser=caravanState.order[caravanState.pick];\n if(G.players[chooser].bot){const j=Math.floor(Math.random()*caravanState.revealed.length);setTimeout(()=>chooseCaravanCard(j),300);return}\n agentModalState={kind:'caravan',chooser};")
-          rep(" G.players[chooser].hand.push(id);\n log(p(chooser).name+' choisit '+CARDS[id].name+' dans la Caravane.');", " G.players[chooser].hand.push(id);audioCardMove();\n log(p(chooser).name+' choisit '+CARDS[id].name+' dans la Caravane.');")
-
-          # Section de l'Ombre: no countdown in hot-seat.
-          rep(" shadowTick=setInterval(()=>{if(!shadowState||shadowState.stage!=='gather'){clearInterval(shadowTick);return}shadowState.seconds--;if(shadowState.seconds<=0){cancelShadow(true);return}render()},1000);", " if(!isHotseatMode())shadowTick=setInterval(()=>{if(!shadowState||shadowState.stage!=='gather'){clearInterval(shadowTick);return}shadowState.seconds--;if(shadowState.seconds<=0){cancelShadow(true);return}render()},1000);")
-          rep("if(viewer===s.player){el.innerHTML='<h3>SECTION DE L’OMBRE <span class=\"shadowDie\">'+shadowTotal()+'</span></h3><div class=\"battleDetail\">Préparation : '+s.seconds+' s — choisissez 1 à 6 unités sur vos régions.</div>", "if(viewer===s.player){el.innerHTML='<h3>SECTION DE L’OMBRE <span class=\"shadowDie\">'+shadowTotal()+'</span></h3><div class=\"battleDetail\">Préparation : '+(isHotseatMode()?'Sans chrono':s.seconds+' s')+' — choisissez 1 à 6 unités sur vos régions.</div>")
-
-          # Leaving the last unit behind a surviving defensive building neutralizes it cleanly.
+              global s
+              if old not in s: raise SystemExit('PATTERN NOT FOUND: '+old[:100])
+              s=s.replace(old,new,count)
+          rep("stack:[],seconds:10,reactionSide:'defender'","stack:[],seconds:15,reactionSide:'defender'",2)
+          rep("G.players[actor].hand.splice(handIndex,1);G.discard.push(id);return id;","G.players[actor].hand.splice(handIndex,1);G.discard.push(id);audioCardMove();return id;")
+          rep("return G.deck.length?G.deck.pop():null;","const id=G.deck.length?G.deck.pop():null;if(id!==null)audioCardMove();return id;")
+          rep(" const chooser=caravanState.order[caravanState.pick];\n agentModalState={kind:'caravan',chooser};"," const chooser=caravanState.order[caravanState.pick];\n if(G.players[chooser].bot){const j=Math.floor(Math.random()*caravanState.revealed.length);setTimeout(()=>chooseCaravanCard(j),300);return}\n agentModalState={kind:'caravan',chooser};")
+          rep(" G.players[chooser].hand.push(id);\n log(p(chooser).name+' choisit '+CARDS[id].name+' dans la Caravane.');"," G.players[chooser].hand.push(id);audioCardMove();\n log(p(chooser).name+' choisit '+CARDS[id].name+' dans la Caravane.');")
+          rep(" shadowTick=setInterval(()=>{if(!shadowState||shadowState.stage!=='gather'){clearInterval(shadowTick);return}shadowState.seconds--;if(shadowState.seconds<=0){cancelShadow(true);return}render()},1000);"," if(!isHotseatMode())shadowTick=setInterval(()=>{if(!shadowState||shadowState.stage!=='gather'){clearInterval(shadowTick);return}shadowState.seconds--;if(shadowState.seconds<=0){cancelShadow(true);return}render()},1000);")
+          rep("Préparation : '+s.seconds+' s — choisissez 1 à 6 unités sur vos régions.","Préparation : '+(isHotseatMode()?'Sans chrono':s.seconds+' s')+' — choisissez 1 à 6 unités sur vos régions.")
           old="if(c.units===0){c.owner=null;c.hostile=c.originalHostile}"
           new="if(c.units===0){c.owner=null;const neutralized=neutralizeSurvivingDefensiveBuilding(r);c.hostile=neutralized?false:c.originalHostile}"
-          assert s.count(old)>=2, 'expected movement/shadow empty-source patterns'
+          if s.count(old)<2: raise SystemExit('EMPTY SOURCE PATTERNS MISSING')
           s=s.replace(old,new,2)
-
-          # Do not claim unimplemented battle tactics are playable.
-          rep("  // Les autres Tactiques peuvent légalement interrompre la bataille,\n  // mais leur effet complexe n'est pas encore automatisé.\n  return {ok:true,complex:true,reason:'Jouable maintenant — effet complexe à automatiser.'};", "  // Une Tactique dont l'effet de bataille n'est pas automatisé ne doit jamais être consommée.\n  return {ok:false,reason:'Cette carte n’a pas d’effet de bataille automatisé dans cette situation.'};")
-
-          # Dragon quest: five distinct cases, with look-ahead to avoid premature dead ends.
-          rep("oracleState={kind:'dragon5',player:activator,remaining:5,visited:new Set([G.dragon])};", "oracleState={kind:'dragon5',player:activator,remaining:5,visited:new Set([G.dragon]),start:G.dragon};")
+          rep("  // Les autres Tactiques peuvent légalement interrompre la bataille,\n  // mais leur effet complexe n'est pas encore automatisé.\n  return {ok:true,complex:true,reason:'Jouable maintenant — effet complexe à automatiser.'};","  // Une Tactique non automatisée ne peut pas être consommée pendant une bataille.\n  return {ok:false,reason:'Cette carte n’a pas d’effet de bataille automatisé dans cette situation.'};")
+          rep("oracleState={kind:'dragon5',player:activator,remaining:5,visited:new Set([G.dragon])};","oracleState={kind:'dragon5',player:activator,remaining:5,visited:new Set([G.dragon]),start:G.dragon};")
           old="""function oracleDragonChoices(){
- if(!oracleState||oracleState.kind!=='dragon5')return [];
- const neigh=physicalNeighbors(G.dragon);
- const fresh=neigh.filter(id=>!oracleState.visited.has(id));
- return fresh.length?fresh:neigh;
-}"""
+           if(!oracleState||oracleState.kind!=='dragon5')return [];
+           const neigh=physicalNeighbors(G.dragon);
+           const fresh=neigh.filter(id=>!oracleState.visited.has(id));
+           return fresh.length?fresh:neigh;
+          }"""
           new="""function dragonSimplePathExists(from,steps,blocked){
- if(steps<=0)return true;
- for(const id of physicalNeighbors(from)){
-   if(blocked.has(id))continue;
-   const next=new Set(blocked);next.add(id);
-   if(dragonSimplePathExists(id,steps-1,next))return true;
- }
- return false;
-}
-function oracleDragonChoices(){
- if(!oracleState||oracleState.kind!=='dragon5')return [];
- const fresh=physicalNeighbors(G.dragon).filter(id=>!oracleState.visited.has(id));
- if(oracleState.remaining<=1)return fresh;
- return fresh.filter(id=>{const blocked=new Set(oracleState.visited);blocked.add(id);return dragonSimplePathExists(id,oracleState.remaining-1,blocked)});
-}
-function restartOracleDragonMovement(){
- if(!oracleState||oracleState.kind!=='dragon5'||oracleState.player!==localViewer()||G.players[oracleState.player].bot)return;
- G.dragon=oracleState.start;oracleState.remaining=5;oracleState.visited=new Set([oracleState.start]);
- log('Déplacement du Dragon recommencé depuis '+oracleState.start+'.');render();
-}"""
+           if(steps<=0)return true;
+           for(const id of physicalNeighbors(from)){
+             if(blocked.has(id))continue;
+             const next=new Set(blocked);next.add(id);
+             if(dragonSimplePathExists(id,steps-1,next))return true;
+           }
+           return false;
+          }
+          function oracleDragonChoices(){
+           if(!oracleState||oracleState.kind!=='dragon5')return [];
+           const fresh=physicalNeighbors(G.dragon).filter(id=>!oracleState.visited.has(id));
+           if(oracleState.remaining<=1)return fresh;
+           return fresh.filter(id=>{const blocked=new Set(oracleState.visited);blocked.add(id);return dragonSimplePathExists(id,oracleState.remaining-1,blocked)});
+          }
+          function restartOracleDragonMovement(){
+           if(!oracleState||oracleState.kind!=='dragon5'||oracleState.player!==localViewer()||G.players[oracleState.player].bot)return;
+           G.dragon=oracleState.start;oracleState.remaining=5;oracleState.visited=new Set([oracleState.start]);
+           log('Déplacement du Dragon recommencé depuis '+oracleState.start+'.');render();
+          }"""
           rep(old,new)
-
-          # Restart button is available throughout the human five-step Dragon route.
-          rep("map.querySelectorAll('.spot,.floatActions').forEach(x=>x.remove());", "map.querySelectorAll('.spot,.floatActions,.dragonRestart').forEach(x=>x.remove());\n if(oracleState&&oracleState.kind==='dragon5'&&oracleState.player===localViewer()&&!G.players[oracleState.player].bot){const rb=document.createElement('button');rb.className='dragonRestart';rb.textContent='Recommencer déplacement du Dragon';rb.style.cssText='position:absolute;left:50%;top:1%;transform:translateX(-50%);z-index:35';rb.onclick=restartOracleDragonMovement;map.appendChild(rb)}")
-
-          # Card movement hooks for agents placed in play.
-          rep("p().hand.splice(handIndex,1);p().inPlay.push(id);agentDefaults(G.active);", "p().hand.splice(handIndex,1);p().inPlay.push(id);audioCardMove();agentDefaults(G.active);")
-
-          # Misleading network label: these modes are local hot-seat.
-          s=s.replace("count+' joueurs — en ligne'", "count+' joueurs — local / hot-seat'")
-
+          rep("map.querySelectorAll('.spot,.floatActions').forEach(x=>x.remove());","map.querySelectorAll('.spot,.floatActions,.dragonRestart').forEach(x=>x.remove());\n if(oracleState&&oracleState.kind==='dragon5'&&oracleState.player===localViewer()&&!G.players[oracleState.player].bot){const rb=document.createElement('button');rb.className='dragonRestart';rb.textContent='Recommencer déplacement du Dragon';rb.style.cssText='position:absolute;left:50%;top:1%;transform:translateX(-50%);z-index:35';rb.onclick=restartOracleDragonMovement;map.appendChild(rb)}")
+          rep("p().hand.splice(handIndex,1);p().inPlay.push(id);agentDefaults(G.active);","p().hand.splice(handIndex,1);p().inPlay.push(id);audioCardMove();agentDefaults(G.active);")
+          s=s.replace("count+' joueurs — en ligne'","count+' joueurs — local / hot-seat'")
           p.write_text(s,encoding='utf-8')
-      - name: Validate JavaScript syntax
-        run: |
-          python - <<'PY'
+          PY
+          python3 - <<'PY'
           from pathlib import Path
           import re
           s=Path('index.html').read_text(encoding='utf-8')
-          scripts=re.findall(r'<script[^>]*>(.*?)</script>',s,re.S)
-          Path('/tmp/tribu.js').write_text('\n'.join(scripts),encoding='utf-8')
+          Path('/tmp/tribu.js').write_text('\n'.join(re.findall(r'<script[^>]*>(.*?)</script>',s,re.S)),encoding='utf-8')
           PY
           node --check /tmp/tribu.js
-      - name: Commit patch
+      - name: Commit game
         run: |
-          git config user.name "TRIBU audit fixes"
+          git config user.name "TRIBU fixes"
           git config user.email "actions@users.noreply.github.com"
           git add index.html
-          git commit -m "Corrige règles Dragon, Section et anomalies d'audit"
+          git commit -m "Corrige Dragon, Section et anomalies de jeu"
           git push
