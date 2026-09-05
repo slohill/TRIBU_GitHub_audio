@@ -589,6 +589,11 @@ function applyOfficialCardArt(el,c){
  hint.onclick=(ev)=>{ev.preventDefault();ev.stopPropagation()};
 }
 
+function preloadOfficialCardArt(){
+ Object.values(OFFICIAL_CARD_ART).forEach(src=>{const img=new Image();img.decoding='async';img.src=src});
+}
+preloadOfficialCardArt();
+
 const FACTION_PORTRAITS={"GB_A":"assets/images/factions/griffe_blanche_a.png","GB_B":"assets/images/factions/griffe_blanche_b.png","R_A":"assets/images/factions/reptone_a.png","R_B":"assets/images/factions/reptone_b.png","Y_A":"assets/images/factions/yonkai_a.png","Y_B":"assets/images/factions/yonkai_b.png"};
 const FACTION_PORTRAIT_META={GB_A:{faction:0,label:"Griffes-Blanches A"},GB_B:{faction:0,label:"Griffes-Blanches B"},R_A:{faction:1,label:"Reptones A"},R_B:{faction:1,label:"Reptones B"},Y_A:{faction:2,label:"Yonkaïs A"},Y_B:{faction:2,label:"Yonkaïs B"}};
 const BASE_COLORS=['#ff4fc3','#ffd92f','#6ab34c','#7ec8ff','#ff3b30'];
@@ -789,7 +794,7 @@ const AUDIO_SRC={
  welcome:"assets/audio/accueil.mp3",
  ambient1:"assets/audio/ambient1.mp3",
  ambient2:"assets/audio/ambient2.mp3",
- battle:"assets/audio/battle.mp3",
+
  gold:"assets/audio/gain_or.mp3",
  oracle:"assets/audio/oracle.mp3",
  dragon:"assets/audio/dragon.wav",
@@ -840,7 +845,7 @@ function audioStartAmbient(index=0,time=0,fade=true){
  audioAmbientIndex=index%2;audioMode='ambient';
  const name=audioAmbientIndex===0?'ambient1':'ambient2',a=audioTrack(name),other=audioTrack(audioAmbientIndex===0?'ambient2':'ambient1');
  other.pause();
- a.onended=()=>{if(audioMode!=='ambient'||audioBattleActive)return;audioAmbientIndex=1-audioAmbientIndex;audioStartAmbient(audioAmbientIndex,0,false)};
+ a.onended=()=>{if(audioMode!=='ambient')return;audioAmbientIndex=1-audioAmbientIndex;audioStartAmbient(audioAmbientIndex,0,false)};
  if(!audioMusicEnabled)return;
  a.volume=fade?0:.36;audioSafePlay(a,time);if(fade)audioFadeTo(a,.36,900);
 }
@@ -856,29 +861,17 @@ function audioBattleBegin(){
  audioBattleCue();
  if(audioBattleActive)return;
  audioBattleActive=true;
- const amb=audioTrack(audioAmbientIndex===0?'ambient1':'ambient2');
- audioAmbientResume={index:audioAmbientIndex,time:Number.isFinite(amb.currentTime)?amb.currentTime:0};
- if(!amb.paused)audioFadeTo(amb,0,650,()=>{amb.pause();amb.volume=.36});
- audioMode='battle';
- const b=audioTrack('battle');b.onended=()=>{if(audioBattleActive&&audioMusicEnabled){b.volume=.39;audioSafePlay(b,28)}};
- if(audioMusicEnabled){b.volume=0;audioSafePlay(b,28);audioFadeTo(b,.39,800)}
+ audioMode='ambient';
 }
 function audioBattleEnd(){
  if(!audioBattleActive)return;
  audioBattleActive=false;
- const b=audioTrack('battle');
- b.onended=null;
- // La bataille est terminée : couper réellement la piste avant de reprendre l'ambiance.
- b.pause();
- try{b.currentTime=28}catch(e){}
- b.volume=.39;
- audioStartAmbient(audioAmbientResume.index,audioAmbientResume.time,true);
+ audioMode='ambient';
 }
 function audioSetMusic(on){
  audioMusicEnabled=!!on;try{localStorage.setItem('tribu_music',on?'on':'off')}catch(e){}audioUpdateButtons();
  if(!on){Object.values(audioTracks).forEach(a=>a.pause());return}
  if($('start')&&!$('start').classList.contains('hidden')){audioMaybeWelcome();return}
- if(audioBattleActive){const b=audioTrack('battle');b.volume=.39;audioSafePlay(b,Math.max(28,b.currentTime||28));return}
  const a=audioTrack(audioAmbientIndex===0?'ambient1':'ambient2');audioStartAmbient(audioAmbientIndex,a.currentTime||0,true);
 }
 function audioSetSfx(on){audioSfxEnabled=!!on;try{localStorage.setItem('tribu_sfx',on?'on':'off')}catch(e){}audioUpdateButtons()}
