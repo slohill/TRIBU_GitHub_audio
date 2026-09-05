@@ -1,4 +1,4 @@
-name: Stabilize TRIBU movement state
+name: Preload TRIBU cards and keep ambient music in battles
 on:
   push:
     paths:
@@ -10,45 +10,65 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Stabilize movement accounting
+      - name: Patch card preload and battle audio
         run: |
           python3 - <<'PY'
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text(encoding='utf-8')
-          old="if(c.units===0){const neutralized=neutralizeSurvivingDefensiveBuilding(s);c.owner=null;c.hostile=neutralized?false:c.originalHostile}"
-          new="if(c.units===0){const neutralized=neutralizeSurvivingDefensiveBuilding(r);c.owner=null;c.hostile=neutralized?false:c.originalHostile}"
-          if old not in s: raise SystemExit('shadow anchor missing')
-          s=s.replace(old,new,1)
-          pos=s.find('function takeMovers(s,n){');end=s.find('\nfunction validate()',pos);block=s[pos:end]
-          if 'neutralizeSurvivingDefensiveBuilding(r)' in block: block=block.replace('neutralizeSurvivingDefensiveBuilding(r)','neutralizeSurvivingDefensiveBuilding(s)',1)
-          if 'neutralizeSurvivingDefensiveBuilding(s)' not in block: raise SystemExit('takeMovers anchor missing')
-          s=s[:pos]+block+s[end:]
-          old=" const carried=consumePickedSources();\n if(isSea(target)){"
-          new=" const carried=consumePickedSources();\n const moved=carried.length;\n if(moved!==n)log('Sécurité déplacement : '+n+' unité(s) demandée(s), '+moved+' réellement disponible(s).');\n if(moved<=0){dest=null;picks={};render();return}\n n=moved;\n if(isSea(target)){"
-          if old not in s: raise SystemExit('accounting anchor missing')
-          s=s.replace(old,new,1)
-          pairs=[('startSeaBattle(target,n,seaDefender);','startSeaBattle(target,n,seaDefender,carried);'),('startLandBattle(target,n);','startLandBattle(target,n,carried);'),('function startLandBattle(target,n){','function startLandBattle(target,n,attackMove=[]){'),("reactionSide:'defender'};\n log('Bataille terrestre","reactionSide:'defender',attackMove:attackMove.slice()};\n log('Bataille terrestre"),('function startSeaBattle(target,n,defender){','function startSeaBattle(target,n,defender,attackMove=[]){'),("reactionSide:'defender'};\n log('Bataille maritime","reactionSide:'defender',attackMove:attackMove.slice()};\n log('Bataille maritime")]
-          for a,b in pairs:
-           if a not in s: raise SystemExit('battle anchor missing: '+a[:32])
-           s=s.replace(a,b,1)
-          old="     const c=G.b[target];c.owner=attacker;c.units=surv;c.hostile=false;\n     if(battle.fromShadow&&attacker===G.active){\n       movable[target]=(movable[target]||[]).concat((battle.shadowMove||[]).slice(0,surv));\n     }"
-          new="     const c=G.b[target];c.owner=attacker;c.units=surv;c.hostile=false;\n     if(attacker===G.active){\n       const remainingMove=battle.fromShadow?(battle.shadowMove||[]):(battle.attackMove||[]);\n       movable[target]=(movable[target]||[]).concat(remainingMove.slice(0,surv));\n     }"
-          if old not in s: raise SystemExit('land survivor anchor missing')
-          s=s.replace(old,new,1)
-          old="     G.sea[target].fleets[defender]=0;\n     G.sea[target].fleets[attacker]=(G.sea[target].fleets[attacker]||0)+surv;"
-          new="     G.sea[target].fleets[defender]=0;\n     G.sea[target].fleets[attacker]=(G.sea[target].fleets[attacker]||0)+surv;\n     if(attacker===G.active)movable[target]=(movable[target]||[]).concat((battle.attackMove||[]).slice(0,surv));"
-          if old not in s: raise SystemExit('sea survivor anchor missing')
-          s=s.replace(old,new,1)
+
+          old='const CARD_ZOOM_RULES='
+          preload="""function preloadOfficialCardArt(){
+ Object.values(OFFICIAL_CARD_ART).forEach(src=>{const img=new Image();img.decoding='async';img.src=src});
+}
+preloadOfficialCardArt();
+
+const CARD_ZOOM_RULES="""
+          if old not in s: raise SystemExit('card preload anchor missing')
+          s=s.replace(old,preload,1)
+
+          old='    battle:"assets/audio/battle.mp3",\n'
+          if old not in s: raise SystemExit('battle audio source anchor missing')
+          s=s.replace(old,'',1)
+
+          start=s.find('function audioBattleBegin(){')
+          end=s.find('\nfunction audioBattleEnd(){',start)
+          if start<0 or end<0: raise SystemExit('audioBattleBegin block missing')
+          oldblock=s[start:end]
+          newblock="""function audioBattleBegin(){
+ audioBattleCue();
+ if(audioBattleActive)return;
+ audioBattleActive=true;
+ // La bataille garde désormais la musique d'ambiance en cours : seuls les SFX tambours/cor se jouent.
+ audioMode='ambient';
+}"""
+          s=s[:start]+newblock+s[end:]
+
+          start=s.find('function audioBattleEnd(){')
+          end=s.find('\nfunction audioSetMusic(',start)
+          if start<0 or end<0: raise SystemExit('audioBattleEnd block missing')
+          newblock="""function audioBattleEnd(){
+ if(!audioBattleActive)return;
+ audioBattleActive=false;
+ audioMode='ambient';
+}"""
+          s=s[:start]+newblock+s[end:]
+
+          old=" if(audioBattleActive){const b=audioTrack('battle');b.volume=.39;audioSafePlay(b,Math.max(28,b.currentTime||28));return}\n"
+          if old not in s: raise SystemExit('music toggle battle anchor missing')
+          s=s.replace(old,'',1)
+
           p.write_text(s,encoding='utf-8')
           PY
           python3 - <<'PY'
           from pathlib import Path
           import re
           s=Path('index.html').read_text(encoding='utf-8')
-          assert 'const moved=carried.length;' in s
-          assert 'startLandBattle(target,n,carried)' in s
-          assert 'startSeaBattle(target,n,seaDefender,carried)' in s
+          assert 'function preloadOfficialCardArt()' in s
+          assert "Object.values(OFFICIAL_CARD_ART)" in s
+          assert 'assets/audio/battle.mp3' not in s
+          assert "audioTrack('battle')" not in s
+          assert 'audioBattleCue();' in s
           Path('/tmp/tribu.js').write_text('\n'.join(re.findall(r'<script[^>]*>(.*?)</script>',s,re.S)),encoding='utf-8')
           PY
           node --check /tmp/tribu.js
@@ -57,5 +77,5 @@ jobs:
           git config user.name "TRIBU fixes"
           git config user.email "actions@users.noreply.github.com"
           git add index.html
-          git commit -m "Stabilise les transferts et mouvements après bataille"
+          git commit -m "Précharge les cartes et conserve l'ambiance en bataille"
           git push
