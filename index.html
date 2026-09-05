@@ -66,7 +66,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 
 .battleDicePair{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;gap:1px;z-index:28;pointer-events:none}
 .battleDie{min-width:25px;width:25px;height:25px;padding:0;border:0;border-radius:0;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:11px;color:#111;text-shadow:0 1px 1px #fff9;background-size:contain!important;background-repeat:no-repeat!important;background-position:center!important;box-shadow:none}
-.battleDie.previewAttacker{box-shadow:0 0 0 2px #111,0 0 0 4px #fff!important}
+.battleDie.previewAttacker{min-width:21px;width:21px;height:21px;font-size:10px;align-self:center;box-shadow:0 0 0 2px #111,0 0 0 4px #fff!important}
 
 .sourceMinus{position:absolute;right:-11px;top:-12px;width:20px;height:20px;padding:0;border-radius:50%;border:2px solid #111;background:#fff;color:#111;font-weight:900;font-size:14px;line-height:16px;z-index:35;cursor:pointer}
 .sourcePickBadge{position:absolute;left:50%;bottom:-20px;transform:translateX(-50%);background:#111d;color:#fff;border-radius:5px;padding:2px 5px;font-size:10px;font-weight:800;white-space:nowrap;z-index:34;pointer-events:none}
@@ -2603,6 +2603,10 @@ function previewBattleDefenders(id){
  const c=G.b[id];
  return c&&c.owner!==null&&c.owner!==G.active&&c.units>0?[{owner:c.owner,units:c.units}]:[];
 }
+function previewBattleAttackerUnits(id){
+ if(!previewBattleDefenders(id).length)return 0;
+ return selected();
+}
 function cardDef(id){return CARDS[id]}
 function tacticalIndexes(playerIndex){
   return G.players[playerIndex].hand
@@ -3026,18 +3030,20 @@ function commitMovement(n,seaDefender){
  const target=dest;
  const sourceIds=Object.keys(picks).filter(r=>picks[r]>0);
  const stormActive=G.oracleActive!==null&&ORACLES[G.oracleActive].name==='Tempête en mer';
+ // Une attaque sur une aire maritime est un déplacement, y compris pour les unités
+ // déjà présentes sur cette aire. Toutes les unités sélectionnées (sur place ou
+ // adjacentes) passent donc ensemble le test de Tempête avant le lancement du combat.
  const involvesSea=isSea(target)||sourceIds.some(isSea);
  if(stormActive&&involvesSea&&!seaStormState){
    const stormRoll=1+Math.floor(Math.random()*6);
    recordDestinationUse(target);
    log('🌊 Tempête en mer vers '+target+' : dé '+stormRoll+'.');
    if(stormRoll%2===1){
-     // Les unités annoncées sont perdues : on les retire des sources, sans les placer.
-     consumePickedSources();
-     log(n+' unité(s) sont perdues dans la Tempête en mer.');
+     const lost=consumePickedSources().length;
+     log(lost+' unité(s) sont perdues dans la Tempête en mer.');
      dest=null;picks={};checkDecimations();render();return;
    }
-   // Pair : le déplacement se poursuit normalement.
+   // Pair : le déplacement/attaque se poursuit normalement avec toute la sélection.
  }
  const carried=consumePickedSources();
  const moved=carried.length;
@@ -3679,7 +3685,7 @@ function renderMap(){
  if(st.children.length)b.appendChild(st);
  if(isPvpPreview){
    const pair=document.createElement('span');pair.className='battleDicePair previewBattleDice';
-   const ad=document.createElement('span');ad.className='battleDie attackerDie previewAttacker';ad.style.backgroundImage='url("'+factionDieImage(G.active)+'")';ad.textContent=selected();ad.title=p(G.active).name+' : '+selected()+' unité(s) sélectionnée(s) — choix en cours';
+   const ad=document.createElement('span');ad.className='battleDie attackerDie previewAttacker';ad.style.backgroundImage='url("'+factionDieImage(G.active)+'")';ad.textContent=previewBattleAttackerUnits(id);ad.title=p(G.active).name+' : '+previewBattleAttackerUnits(id)+' unité(s) sélectionnée(s) — choix en cours';
    pair.appendChild(ad);
    previewDefenders.forEach(e=>{
      const dd=document.createElement('span');dd.className='battleDie defenderDie';dd.style.backgroundImage='url("'+factionDieImage(e.owner)+'")';
