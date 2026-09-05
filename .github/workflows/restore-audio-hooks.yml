@@ -1,4 +1,4 @@
-name: Patch TRIBU Section
+name: Patch TRIBU battle preview and sea attack
 'on':
   push:
     paths:
@@ -10,15 +10,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply patch
-        run: python3 .github/scripts/patch_section_rule.py
+      - name: Apply battle preview and sea attack patch
+        run: python3 .github/scripts/patch_battle_preview_sea.py
       - name: Validate JavaScript
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
           s=Path('index.html').read_text(encoding='utf-8')
-          assert "if(s.parentBattle&&s.parentBattle.target===r)return false;" in s
+          assert 'function previewBattleDefenders(id)' in s
+          assert 'src.unshift(d)' in s
+          assert 'previewAttacker' in s
+          assert 'const sameAreaOnly=Object.keys(picks)' in s
           Path('/tmp/tribu.js').write_text('\n'.join(re.findall(r'<script[^>]*>(.*?)</script>',s,re.S)),encoding='utf-8')
           PY
           node --check /tmp/tribu.js
@@ -27,5 +30,5 @@ jobs:
           git config user.name "TRIBU fixes"
           git config user.email "actions@users.noreply.github.com"
           git add index.html
-          git commit -m "Applique la regle Section en bataille"
+          git commit -m "Ajoute apercu bataille et attaque maritime sur place"
           git push
