@@ -1,5 +1,5 @@
 name: Preload TRIBU cards and keep ambient music in battles
-on:
+'on':
   push:
     paths:
       - .github/workflows/restore-audio-hooks.yml
@@ -16,48 +16,41 @@ jobs:
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text(encoding='utf-8')
-
           old='const CARD_ZOOM_RULES='
           preload="""function preloadOfficialCardArt(){
- Object.values(OFFICIAL_CARD_ART).forEach(src=>{const img=new Image();img.decoding='async';img.src=src});
-}
-preloadOfficialCardArt();
+           Object.values(OFFICIAL_CARD_ART).forEach(src=>{const img=new Image();img.decoding='async';img.src=src});
+          }
+          preloadOfficialCardArt();
 
-const CARD_ZOOM_RULES="""
+          const CARD_ZOOM_RULES="""
           if old not in s: raise SystemExit('card preload anchor missing')
           s=s.replace(old,preload,1)
-
           old='    battle:"assets/audio/battle.mp3",\n'
           if old not in s: raise SystemExit('battle audio source anchor missing')
           s=s.replace(old,'',1)
-
           start=s.find('function audioBattleBegin(){')
           end=s.find('\nfunction audioBattleEnd(){',start)
           if start<0 or end<0: raise SystemExit('audioBattleBegin block missing')
-          oldblock=s[start:end]
           newblock="""function audioBattleBegin(){
- audioBattleCue();
- if(audioBattleActive)return;
- audioBattleActive=true;
- // La bataille garde désormais la musique d'ambiance en cours : seuls les SFX tambours/cor se jouent.
- audioMode='ambient';
-}"""
+           audioBattleCue();
+           if(audioBattleActive)return;
+           audioBattleActive=true;
+           // La bataille garde la musique d'ambiance : seuls les SFX tambours/cor se jouent.
+           audioMode='ambient';
+          }"""
           s=s[:start]+newblock+s[end:]
-
           start=s.find('function audioBattleEnd(){')
           end=s.find('\nfunction audioSetMusic(',start)
           if start<0 or end<0: raise SystemExit('audioBattleEnd block missing')
           newblock="""function audioBattleEnd(){
- if(!audioBattleActive)return;
- audioBattleActive=false;
- audioMode='ambient';
-}"""
+           if(!audioBattleActive)return;
+           audioBattleActive=false;
+           audioMode='ambient';
+          }"""
           s=s[:start]+newblock+s[end:]
-
           old=" if(audioBattleActive){const b=audioTrack('battle');b.volume=.39;audioSafePlay(b,Math.max(28,b.currentTime||28));return}\n"
           if old not in s: raise SystemExit('music toggle battle anchor missing')
           s=s.replace(old,'',1)
-
           p.write_text(s,encoding='utf-8')
           PY
           python3 - <<'PY'
@@ -65,7 +58,7 @@ const CARD_ZOOM_RULES="""
           import re
           s=Path('index.html').read_text(encoding='utf-8')
           assert 'function preloadOfficialCardArt()' in s
-          assert "Object.values(OFFICIAL_CARD_ART)" in s
+          assert 'Object.values(OFFICIAL_CARD_ART)' in s
           assert 'assets/audio/battle.mp3' not in s
           assert "audioTrack('battle')" not in s
           assert 'audioBattleCue();' in s
