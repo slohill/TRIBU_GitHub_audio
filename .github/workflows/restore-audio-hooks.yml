@@ -1,5 +1,5 @@
-name: Patch TRIBU Section de l'ombre
-on:
+name: Patch TRIBU Section
+'on':
   push:
     paths:
       - .github/workflows/restore-audio-hooks.yml
@@ -29,9 +29,8 @@ jobs:
           new="""function shadowTargetLegal(r){
  if(!shadowState||shadowState.stage!=='target'||isSea(r))return false;
  const s=shadowState,c=G.b[r];
- // Une région actuellement en bataille ne peut jamais être ciblée par Section de l'ombre,
- // même par l'attaquant ou le défenseur. En revanche, n'importe quel joueur peut lancer
- // sa Section ailleurs pendant que cette bataille est suspendue.
+ // Une région actuellement en bataille ne peut jamais être ciblée par Section de l'ombre.
+ // En revanche, n'importe quel joueur peut lancer sa Section ailleurs pendant la bataille.
  if(s.parentBattle&&s.parentBattle.target===r)return false;
  if(c.owner===s.player)return false;
  return true;
@@ -56,5 +55,5 @@ jobs:
           git config user.name "TRIBU fixes"
           git config user.email "actions@users.noreply.github.com"
           git add index.html
-          git commit -m "Applique la règle Section de l'ombre en bataille"
+          git commit -m "Applique la regle Section en bataille"
           git push
