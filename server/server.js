@@ -165,6 +165,7 @@ function ownedMovableAt(game,index,id){if(isSeaId(id))return Number(game.sea[id]
 function consumeAuthoritativeMove(game,index,id,q){if(isSeaId(id)){game.sea[id].fleets[index]=Math.max(0,Number(game.sea[id].fleets[index]||0)-q)}else{const c=game.board[id];c.units-=q;if(c.units<=0){c.units=0;c.owner=null;c.hostile=c.originalHostile}}game.movePool[id]=Math.max(0,Number(game.movePool[id]||0)-q)}
 function scheduleBotTurn(room){
   if(!room||!room.game||room.game.status!=='playing')return;
+  if(room.game.singleEngine)return;
   const game=room.game,pl=game.players[game.active];if(!pl||!pl.bot)return;
   clearTimeout(room.botTimer);room.botTimer=setTimeout(()=>runBotTurn(room),650);
 }
@@ -200,6 +201,25 @@ function publicRoom(room) {
     players: room.players.map(p => ({ id: p.id, playerId: p.playerId, pseudo: p.pseudo, ready: p.ready, host: p.id === room.hostId, connected: p.connected !== false }))
   };
 }
+function cloneJson(value){return value===undefined?undefined:JSON.parse(JSON.stringify(value))}
+function singleEngineDriverIndex(room){if(!room||!room.game)return -1;for(let i=0;i<room.game.players.length;i++){const p=room.game.players[i];if(!p.bot&&p.connected!==false)return i}return -1}
+function singleEngineExpectedActor(game){
+ const s=game.engineSnapshot&&game.engineSnapshot.shared||{},b=s.battle;
+ if(b&&b.kind!=='seaChoice'&&Array.isArray(b.priorityOrder)&&b.priorityOrder.length)return Number(b.priorityOrder[Number(b.priorityIndex||0)]);
+ if(s.goldReaction&&Number.isInteger(s.goldReaction.receiver))return s.goldReaction.receiver;
+ if(s.caravanState&&Array.isArray(s.caravanState.order)&&Number.isInteger(s.caravanState.pick))return Number(s.caravanState.order[s.caravanState.pick]);
+ if(s.choiceState&&Number.isInteger(s.choiceState.player))return s.choiceState.player;
+ if(s.shadowState&&Number.isInteger(s.shadowState.player))return s.shadowState.player;
+ if(s.divinationState&&Number.isInteger(s.divinationState.actor))return s.divinationState.actor;
+ for(const k of ['returnState','dragonRichState','dragonCurseState','dragonPublicState','dragonSixState','oracleState'])if(s[k]&&Number.isInteger(s[k].player))return s[k].player;
+ return Number.isInteger(game.active)?game.active:-1;
+}
+function singleEngineCanPush(room,index){const game=room.game,expected=singleEngineExpectedActor(game),p=game.players[expected];if(expected===index)return true;return !!(p&&p.bot&&index===singleEngineDriverIndex(room))}
+function projectSingleEngine(game,snapshot){
+ const g=snapshot&&snapshot.game;if(!g||!Array.isArray(g.players)||!g.b||typeof g.b!=='object')return false;
+ game.active=Number.isInteger(g.active)?g.active:game.active;game.turn=Math.max(0,Math.floor(Number(g.turn)||0));game.phase=cleanText(g.phase,40)||game.phase;game.dragon=String(g.dragon||game.dragon);game.board=cloneJson(g.b);if(g.sea&&typeof g.sea==='object')game.sea=cloneJson(g.sea);if(Array.isArray(g.deck))game.deck=g.deck.slice();if(Array.isArray(g.discard))game.discard=g.discard.slice();if(Array.isArray(g.oracleDeck))game.oracleDeck=g.oracleDeck.slice();if(Array.isArray(g.oracleDiscard))game.oracleDiscard=g.oracleDiscard.slice();game.oracleActive=g.oracleActive===null?null:Number(g.oracleActive);
+ g.players.forEach((src,i)=>{const dst=game.players[i];if(!dst||!src)return;dst.gold=Number(src.gold||0);dst.pvPermanent=Number(src.pvPermanent||0);dst.hand=Array.isArray(src.hand)?src.hand.slice():dst.hand;dst.inPlay=Array.isArray(src.inPlay)?cloneJson(src.inPlay):dst.inPlay||[];dst.attackTurnBonus=Number(src.attackTurnBonus||0);dst.defenseTurnBonus=Number(src.defenseTurnBonus||0);dst.decimated=!!src.decimated;if(Number.isInteger(src.faction))dst.faction=src.faction;if(src.portrait)dst.portrait=String(src.portrait);if(src.color)dst.color=String(src.color)});return true;
+}
 function publicGameView(room, socketId) {
   const game = room.game;
   if (!game) return null;
@@ -219,6 +239,13 @@ function publicGameView(room, socketId) {
     oracleActive: game.oracleActive,
     oracleNext: game.oracleDeck.length ? game.oracleDeck[game.oracleDeck.length-1] : null,
     lastRoll: game.lastRoll,
+    deck: game.deck.slice(),
+    discard: game.discard.slice(),
+    oracleDeck: game.oracleDeck.slice(),
+    oracleDiscard: game.oracleDiscard.slice(),
+    engineRevision: Number(game.engineRevision||0),
+    engineDriverIndex: singleEngineDriverIndex(room),
+    engineSnapshot: game.engineSnapshot ? cloneJson(game.engineSnapshot) : null,
     play: game.status==='playing' ? { movePool: game.active===youIndex ? {...(game.movePool||{})} : {}, destinationUseCount: {...(game.destinationUseCount||{})}, attacked: [...(game.attacked||[])], lastEvent: game.lastEvent||null } : null,
     setup: game.setup ? {
       activePlayer: game.setup.activePlayer,
@@ -241,7 +268,11 @@ function publicGameView(room, socketId) {
       gold: p.gold,
       pvPermanent: p.pvPermanent,
       hand: i === youIndex ? p.hand.slice() : undefined,
-      handCount: p.hand.length
+      handCount: p.hand.length,
+      inPlay: Array.isArray(p.inPlay)?cloneJson(p.inPlay):[],
+      attackTurnBonus: Number(p.attackTurnBonus||0),
+      defenseTurnBonus: Number(p.defenseTurnBonus||0),
+      decimated: !!p.decimated
     }))
   };
 }
@@ -315,7 +346,8 @@ function buildAuthoritativeGame(room) {
     regions: [],
     gold: 0,
     pvPermanent: 0,
-    hand: []
+    hand: [],
+    inPlay: [], attackTurnBonus: 0, defenseTurnBonus: 0, decimated: false
   }));
   shuffle(humans, random);
 
@@ -334,7 +366,8 @@ function buildAuthoritativeGame(room) {
       regions: [],
       gold: 0,
       pvPermanent: 0,
-      hand: []
+      hand: [],
+      inPlay: [], attackTurnBonus: 0, defenseTurnBonus: 0, decimated: false
     });
   }
 
@@ -357,6 +390,7 @@ function buildAuthoritativeGame(room) {
     oracleActive: null,
     rngState: (room.seed ^ 0x9e3779b9) >>> 0,
     movePool: {}, destinationUseCount: {}, attacked: [], lastEvent:null, lastRoll:null,
+    singleEngine:true, engineRevision:0, engineSnapshot:null,
     players,
     setup: { activePlayer: 0, stage: 'identity' }
   };
@@ -555,6 +589,15 @@ io.on('connection', socket => {
     ack({ ok: true });
     completeSetupIfReady(room);
     if (game.setup) emitGame(room);
+  });
+
+  socket.on('singleEnginePush', (payload = {}, ack = () => {}) => {
+    const room=roomForSocket(socket);if(!room||!room.game||room.game.status!=='playing')return rejectGameAction(ack,'La partie n’est pas en cours.');const game=room.game,index=humanGameIndex(room,socket.id);if(index<0)return rejectGameAction(ack,'Joueur introuvable.');
+    if(!singleEngineCanPush(room,index))return rejectGameAction(ack,'Ce joueur ne peut pas agir maintenant.');
+    const revision=Math.max(0,Math.floor(Number(payload.revision)||0));if(revision!==Number(game.engineRevision||0)){ack({ok:false,error:'État Online déjà mis à jour.',conflict:true,engineRevision:Number(game.engineRevision||0)});socket.emit('gameState',publicGameView(room,socket.id));return}
+    let snapshot=payload.snapshot;if(!snapshot||typeof snapshot!=='object'||!snapshot.game||!Array.isArray(snapshot.game.players)||snapshot.game.players.length!==game.players.length)return rejectGameAction(ack,'État TRIBU invalide.');
+    try{const packed=JSON.stringify(snapshot);if(packed.length>650000)return rejectGameAction(ack,'État TRIBU trop volumineux.');snapshot=JSON.parse(packed)}catch(_){return rejectGameAction(ack,'État TRIBU illisible.')}if(snapshot.game)delete snapshot.game.online;
+    if(!projectSingleEngine(game,snapshot))return rejectGameAction(ack,'Impossible de synchroniser cet état.');game.engineSnapshot=snapshot;game.engineRevision=Number(game.engineRevision||0)+1;game.revision++;game.lastEvent={kind:'singleEngineSync',player:index};ack({ok:true,engineRevision:game.engineRevision});emitGame(room);
   });
 
   socket.on('gameAction', (payload = {}, ack = () => {}) => {
