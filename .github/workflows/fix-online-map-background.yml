@@ -1,0 +1,62 @@
+name: Fix online map background
+
+on:
+  push:
+    branches: [fix-online-map-background]
+    paths:
+      - '.github/workflows/fix-online-map-background.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix-online-map-background
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Patch online map image
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          old="  renderMap();renderPlayerRail();\n}"
+          new="  const boardMapImage=$('boardMapImage');if(boardMapImage)boardMapImage.src='assets/images/maps/map_normal.png';\n  renderMap();renderPlayerRail();\n}"
+          if old not in s:
+            raise SystemExit('Motif render Online introuvable')
+          s=s.replace(old,new,1)
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Validate map fix and local mode
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          assert "boardMapImage.src='assets/images/maps/map_normal.png'" in s
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          assert "function isHotseatMode(){return !!G&&!G.online&&humanPlayers().length>1}" in s
+          PY
+          test -f assets/images/maps/map_normal.png
+      - name: Check inline JavaScript syntax
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          blocks=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S)
+          Path('/tmp/tribu-inline.js').write_text('\n'.join(blocks),encoding='utf-8')
+          PY
+          node --check /tmp/tribu-inline.js
+          git diff --check
+      - name: Commit fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Rétablit la carte pendant l installation Online'
+          git push origin HEAD:fix-online-map-background
