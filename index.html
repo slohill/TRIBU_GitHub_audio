@@ -4500,6 +4500,7 @@ function onlineRefreshPlayUi(){
  map.querySelectorAll('.floatActions.onlineMoveFloat').forEach(x=>x.remove());
  map.querySelectorAll('.spot').forEach(x=>{x.classList.remove('onlineMoveAvailable','dest','src','srcHold','onlineOracleTarget');x.querySelectorAll('.sourceMinus,.onlineMovePickBadge,.ghost').forEach(b=>b.remove());x.onpointerdown=null;x.onpointerup=null;x.onpointerleave=null;x.onpointercancel=null;x.onclick=()=>onlineMoveClick(x.dataset.region)});
  if(srcBox){srcBox.innerHTML='';srcBox.style.display=''}
+ if(st.battle){if(hint)hint.textContent='Bataille en cours — terminez les réactions.';return}
  if(st.status!=='playing'||st.active!==st.youIndex)return;
  if(st.phase==='play'){
    Object.keys(POS).forEach(id=>{if(onlineLegalMoveSources(id).length){const sp=map.querySelector('.spot[data-region="'+id+'"]');if(sp)sp.classList.add('onlineMoveAvailable')}});
@@ -4582,15 +4583,40 @@ function onlineSetupRegionClick(r){
  const at=onlineSetupSelectedRegions.indexOf(r);if(at>=0)onlineSetupSelectedRegions.splice(at,1);else if(onlineSetupSelectedRegions.length<2)onlineSetupSelectedRegions.push(r);
  renderOnlineAuthoritativeSetup(state);
 }
+function onlineBattleCardName(id){return CARDS[id]&&CARDS[id].name||('Carte '+id)}
+function onlineRenderAuthoritativeBattle(){
+ const st=onlineGameState,b=st&&st.battle,panel=$('battlePanel');if(!panel)return;
+ panel.classList.toggle('hidden',!b);if(!b)return;
+ const attacker=st.players[b.attacker],defender=b.hostile?null:st.players[b.defender];
+ $('battleSideInfo').innerHTML='<b>'+onlineEscape(attacker?attacker.pseudo:'Attaquant')+'</b> : '+b.attack+' Attaque<br>'+(b.hostile?'PNJ hostile':('<b>'+onlineEscape(defender?defender.pseudo:'Défenseur')+'</b> : '+b.defense+' Défense'));
+ const mine=b.priority===st.youIndex;$('priorityInfo').innerHTML=mine?'<b>À vous de réagir.</b> Jouez une carte tactique ou passez.':'Priorité : <b>'+onlineEscape(st.players[b.priority]?st.players[b.priority].pseudo:'—')+'</b>';
+ const seconds=b.deadline?Math.max(0,Math.ceil((b.deadline-Date.now())/1000)):0;$('priorityTimer').textContent=seconds+' s';
+ const buttons=$('tacticalButtons');buttons.innerHTML='';
+ if(mine){
+   const hand=(st.players[st.youIndex]&&st.players[st.youIndex].hand)||[];
+   hand.forEach((id,handIndex)=>{
+     const name=onlineBattleCardName(id);if(!['Catapultes','Mur de pique','Montures','Pluie de flèches','Pyrodontes de guerre','Balistes'].includes(name))return;
+     if(name==='Mur de pique'&&st.youIndex!==b.defender)return;if(name==='Montures'&&st.youIndex!==b.attacker)return;if(name==='Pyrodontes de guerre'&&(st.youIndex!==b.attacker||b.kind!=='land'||R[b.target][1]!=='t'))return;
+     if(name==='Balistes'){
+       [['attack','Balistes +2 Attaque'],['defense','Balistes +2 Défense']].forEach(([choice,label])=>{const bt=document.createElement('button');bt.textContent=label;bt.onclick=()=>onlineGameAction('BATTLE_CARD',{handIndex,choice});buttons.appendChild(bt)});return;
+     }
+     const bt=document.createElement('button');bt.textContent=name;bt.onclick=()=>onlineGameAction('BATTLE_CARD',{handIndex});buttons.appendChild(bt);
+   });
+   const pass=document.createElement('button');pass.textContent='Passer';pass.onclick=()=>onlineGameAction('BATTLE_PASS');buttons.appendChild(pass);
+ }
+ const stack=$('priorityStack');stack.innerHTML=(b.stack||[]).map(x=>'<div class="stackCard">'+onlineEscape(st.players[x.owner]?st.players[x.owner].pseudo:'Joueur')+' — '+onlineEscape(x.name)+(x.bonus?' (+'+x.bonus+')':'')+'</div>').join('');
+ const spot=$('map')&&$('map').querySelector('.spot[data-region="'+b.target+'"]');if(spot)spot.classList.add('battleLoc');
+}
 function onlineLockControls(){
  if(!G||!G.online||!onlineGameState)return;
- const mine=onlineGameState.active===onlineGameState.youIndex&&onlineGameState.status==='playing'&&!onlineWelcomeActive,start=mine&&onlineGameState.phase==='start',recruiting=mine&&onlineGameState.phase==='recruit',playing=mine&&onlineGameState.phase==='play',oracleMove=mine&&onlineGameState.phase==='oracleMove',oracleRoll=mine&&onlineGameState.phase==='oracleRoll';
+ const battleActive=!!onlineGameState.battle;
+ const mine=onlineGameState.active===onlineGameState.youIndex&&onlineGameState.status==='playing'&&!onlineWelcomeActive,start=mine&&!battleActive&&onlineGameState.phase==='start',recruiting=mine&&!battleActive&&onlineGameState.phase==='recruit',playing=mine&&!battleActive&&onlineGameState.phase==='play',oracleMove=mine&&!battleActive&&onlineGameState.phase==='oracleMove',oracleRoll=mine&&!battleActive&&onlineGameState.phase==='oracleRoll';
  $('startTurn').classList.toggle('hidden',!start);
  $('draw').disabled=!start;$('harvest').disabled=!start;$('recruit').disabled=!start;
  $('endRecruit').disabled=!recruiting;const rr=$('resetRecruit');if(rr)rr.disabled=!recruiting;
  $('toOracle').disabled=!playing;$('roll').disabled=!oracleRoll;
  const h=$('hand');if(h)h.querySelectorAll('.card').forEach(c=>{c.onclick=null;c.classList.remove('playablePermanent','battlePlayable');c.classList.add('battleBlocked')});
- const n=$('status');if(n)n.innerHTML+='<div class="botNotice">🌐 Online autoritaire — tour, déplacements et Oracle synchronisés par le serveur.'+(onlineGameState.lastRoll?' Dernier dé Oracle : <b>'+onlineGameState.lastRoll+'</b>.':'')+'</div>';onlineRefreshPlayUi();
+ const n=$('status');if(n)n.innerHTML+='<div class="botNotice">🌐 Online autoritaire — tour, déplacements et Oracle synchronisés par le serveur.'+(onlineGameState.lastRoll?' Dernier dé Oracle : <b>'+onlineGameState.lastRoll+'</b>.':'')+'</div>';onlineRenderAuthoritativeBattle();onlineRefreshPlayUi();
 }
 function applyOnlineGameState(state){
  const wasSetup=onlineGameState&&onlineGameState.status==='setup',oldPhase=onlineGameState&&onlineGameState.phase;onlineGameState=state;if(oldPhase!==state.phase||state.active!==G?.active)onlineResetMoveDraft();
