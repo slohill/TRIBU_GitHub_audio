@@ -1,0 +1,59 @@
+name: Test Online authority phase 1 v2
+on:
+  push:
+    branches: [online-authority-phase1]
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Patch authoritative server
+        run: python .github/scripts/patch_online_authority_server.py
+      - name: Patch authoritative client
+        run: python .github/scripts/patch_online_authority_client.py
+      - name: Validate server invariants
+        run: |
+          node --check server/server.js
+          grep -q "if (game.phase !== 'setup') return false;" server/server.js
+          grep -q "const participants = shuffle(humans, rng).concat(bots);" server/server.js
+          grep -q "canHarvest: false" server/server.js
+          grep -q "socket.on('setupChoice'" server/server.js
+          grep -q "socket.on('gameAction'" server/server.js
+          grep -q "if (game.activeSeat !== seat)" server/server.js
+      - name: Validate client invariants
+        run: |
+          grep -q "socket.on('gameState',onlineApplyServerGame)" index.html
+          grep -q "onlineSocket.emit('setupChoice'" index.html
+          grep -q "onlineGameAction('DRAW')" index.html
+          grep -q "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" index.html
+          grep -q "function isHotseatMode(){return !!G&&!G.online&&humanPlayers().length>1}" index.html
+      - name: Validate inline JavaScript syntax
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          text=Path('index.html').read_text(encoding='utf-8')
+          blocks=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',text,re.S)
+          Path('/tmp/tribu-inline.js').write_text('\n'.join(blocks),encoding='utf-8')
+          PY
+          node --check /tmp/tribu-inline.js
+      - name: Check whitespace
+        run: git diff --check
+      - name: Commit tested authority changes
+        run: |
+          if git diff --quiet -- index.html server/server.js; then
+            echo "Authority files already patched"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html server/server.js
+          git commit -m "Stabilise la création Online autoritaire"
+          git push
