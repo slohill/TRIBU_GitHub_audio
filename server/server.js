@@ -154,6 +154,15 @@ function resolveBasicLandBattle(game,index,target,n){
   }
   return {kind:'battle',target,attacker:index,defender,hostile,attack:a,defense:d,result,survivors};
 }
+function resolveBasicSeaBattle(game,index,target,n,defender){
+  const sea=game.sea[target],defUnits=Number(sea.fleets[defender]||0),coeff=FACTION_DEF[game.players[defender].faction]||1,d=defUnits*coeff,a=n;
+  let result='defense',survivors=0;
+  if(a>d){survivors=Math.min(n,a-d);if(d>=10)game.players[index].pvPermanent=(game.players[index].pvPermanent||0)+1;sea.fleets[defender]=0;sea.fleets[index]=(sea.fleets[index]||0)+survivors;result='attack'}
+  else{if(a>=10)game.players[defender].pvPermanent=(game.players[defender].pvPermanent||0)+1;survivors=a===d?1:Math.max(1,Math.min(defUnits,Math.ceil((d-a)/coeff)));sea.fleets[defender]=survivors}
+  return {kind:'seaBattle',target,attacker:index,defender,attack:a,defense:d,result,survivors};
+}
+function ownedMovableAt(game,index,id){if(isSeaId(id))return Number(game.sea[id]&&game.sea[id].fleets&&game.sea[id].fleets[index]||0);const c=game.board[id];return c&&c.owner===index?Number(c.units||0):0}
+function consumeAuthoritativeMove(game,index,id,q){if(isSeaId(id)){game.sea[id].fleets[index]=Math.max(0,Number(game.sea[id].fleets[index]||0)-q)}else{const c=game.board[id];c.units-=q;if(c.units<=0){c.units=0;c.owner=null;c.hostile=c.originalHostile}}game.movePool[id]=Math.max(0,Number(game.movePool[id]||0)-q)}
 function scheduleBotTurn(room){
   if(!room||!room.game||room.game.status!=='playing')return;
   const game=room.game,pl=game.players[game.active];if(!pl||!pl.bot)return;
@@ -600,17 +609,31 @@ io.on('connection', socket => {
       const picks=[];let total=0;
       for(const [src,v] of Object.entries(raw)){
         const q=Math.max(0,Math.floor(Number(v)||0));if(!q)continue;
-        const sc=game.board[src];if(!sc||sc.owner!==index)return rejectGameAction(ack,'Source de déplacement invalide.');
-        if(!(LAND_NEIGHBORS[target]||[]).includes(src))return rejectGameAction(ack,'Une source n’est pas adjacente à la destination.');
-        const available=Math.min(sc.units,Number((game.movePool||{})[src]||0));if(q>available)return rejectGameAction(ack,'Pas assez d’unités encore déplaçables sur une source.');
+        if(!physicalNeighbors(target).includes(src))return rejectGameAction(ack,'Une source n’est pas adjacente à la destination.');
+        const available=Math.min(ownedMovableAt(game,index,src),Number((game.movePool||{})[src]||0));if(q>available)return rejectGameAction(ack,'Pas assez d’unités encore déplaçables sur une source.');
         picks.push([src,q]);total+=q;
       }
       if(total<1)return rejectGameAction(ack,'Sélectionnez au moins une unité.');
-      picks.forEach(([src,q])=>{const sc=game.board[src];sc.units-=q;game.movePool[src]=Math.max(0,(game.movePool[src]||0)-q);if(sc.units===0){sc.owner=null;sc.hostile=sc.originalHostile}});
+      picks.forEach(([src,q])=>consumeAuthoritativeMove(game,index,src,q));
       if(enemy){game.attacked=game.attacked||[];game.attacked.push(target);game.lastEvent=resolveBasicLandBattle(game,index,target,total)}
       else{tc.owner=index;tc.units+=total;tc.hostile=false;game.lastEvent={kind:'move',target,player:index,units:total}}
       game.destinationUseCount=game.destinationUseCount||{};game.destinationUseCount[target]=(game.destinationUseCount[target]||0)+1;
       game.revision++;ack({ok:true,event:game.lastEvent});emitGame(room);return;
+    }
+    if(type==='MOVE_SEA'){
+      if(game.phase!=='play')return rejectGameAction(ack,'Vous ne pouvez pas déplacer maintenant.');
+      const target=String(payload.target||''),sea=game.sea[target],raw=payload.sources&&typeof payload.sources==='object'?payload.sources:{},defender=payload.defender===null||payload.defender===undefined?null:Number(payload.defender);
+      if(!isSeaId(target)||!sea)return rejectGameAction(ack,'Destination maritime invalide.');
+      if(Number((game.destinationUseCount||{})[target]||0)>=1)return rejectGameAction(ack,'Cette aire maritime a déjà reçu un déplacement ce tour.');
+      const enemies=Object.entries(sea.fleets||{}).map(([o,u])=>({owner:+o,units:+u||0})).filter(x=>x.owner!==index&&x.units>0);
+      const picks=[];let total=0;
+      for(const [src,v] of Object.entries(raw)){const q=Math.max(0,Math.floor(Number(v)||0));if(!q)continue;const same=src===target&&enemies.length>0;if(!same&&!physicalNeighbors(target).includes(src))return rejectGameAction(ack,'Une source n’est pas adjacente à l’aire maritime.');const available=Math.min(ownedMovableAt(game,index,src),Number((game.movePool||{})[src]||0));if(q>available)return rejectGameAction(ack,'Pas assez d’unités encore déplaçables sur une source.');picks.push([src,q]);total+=q}
+      if(total<1)return rejectGameAction(ack,'Sélectionnez au moins une unité.');
+      if(defender!==null&&!enemies.some(e=>e.owner===defender))return rejectGameAction(ack,'Cette flotte ne peut pas être attaquée.');
+      if(defender===null&&picks.every(([src])=>src===target))return rejectGameAction(ack,'Choisissez une flotte à attaquer.');
+      picks.forEach(([src,q])=>consumeAuthoritativeMove(game,index,src,q));
+      if(defender===null){sea.fleets[index]=(sea.fleets[index]||0)+total;game.lastEvent={kind:'seaMove',target,player:index,units:total}}else game.lastEvent=resolveBasicSeaBattle(game,index,target,total,defender);
+      game.destinationUseCount=game.destinationUseCount||{};game.destinationUseCount[target]=(game.destinationUseCount[target]||0)+1;game.revision++;ack({ok:true,event:game.lastEvent});emitGame(room);return;
     }
     if(type==='END_PLAY'){
       if(game.phase!=='play')return rejectGameAction(ack,'La phase de jeu n’est pas active.');
