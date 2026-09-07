@@ -4631,7 +4631,7 @@ function onlineLegacyBootstrap(full,state){
  onlineLegacyLastDigest=onlineLegacyDigest();
  setupState=null;onlineSetupLayout(false);$('setupPanel').classList.add('hidden');$('start').classList.add('hidden');$('game').classList.remove('hidden');
  render();onlineLegacyLastDigest=onlineLegacyDigest();onlineLegacyLockControls();
- if(onlineLegacyCanExecuteBot())queueBot('synchronisation Online');
+ // Les bots ne sont pas démarrés depuis un bootstrap distant.
  if(onlineWelcomeShownKey!==String(state.seed||'game'))onlineShowGameWelcome(state);
 }
 function onlineLegacyApply(packet){
@@ -4651,7 +4651,8 @@ function onlineLegacyApply(packet){
  onlineLegacyRevision=packet.revision||0;dest=null;picks={};
  (G.players||[]).forEach((_,i)=>agentDefaults(i));
  onlineLegacyLastDigest=onlineLegacyDigest();render();onlineLegacyLastDigest=onlineLegacyDigest();onlineLegacyApplying=false;onlineLegacyLockControls();
- if(onlineLegacyCanExecuteBot()){queueBot('état Online reçu');setTimeout(onlineLegacyEnsureBotProgress,1200);}
+ // Une synchro distante ne relance pas un bot partiellement exécuté.
+ if(battle)resumeBattleTimer();
  if(battle)resumeBattleTimer();
 }
 function onlineLegacyStart(state){
@@ -4712,7 +4713,11 @@ function onlineLegacyLockControls(){
 const onlineLegacyBaseRender=render;
 render=function(){
  onlineLegacyBaseRender();
- if(G&&G.online&&G.online.legacySync){onlineLegacyLockControls();onlineLegacyMaybePush()}
+ if(G&&G.online&&G.online.legacySync){
+   onlineLegacyLockControls();
+   const activePlayer=G.players&&G.players[G.active];
+   if(!activePlayer||!activePlayer.bot)onlineLegacyMaybePush();
+ }
 };
 const onlineLegacyBaseQueueBot=queueBot;
 queueBot=function(reason){
@@ -4732,10 +4737,10 @@ function onlineLegacyEnsureBotProgress(){
  onlineLegacyBaseQueueBot('filet de sécurité Online bot');
 }
 function onlineLegacyStartBotWatchdog(){
- if(onlineLegacyBotWatchdog)return;
- onlineLegacyBotWatchdog=setInterval(onlineLegacyEnsureBotProgress,900);
+ // Désactivé : un tour bot Online est exécuté atomiquement par le navigateur
+ // qui a terminé le dernier tour humain, sans concurrence entre clients.
 }
-onlineLegacyStartBotWatchdog();
+
 
 function onlineSetupRegionsFor(state){const me=state.players[state.youIndex];return me&&me.province?Object.keys(R).filter(r=>R[r][0]===me.province&&!R[r][2]):[]}
 function onlineSetupMapFeedback(state,active){
