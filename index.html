@@ -1726,9 +1726,9 @@ function chooseShadowTarget(r){
 }
 function resumeBattleTimer(){
  clearInterval(battleTick);if(!battle)return;
- if(!isHotseatMode())battleTick=setInterval(()=>{if(!battle)return;battle.seconds--;renderBattle();if(battle.seconds<=0)passPriority()},1000);
+ if(!isHotseatMode()&&onlineLegacyOwnsBattlePriority())battleTick=setInterval(()=>{if(!battle)return;battle.seconds--;renderBattle();if(battle.seconds<=0)passPriority()},1000);
  showBattle();renderBattle();
- if(!isHotseatMode())prepareCurrentBattleReaction();
+ if(!isHotseatMode()&&onlineLegacyOwnsBattlePriority())prepareCurrentBattleReaction();
 }
 function renderShadowBanner(){
  if(!shadowState)return false;
@@ -2822,7 +2822,7 @@ function startReactionWindow(){
     hotseatBotBattleReactions();
     return;
   }
-  battleTick=setInterval(()=>{
+  if(onlineLegacyOwnsBattlePriority())battleTick=setInterval(()=>{
     if(!battle)return;
     battle.seconds--;
     renderBattle();
@@ -4568,6 +4568,16 @@ function onlineLegacyDriverIndex(){
  return G.players.findIndex(pl=>!pl.bot);
 }
 function onlineLegacyIsDriver(){return !!(G&&G.online&&G.online.legacySync&&G.online.myPlayerIndex===onlineLegacyDriverIndex())}
+function onlineLegacyCanExecuteBot(){
+ return !!(G&&G.online&&G.online.legacySync&&Number.isInteger(G.online.myPlayerIndex)&&G.players[G.online.myPlayerIndex]&&!G.players[G.online.myPlayerIndex].bot);
+}
+function onlineLegacyOwnsBattlePriority(){
+ if(!G||!G.online||!G.online.legacySync||!battle)return true;
+ const priority=currentPriorityPlayer();
+ if(!Number.isInteger(priority)||!G.players[priority])return false;
+ if(G.players[priority].bot)return onlineLegacyCanExecuteBot();
+ return priority===G.online.myPlayerIndex;
+}
 function onlineLegacyEncode(value){
  return JSON.parse(JSON.stringify(value,(k,v)=>v instanceof Set?{$tribuSet:[...v]}:(typeof v==='function'?undefined:v)));
 }
@@ -4621,7 +4631,7 @@ function onlineLegacyBootstrap(full,state){
  onlineLegacyLastDigest=onlineLegacyDigest();
  setupState=null;onlineSetupLayout(false);$('setupPanel').classList.add('hidden');$('start').classList.add('hidden');$('game').classList.remove('hidden');
  render();onlineLegacyLastDigest=onlineLegacyDigest();onlineLegacyLockControls();
- if(onlineLegacyIsDriver())queueBot('synchronisation Online');
+ if(onlineLegacyCanExecuteBot())queueBot('synchronisation Online');
  if(onlineWelcomeShownKey!==String(state.seed||'game'))onlineShowGameWelcome(state);
 }
 function onlineLegacyApply(packet){
@@ -4641,7 +4651,8 @@ function onlineLegacyApply(packet){
  onlineLegacyRevision=packet.revision||0;dest=null;picks={};
  (G.players||[]).forEach((_,i)=>agentDefaults(i));
  onlineLegacyLastDigest=onlineLegacyDigest();render();onlineLegacyLastDigest=onlineLegacyDigest();onlineLegacyApplying=false;onlineLegacyLockControls();
- if(onlineLegacyIsDriver()){queueBot('état Online reçu');setTimeout(onlineLegacyEnsureBotProgress,1200);}
+ if(onlineLegacyCanExecuteBot()){queueBot('état Online reçu');setTimeout(onlineLegacyEnsureBotProgress,1200);}
+ if(battle)resumeBattleTimer();
 }
 function onlineLegacyStart(state){
  onlineGameState=state;
@@ -4658,7 +4669,7 @@ function onlineLegacyStart(state){
 function onlineLegacyCanPublish(){
  if(!G||!G.online||!G.online.legacySync||onlineLegacyApplying||!onlineSocket)return false;
  const me=G.online.myPlayerIndex;if(!Number.isInteger(me)||!G.players[me]||G.players[me].bot)return false;
- if(G.players[G.active]&&G.players[G.active].bot)return onlineLegacyIsDriver();
+ if(G.players[G.active]&&G.players[G.active].bot)return onlineLegacyCanExecuteBot();
  return true;
 }
 function onlineLegacyMaybePush(){
@@ -4705,7 +4716,7 @@ render=function(){
 };
 const onlineLegacyBaseQueueBot=queueBot;
 queueBot=function(reason){
- if(G&&G.online&&G.online.legacySync&&!onlineLegacyIsDriver())return;
+ if(G&&G.online&&G.online.legacySync&&G.players[G.active]&&G.players[G.active].bot&&!onlineLegacyCanExecuteBot())return;
  return onlineLegacyBaseQueueBot(reason);
 };
 // Filet de sécurité Online : le navigateur conducteur doit toujours relancer
@@ -4714,7 +4725,7 @@ queueBot=function(reason){
 // local n'était encore armé.
 let onlineLegacyBotWatchdog=null;
 function onlineLegacyEnsureBotProgress(){
- if(!G||!G.online||!G.online.legacySync||!onlineLegacyIsDriver())return;
+ if(!G||!G.online||!G.online.legacySync||!onlineLegacyCanExecuteBot())return;
  if(!G.players[G.active]||!G.players[G.active].bot)return;
  if(gameOverState||battle||shadowState||paidDrawState||goldReaction||oracleNoticeState||dragonSixState||dragonPublicState||dragonCurseState||caravanState||divinationState)return;
  if(botTimer)return;
