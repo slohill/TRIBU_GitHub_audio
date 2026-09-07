@@ -35,6 +35,20 @@ const ALL_REGIONS = Array.from({ length: 9 }, (_, p) => {
 const CARD_COUNTS = [4,4,2,3,3,1,2,3,4,3,1,4,2,3,4,1,4,3,1,2,1,3];
 const ORACLE_IDS = [0,1,2,2,3,3,4,5];
 const FACTION_CAP = [3,3,2];
+const FACTION_DEF = [1,1,3];
+const LAND_NEIGHBORS = {
+  A1:['A2'],A2:['A1'],A3:['A4'],A4:['A3'],A5:['B1','B2'],
+  B1:['A5','B2'],B2:['A5','B1'],B3:['B4'],B4:['B3'],B5:[],
+  C1:['C2','C4'],C2:['C1','C3','C4'],C3:['C2','C4','E1','F1'],C4:['C1','C2','C3','C5','E1'],C5:['C4','E1','E2','D1'],
+  D1:['C5','E2','D2','D5'],D2:['D1','D3','D4','D5'],D3:['D2','D4'],D4:['D2','D3','D5','G1'],D5:['D1','D2','D4','E2','E3','G1'],
+  E1:['C3','C4','C5','E2','E4','F1','F2'],E2:['E1','E3','E4','C5','D1','D5'],E3:['E2','E4','E5','D5','G1','G2'],E4:['E1','E2','E3','E5','F2','F4'],E5:['E3','E4','F4','F5','G2','G3'],
+  F1:['C3','E1','F2','F3'],F2:['E1','E4','F1','F3','F4'],F3:['F1','F2','F4'],F4:['F2','F3','F5','E4','E5'],F5:['E5','F4','G3'],
+  G1:['D4','D5','E3','G2'],G2:['G1','G3','G4','E3','E5'],G3:['G2','G4','G5','F5','E5'],G4:['G2','G3','G5'],G5:['G3','G4'],
+  H1:['H2','H3'],H2:['H1','H3','H5'],H3:['H1','H2','H4','H5'],H4:['H3','H5','I1'],H5:['H2','H3','H4','I1','I2'],
+  I1:['H4','H5','I2','I3'],I2:['H5','I1','I3','I4'],I3:['I1','I2','I4','I5'],I4:['I2','I3','I5'],I5:['I3','I4']
+};
+const SEA_NEIGHBORS={U:['W','V'],V:['U','Z'],W:['U','X','Y'],X:['W','Z','Y'],Y:['W','X','Z'],Z:['V','X','Y']};
+const PORTS={U:['A1','A3','A5','C1'],V:['B2','B4','B5','F1','F5'],W:['C5','D1'],X:['D4','G1','H4'],Y:['H5','I2'],Z:['G5','I5']};
 const TERRAIN = {};
 ['A1','A2','A3','A4','A5','B1','B2','C1','C2','C3'].forEach(r=>TERRAIN[r]='e');
 ['B3','B4','B5','C4','C5','D1','D2','D3','D4','D5','E1','E2','E3','E4','E5','F1','F2','F3','F4','F5','G1','H1','H2','H3','H4'].forEach(r=>TERRAIN[r]='t');
@@ -87,6 +101,75 @@ function unitCapFor(game, playerIndex) {
   const faction=game.players[playerIndex].faction;
   return ownedRegionCount(game,playerIndex)*(FACTION_CAP[faction]||2);
 }
+function isSeaId(id){ return Object.prototype.hasOwnProperty.call(SEA_NEIGHBORS,id); }
+function physicalNeighbors(id){ return isSeaId(id) ? [...(SEA_NEIGHBORS[id]||[]),...(PORTS[id]||[])] : [...(LAND_NEIGHBORS[id]||[]),...Object.entries(PORTS).filter(([,rs])=>rs.includes(id)).map(([sea])=>sea)]; }
+function beginAuthoritativePlay(game,index){
+  game.phase='play';game.movePool={};game.destinationUseCount={};game.attacked=[];
+  Object.entries(game.board).forEach(([r,c])=>{game.movePool[r]=c.owner===index?c.units:0});
+  Object.entries(game.sea||{}).forEach(([id,c])=>{game.movePool[id]=(c.fleets&&c.fleets[index])||0});
+}
+function gameRand(game){
+  let a=(game.rngState>>>0)||0x6d2b79f5;a=(a+0x6D2B79F5)>>>0;game.rngState=a;
+  let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return ((t^(t>>>14))>>>0)/4294967296;
+}
+function gameDie(game){return 1+Math.floor(gameRand(game)*6)}
+function currentOracleName(game){return game.oracleActive===null?null:['Canicule','En quête de destruction','Givre mortel','Tempête de sable','Tempête en mer','Vague de froid'][game.oracleActive]||null}
+function refillOracle(game){if(game.oracleDeck.length)return;if(!game.oracleDiscard.length)return;game.oracleDeck=shuffle(game.oracleDiscard.splice(0),()=>gameRand(game))}
+function activateNextOracle(game){
+  if(game.oracleActive!==null)game.oracleDiscard.push(game.oracleActive);refillOracle(game);
+  const id=game.oracleDeck.pop();if(id!==undefined)game.oracleActive=id;return id;
+}
+function destroyAtDragon(game){
+  const id=game.dragon;
+  if(isSeaId(id)){if(game.sea[id])game.sea[id].fleets={};return}
+  const c=game.board[id];if(!c)return;c.owner=null;c.units=0;c.hostile=c.originalHostile;c.building=null;
+}
+function advanceAuthoritativeTurn(room){
+  const game=room.game;if(!game)return;
+  game.active=(game.active+1)%game.players.length;if(game.active===0)game.turn++;
+  game.phase='start';game.movePool={};game.destinationUseCount={};game.attacked=[];game.recruitSnapshot=null;game.lastRoll=null;game.revision++;
+  emitGame(room);scheduleBotTurn(room);
+}
+function resolveOracleRoll(room){
+  const game=room.game,n=gameDie(game);game.lastRoll=n;
+  const destruction=n===6||(currentOracleName(game)==='En quête de destruction'&&(n===4||n===5));
+  if(n===1)activateNextOracle(game);
+  if(destruction)destroyAtDragon(game);
+  advanceAuthoritativeTurn(room);
+  return n;
+}
+function resolveBasicLandBattle(game,index,target,n){
+  const c=game.board[target],hostile=!!c.hostile,defender=hostile?null:c.owner;
+  const d=hostile?5:(defender===null?0:c.units*(FACTION_DEF[game.players[defender].faction]||1));
+  const a=n;
+  let result='defense',survivors=0;
+  if(a>d){
+    survivors=Math.min(n,a-d);if(d>=10)game.players[index].pvPermanent=(game.players[index].pvPermanent||0)+1;
+    c.owner=index;c.units=survivors;c.hostile=false;result='attack';
+  }else if(hostile){c.owner=null;c.units=0;c.hostile=true;survivors=0}
+  else if(defender!==null){
+    if(a>=10)game.players[defender].pvPermanent=(game.players[defender].pvPermanent||0)+1;
+    const coeff=FACTION_DEF[game.players[defender].faction]||1;
+    survivors=a===d?1:Math.max(1,Math.min(c.units,Math.ceil((d-a)/coeff)));c.units=survivors;
+  }
+  return {kind:'battle',target,attacker:index,defender,hostile,attack:a,defense:d,result,survivors};
+}
+function scheduleBotTurn(room){
+  if(!room||!room.game||room.game.status!=='playing')return;
+  const game=room.game,pl=game.players[game.active];if(!pl||!pl.bot)return;
+  clearTimeout(room.botTimer);room.botTimer=setTimeout(()=>runBotTurn(room),650);
+}
+function runBotTurn(room){
+  const game=room.game;if(!game||game.status!=='playing'||!game.players[game.active]||!game.players[game.active].bot)return;
+  const i=game.active;
+  if(game.phase==='start'){drawCards(game,i,2);beginAuthoritativePlay(game,i);game.revision++;emitGame(room);return scheduleBotTurn(room)}
+  if(game.phase==='play'){game.phase='oracleMove';game.revision++;emitGame(room);return scheduleBotTurn(room)}
+  if(game.phase==='oracleMove'){
+    const choices=physicalNeighbors(game.dragon);if(choices.length)game.dragon=choices[Math.floor(gameRand(game)*choices.length)];
+    game.phase='oracleRoll';game.revision++;emitGame(room);return scheduleBotTurn(room);
+  }
+  if(game.phase==='oracleRoll'){resolveOracleRoll(room);return}
+}
 function makeBoard() {
   const board = {};
   ALL_REGIONS.forEach(id => {
@@ -123,6 +206,11 @@ function publicGameView(room, socketId) {
     turn: game.turn,
     active: game.active,
     dragon: game.dragon,
+    sea: game.sea,
+    oracleActive: game.oracleActive,
+    oracleNext: game.oracleDeck.length ? game.oracleDeck[game.oracleDeck.length-1] : null,
+    lastRoll: game.lastRoll,
+    play: game.status==='playing' ? { movePool: game.active===youIndex ? {...(game.movePool||{})} : {}, destinationUseCount: {...(game.destinationUseCount||{})}, attacked: [...(game.attacked||[])], lastEvent: game.lastEvent||null } : null,
     setup: game.setup ? {
       activePlayer: game.setup.activePlayer,
       stage: game.setup.stage,
@@ -199,6 +287,7 @@ function completeSetupIfReady(room) {
   game.phase = 'start';
   game.turn = 1;
   game.active = 0;
+  game.movePool = {}; game.destinationUseCount = {}; game.attacked = []; game.lastEvent=null; game.lastRoll=null;
   game.revision++;
   emitGame(room);
 }
@@ -251,11 +340,14 @@ function buildAuthoritativeGame(room) {
     active: null,
     dragon: 'E4',
     board: makeBoard(),
+    sea: Object.fromEntries(Object.keys(SEA_NEIGHBORS).map(id=>[id,{fleets:{}}])),
     deck: makeDeck(random),
     discard: [],
     oracleDeck: shuffle(ORACLE_IDS.slice(), random),
     oracleDiscard: [],
     oracleActive: null,
+    rngState: (room.seed ^ 0x9e3779b9) >>> 0,
+    movePool: {}, destinationUseCount: {}, attacked: [], lastEvent:null, lastRoll:null,
     players,
     setup: { activePlayer: 0, stage: 'identity' }
   };
@@ -467,11 +559,11 @@ io.on('connection', socket => {
     const type = String(payload.type || '');
     if (type === 'DRAW_START') {
       if (game.phase !== 'start') return rejectGameAction(ack, 'Vous ne pouvez pas piocher maintenant.');
-      drawCards(game, index, 2); game.phase = 'play'; game.revision++; ack({ ok: true }); emitGame(room); return;
+      drawCards(game, index, 2); beginAuthoritativePlay(game,index); game.revision++; ack({ ok: true }); emitGame(room); return;
     }
     if (type === 'HARVEST_START') {
       if (game.phase !== 'start') return rejectGameAction(ack, 'Vous ne pouvez pas récolter maintenant.');
-      game.players[index].gold += ownedRegionCount(game,index)*2; game.phase='play'; game.revision++; ack({ok:true}); emitGame(room); return;
+      game.players[index].gold += ownedRegionCount(game,index)*2; beginAuthoritativePlay(game,index); game.revision++; ack({ok:true}); emitGame(room); return;
     }
     if (type === 'RECRUIT_START') {
       if (game.phase !== 'start') return rejectGameAction(ack, 'Vous ne pouvez pas recruter maintenant.');
@@ -496,7 +588,42 @@ io.on('connection', socket => {
     }
     if (type === 'END_RECRUIT') {
       if (game.phase !== 'recruit') return rejectGameAction(ack, 'Vous n’êtes pas en phase de recrutement.');
-      game.recruitSnapshot=null; game.phase='play'; game.revision++; ack({ok:true}); emitGame(room); return;
+      game.recruitSnapshot=null; beginAuthoritativePlay(game,index); game.revision++; ack({ok:true}); emitGame(room); return;
+    }
+    if(type==='MOVE_LAND'){
+      if(game.phase!=='play')return rejectGameAction(ack,'Vous ne pouvez pas déplacer maintenant.');
+      const target=String(payload.target||''),tc=game.board[target],raw=payload.sources&&typeof payload.sources==='object'?payload.sources:{};
+      if(!tc)return rejectGameAction(ack,'Destination terrestre invalide.');
+      const enemy=tc.hostile||(tc.owner!==null&&tc.owner!==index&&tc.units>0);
+      if(enemy&&(game.attacked||[]).includes(target))return rejectGameAction(ack,'Cette région a déjà été attaquée ce tour.');
+      if(!enemy&&Number((game.destinationUseCount||{})[target]||0)>=1)return rejectGameAction(ack,'Cette région a déjà reçu un déplacement ce tour.');
+      const picks=[];let total=0;
+      for(const [src,v] of Object.entries(raw)){
+        const q=Math.max(0,Math.floor(Number(v)||0));if(!q)continue;
+        const sc=game.board[src];if(!sc||sc.owner!==index)return rejectGameAction(ack,'Source de déplacement invalide.');
+        if(!(LAND_NEIGHBORS[target]||[]).includes(src))return rejectGameAction(ack,'Une source n’est pas adjacente à la destination.');
+        const available=Math.min(sc.units,Number((game.movePool||{})[src]||0));if(q>available)return rejectGameAction(ack,'Pas assez d’unités encore déplaçables sur une source.');
+        picks.push([src,q]);total+=q;
+      }
+      if(total<1)return rejectGameAction(ack,'Sélectionnez au moins une unité.');
+      picks.forEach(([src,q])=>{const sc=game.board[src];sc.units-=q;game.movePool[src]=Math.max(0,(game.movePool[src]||0)-q);if(sc.units===0){sc.owner=null;sc.hostile=sc.originalHostile}});
+      if(enemy){game.attacked=game.attacked||[];game.attacked.push(target);game.lastEvent=resolveBasicLandBattle(game,index,target,total)}
+      else{tc.owner=index;tc.units+=total;tc.hostile=false;game.lastEvent={kind:'move',target,player:index,units:total}}
+      game.destinationUseCount=game.destinationUseCount||{};game.destinationUseCount[target]=(game.destinationUseCount[target]||0)+1;
+      game.revision++;ack({ok:true,event:game.lastEvent});emitGame(room);return;
+    }
+    if(type==='END_PLAY'){
+      if(game.phase!=='play')return rejectGameAction(ack,'La phase de jeu n’est pas active.');
+      game.phase='oracleMove';game.lastEvent={kind:'oracleMove',player:index};game.revision++;ack({ok:true});emitGame(room);return;
+    }
+    if(type==='DRAGON_MOVE'){
+      if(game.phase!=='oracleMove')return rejectGameAction(ack,'Le Dragon ne peut pas être déplacé maintenant.');
+      const target=String(payload.target||'');if(!physicalNeighbors(game.dragon).includes(target))return rejectGameAction(ack,'Le Dragon doit être déplacé vers une case voisine.');
+      game.dragon=target;game.phase='oracleRoll';game.lastEvent={kind:'dragonMove',target,player:index};game.revision++;ack({ok:true});emitGame(room);return;
+    }
+    if(type==='ORACLE_ROLL'){
+      if(game.phase!=='oracleRoll')return rejectGameAction(ack,'Le dé de l’Oracle ne peut pas être lancé maintenant.');
+      const roll=resolveOracleRoll(room);ack({ok:true,roll});return;
     }
     return rejectGameAction(ack, 'Action Online pas encore migrée vers le serveur.');
   });
