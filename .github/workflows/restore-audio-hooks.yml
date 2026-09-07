@@ -1,4 +1,4 @@
-name: Patch TRIBU Online welcome
+name: Patch TRIBU Online Socket.IO
 'on':
   push:
     paths:
@@ -10,19 +10,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply Online welcome patch
-        run: python3 .github/scripts/patch_online_welcome.py
+      - name: Connect Online lobby to Render
+        run: python3 .github/scripts/patch_online_socket.py
       - name: Validate JavaScript
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
           s=Path('index.html').read_text(encoding='utf-8')
-          assert 'Tribu Le Jeu Online' in s
-          assert 'Mode test local — 2 joueurs vs 3 bots' in s
-          assert 'ONLINE_RANDOM_NAMES' in s
+          assert "const ONLINE_SERVER='https://tribu-online.onrender.com'" in s
+          assert "onlineAck('createRoom'" in s
+          assert "onlineAck('joinRoom'" in s
+          assert "onlineAck('setReady'" in s
+          assert 'socket.io/socket.io.js' in s
           assert "launchLegacyMode('2v3',3)" in s
-          Path('/tmp/tribu.js').write_text('\n'.join(re.findall(r'<script[^>]*>(.*?)</script>',s,re.S)),encoding='utf-8')
+          scripts=re.findall(r'<script(?: [^>]*)?>(.*?)</script>',s,re.S)
+          Path('/tmp/tribu.js').write_text('\n'.join(scripts),encoding='utf-8')
           PY
           node --check /tmp/tribu.js
       - name: Commit game
@@ -30,5 +33,5 @@ jobs:
           git config user.name "TRIBU fixes"
           git config user.email "actions@users.noreply.github.com"
           git add index.html
-          git commit -m "Ajoute accueil TRIBU Online beta"
+          git commit -m "Connecte les salons TRIBU au serveur Render"
           git push
