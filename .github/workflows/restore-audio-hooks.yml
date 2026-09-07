@@ -34,3 +34,4 @@ jobs:
           git add index.html
           git commit -m "Ajoute le logo et le lancement commun TRIBU Online"
           git push
+# trigger 2026-09-07
