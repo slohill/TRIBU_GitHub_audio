@@ -36,7 +36,6 @@ const CARD_COUNTS = [4,4,2,3,3,1,2,3,4,3,1,4,2,3,4,1,4,3,1,2,1,3];
 const ORACLE_IDS = [0,1,2,2,3,3,4,5];
 const FACTION_CAP = [3,3,2];
 const FACTION_DEF = [1,1,3];
-const BATTLE_CARD_NAMES = {1:'Balistes',3:'Catapultes',11:'Mur de pique',12:'Montures',14:'Pluie de flèches',21:'Pyrodontes de guerre'};
 const LAND_NEIGHBORS = {
   A1:['A2'],A2:['A1'],A3:['A4'],A4:['A3'],A5:['B1','B2'],
   B1:['A5','B2'],B2:['A5','B1'],B3:['B4'],B4:['B3'],B5:[],
@@ -128,7 +127,7 @@ function destroyAtDragon(game){
 function advanceAuthoritativeTurn(room){
   const game=room.game;if(!game)return;
   game.active=(game.active+1)%game.players.length;if(game.active===0)game.turn++;
-  game.phase='start';game.movePool={};game.destinationUseCount={};game.attacked=[];game.recruitSnapshot=null;game.battle=null;game.players[game.active].attackTurnBonus=0;game.players[game.active].defenseTurnBonus=0;game.revision++;
+  game.phase='start';game.movePool={};game.destinationUseCount={};game.attacked=[];game.recruitSnapshot=null;game.revision++;
   emitGame(room);scheduleBotTurn(room);
 }
 function resolveOracleRoll(room){
@@ -139,94 +138,28 @@ function resolveOracleRoll(room){
   advanceAuthoritativeTurn(room);
   return n;
 }
-function battleDefenseBase(game,target,defender,hostile,kind){
-  if(hostile)return 5;
-  if(defender===null||defender===undefined)return 0;
-  const units=kind==='sea'?Number(game.sea[target].fleets[defender]||0):Number(game.board[target].units||0);
-  return units*(FACTION_DEF[game.players[defender].faction]||1);
-}
-function battlePower(game,side){
-  const b=game.battle;if(!b)return 0;
-  if(side==='attacker')return b.attackUnits+(game.players[b.attacker].attackTurnBonus||0)+(b.attackBonus||0);
-  return b.defenseBase+((b.defender!==null&&b.defender!==undefined)?(game.players[b.defender].defenseTurnBonus||0):0)+(b.defenseBonus||0);
-}
-function battlePublicView(game,youIndex){
-  const b=game.battle;if(!b)return null;
-  const priority=b.priorityOrder[b.priorityIndex]??null;
-  return {kind:b.kind,target:b.target,attacker:b.attacker,defender:b.defender,hostile:b.hostile,attackUnits:b.attackUnits,defenseBase:b.defenseBase,attack:battlePower(game,'attacker'),defense:battlePower(game,'defender'),stack:b.stack.slice(),priority,deadline:b.deadline||null,canAct:priority===youIndex};
-}
-function battleCardLegalityServer(game,owner,cardId,choice){
-  const b=game.battle,name=BATTLE_CARD_NAMES[cardId];if(!b||!name)return {ok:false,error:'Cette carte ne peut pas être jouée dans cette bataille.'};
-  if(owner!==b.attacker&&owner!==b.defender)return {ok:false,error:'Vous ne participez pas à cette bataille.'};
-  if(name==='Mur de pique'&&owner!==b.defender)return {ok:false,error:'Mur de pique est réservé au défenseur.'};
-  if(name==='Montures'&&owner!==b.attacker)return {ok:false,error:'Montures donne +4 uniquement à l’attaquant pendant une bataille.'};
-  if(name==='Pyrodontes de guerre'){
-    if(owner!==b.attacker)return {ok:false,error:'Seul l’attaquant peut jouer Pyrodontes.'};
-    if(b.kind!=='land')return {ok:false,error:'Pyrodontes ne peut être joué qu’en bataille terrestre.'};
-    if(TERRAIN[b.target]!=='t')return {ok:false,error:'La région doit être tempérée.'};
-  }
-  if(name==='Balistes'&&!['attack','defense'].includes(choice))return {ok:false,error:'Choisissez Attaque ou Défense pour Balistes.'};
-  return {ok:true,name};
-}
-function applyBattleCard(game,owner,cardId,choice){
-  const b=game.battle,name=BATTLE_CARD_NAMES[cardId];let bonus=0,side=owner===b.attacker?'attacker':'defender';
-  if(name==='Catapultes')bonus=5;
-  else if(name==='Mur de pique'){bonus=4;side='defender'}
-  else if(name==='Montures'){bonus=4;side='attacker'}
-  else if(name==='Pluie de flèches')bonus=3;
-  else if(name==='Pyrodontes de guerre'){bonus=5;side='attacker'}
-  else if(name==='Balistes'){
-    if(choice==='attack')game.players[owner].attackTurnBonus=(game.players[owner].attackTurnBonus||0)+2;
-    else game.players[owner].defenseTurnBonus=(game.players[owner].defenseTurnBonus||0)+2;
-  }
-  if(side==='attacker')b.attackBonus=(b.attackBonus||0)+bonus;else b.defenseBonus=(b.defenseBonus||0)+bonus;
-  b.stack.push({owner,cardId,name,side:choice||side,bonus});
-}
-function resolveAuthoritativeBattle(room){
-  const game=room.game,b=game&&game.battle;if(!b)return null;
-  clearTimeout(room.battleTimer);room.battleTimer=null;
-  const a=battlePower(game,'attacker'),d=battlePower(game,'defender'),attacker=b.attacker,defender=b.defender,target=b.target;
+function resolveBasicLandBattle(game,index,target,n){
+  const c=game.board[target],hostile=!!c.hostile,defender=hostile?null:c.owner;
+  const d=hostile?5:(defender===null?0:c.units*(FACTION_DEF[game.players[defender].faction]||1));
+  const a=n;
   let result='defense',survivors=0;
-  if(b.kind==='land'){
-    const c=game.board[target];
-    if(a>d){survivors=Math.min(b.attackUnits,a-d);if(d>=10)game.players[attacker].pvPermanent=(game.players[attacker].pvPermanent||0)+1;c.owner=attacker;c.units=survivors;c.hostile=false;result='attack'}
-    else if(b.hostile){c.owner=null;c.units=0;c.hostile=true}
-    else if(defender!==null){if(a>=10)game.players[defender].pvPermanent=(game.players[defender].pvPermanent||0)+1;const coeff=FACTION_DEF[game.players[defender].faction]||1;survivors=a===d?1:Math.max(1,Math.min(b.defOriginalUnits,Math.ceil((d-a)/coeff)));c.units=survivors}
-  }else{
-    const sea=game.sea[target];
-    if(a>d){survivors=Math.min(b.attackUnits,a-d);if(d>=10)game.players[attacker].pvPermanent=(game.players[attacker].pvPermanent||0)+1;sea.fleets[defender]=0;sea.fleets[attacker]=(sea.fleets[attacker]||0)+survivors;result='attack'}
-    else{if(a>=10)game.players[defender].pvPermanent=(game.players[defender].pvPermanent||0)+1;const coeff=FACTION_DEF[game.players[defender].faction]||1;survivors=a===d?1:Math.max(1,Math.min(b.defOriginalUnits,Math.ceil((d-a)/coeff)));sea.fleets[defender]=survivors}
+  if(a>d){
+    survivors=Math.min(n,a-d);if(d>=10)game.players[index].pvPermanent=(game.players[index].pvPermanent||0)+1;
+    c.owner=index;c.units=survivors;c.hostile=false;result='attack';
+  }else if(hostile){c.owner=null;c.units=0;c.hostile=true;survivors=0}
+  else if(defender!==null){
+    if(a>=10)game.players[defender].pvPermanent=(game.players[defender].pvPermanent||0)+1;
+    const coeff=FACTION_DEF[game.players[defender].faction]||1;
+    survivors=a===d?1:Math.max(1,Math.min(c.units,Math.ceil((d-a)/coeff)));c.units=survivors;
   }
-  game.lastEvent={kind:b.kind==='sea'?'seaBattle':'battle',target,attacker,defender,hostile:b.hostile,attack:a,defense:d,result,survivors,stack:b.stack.slice()};
-  game.battle=null;game.revision++;emitGame(room);return game.lastEvent;
+  return {kind:'battle',target,attacker:index,defender,hostile,attack:a,defense:d,result,survivors};
 }
-function battlePass(room,index){
-  const b=room.game&&room.game.battle;if(!b)return false;
-  const priority=b.priorityOrder[b.priorityIndex];if(priority!==index)return false;
-  b.consecutivePasses++;
-  if(b.consecutivePasses>=b.priorityOrder.length){resolveAuthoritativeBattle(room);return true}
-  b.priorityIndex=(b.priorityIndex+1)%b.priorityOrder.length;scheduleBattlePriority(room);room.game.revision++;emitGame(room);return true;
-}
-function scheduleBattlePriority(room){
-  clearTimeout(room.battleTimer);const game=room.game,b=game&&game.battle;if(!b)return;
-  const priority=b.priorityOrder[b.priorityIndex],pl=game.players[priority];b.deadline=Date.now()+(pl&&pl.bot?700:15000);
-  room.battleTimer=setTimeout(()=>{
-    if(!room.game||room.game.battle!==b)return;
-    if(pl&&pl.bot){
-      const options=pl.hand.map((id,handIndex)=>({id,handIndex,legal:battleCardLegalityServer(game,priority,id,id===1?(priority===b.attacker?'attack':'defense'):undefined)})).filter(x=>x.legal.ok);
-      const mine=priority===b.attacker?battlePower(game,'attacker'):battlePower(game,'defender'),other=priority===b.attacker?battlePower(game,'defender'):battlePower(game,'attacker');
-      if(options.length&&mine<=other+2){const pick=options[0],choice=pick.id===1?(priority===b.attacker?'attack':'defense'):undefined;pl.hand.splice(pick.handIndex,1);game.discard.push(pick.id);applyBattleCard(game,priority,pick.id,choice);b.consecutivePasses=0;b.priorityIndex=(b.priorityIndex+1)%b.priorityOrder.length;game.revision++;emitGame(room);scheduleBattlePriority(room);return}
-    }
-    battlePass(room,priority);
-  },pl&&pl.bot?700:15000);
-}
-function startAuthoritativeBattle(room,index,target,n,kind='land',defender=null){
-  const game=room.game,hostile=kind==='land'&&!!game.board[target].hostile;
-  if(kind==='land'&&defender===null&&!hostile)defender=game.board[target].owner;
-  const defOriginalUnits=hostile?0:(kind==='sea'?Number(game.sea[target].fleets[defender]||0):Number(game.board[target].units||0));
-  const priorityOrder=hostile?[index]:[defender,index];
-  game.battle={kind,target,attacker:index,defender,hostile,attackUnits:n,defOriginalUnits,defenseBase:battleDefenseBase(game,target,defender,hostile,kind),attackBonus:0,defenseBonus:0,stack:[],priorityOrder,priorityIndex:0,consecutivePasses:0,deadline:null};
-  scheduleBattlePriority(room);return game.battle;
+function resolveBasicSeaBattle(game,index,target,n,defender){
+  const sea=game.sea[target],defUnits=Number(sea.fleets[defender]||0),coeff=FACTION_DEF[game.players[defender].faction]||1,d=defUnits*coeff,a=n;
+  let result='defense',survivors=0;
+  if(a>d){survivors=Math.min(n,a-d);if(d>=10)game.players[index].pvPermanent=(game.players[index].pvPermanent||0)+1;sea.fleets[defender]=0;sea.fleets[index]=(sea.fleets[index]||0)+survivors;result='attack'}
+  else{if(a>=10)game.players[defender].pvPermanent=(game.players[defender].pvPermanent||0)+1;survivors=a===d?1:Math.max(1,Math.min(defUnits,Math.ceil((d-a)/coeff)));sea.fleets[defender]=survivors}
+  return {kind:'seaBattle',target,attacker:index,defender,attack:a,defense:d,result,survivors};
 }
 function ownedMovableAt(game,index,id){if(isSeaId(id))return Number(game.sea[id]&&game.sea[id].fleets&&game.sea[id].fleets[index]||0);const c=game.board[id];return c&&c.owner===index?Number(c.units||0):0}
 function consumeAuthoritativeMove(game,index,id,q){if(isSeaId(id)){game.sea[id].fleets[index]=Math.max(0,Number(game.sea[id].fleets[index]||0)-q)}else{const c=game.board[id];c.units-=q;if(c.units<=0){c.units=0;c.owner=null;c.hostile=c.originalHostile}}game.movePool[id]=Math.max(0,Number(game.movePool[id]||0)-q)}
@@ -267,6 +200,13 @@ function publicRoom(room) {
     players: room.players.map(p => ({ id: p.id, playerId: p.playerId, pseudo: p.pseudo, ready: p.ready, host: p.id === room.hostId, connected: p.connected !== false }))
   };
 }
+function cloneJson(value){return value===undefined?undefined:JSON.parse(JSON.stringify(value))}
+function legacyDriverIndex(room){if(!room||!room.game)return -1;for(let i=0;i<room.game.players.length;i++){const p=room.game.players[i];if(!p.bot&&p.connected!==false)return i}return -1}
+function projectLegacySnapshot(game,snapshot){
+ const g=snapshot&&snapshot.G;if(!g||!Array.isArray(g.players)||!g.b||typeof g.b!=='object')return false;
+ if(Number.isInteger(g.active)&&g.active>=0&&g.active<game.players.length)game.active=g.active;game.turn=Math.max(0,Math.floor(Number(g.turn)||0));game.phase=cleanText(g.phase,40)||game.phase;game.dragon=String(g.dragon||game.dragon);game.board=cloneJson(g.b);if(g.sea&&typeof g.sea==='object')game.sea=cloneJson(g.sea);if(Array.isArray(g.deck))game.deck=g.deck.slice();if(Array.isArray(g.discard))game.discard=g.discard.slice();if(Array.isArray(g.oracleDeck))game.oracleDeck=g.oracleDeck.slice();if(Array.isArray(g.oracleDiscard))game.oracleDiscard=g.oracleDiscard.slice();game.oracleActive=g.oracleActive===null?null:Number(g.oracleActive);
+ g.players.forEach((src,i)=>{const dst=game.players[i];if(!dst||!src)return;dst.gold=Number(src.gold||0);dst.pvPermanent=Number(src.pvPermanent||0);dst.hand=Array.isArray(src.hand)?src.hand.slice():dst.hand;dst.inPlay=Array.isArray(src.inPlay)?cloneJson(src.inPlay):dst.inPlay||[];dst.attackTurnBonus=Number(src.attackTurnBonus||0);dst.defenseTurnBonus=Number(src.defenseTurnBonus||0);dst.decimated=!!src.decimated;if(Number.isInteger(src.faction))dst.faction=src.faction;if(src.portrait)dst.portrait=String(src.portrait);if(src.color)dst.color=String(src.color)});return true;
+}
 function publicGameView(room, socketId) {
   const game = room.game;
   if (!game) return null;
@@ -286,8 +226,14 @@ function publicGameView(room, socketId) {
     oracleActive: game.oracleActive,
     oracleNext: game.oracleDeck.length ? game.oracleDeck[game.oracleDeck.length-1] : null,
     lastRoll: game.lastRoll,
+    deck: game.deck.slice(),
+    discard: game.discard.slice(),
+    oracleDeck: game.oracleDeck.slice(),
+    oracleDiscard: game.oracleDiscard.slice(),
+    legacyRevision: Number(game.legacyRevision||0),
+    legacyDriverIndex: legacyDriverIndex(room),
+    legacySnapshot: game.legacySnapshot ? cloneJson(game.legacySnapshot) : null,
     play: game.status==='playing' ? { movePool: game.active===youIndex ? {...(game.movePool||{})} : {}, destinationUseCount: {...(game.destinationUseCount||{})}, attacked: [...(game.attacked||[])], lastEvent: game.lastEvent||null } : null,
-    battle: battlePublicView(game,youIndex),
     setup: game.setup ? {
       activePlayer: game.setup.activePlayer,
       stage: game.setup.stage,
@@ -309,7 +255,11 @@ function publicGameView(room, socketId) {
       gold: p.gold,
       pvPermanent: p.pvPermanent,
       hand: i === youIndex ? p.hand.slice() : undefined,
-      handCount: p.hand.length
+      handCount: p.hand.length,
+      inPlay: Array.isArray(p.inPlay)?cloneJson(p.inPlay):[],
+      attackTurnBonus: Number(p.attackTurnBonus||0),
+      defenseTurnBonus: Number(p.defenseTurnBonus||0),
+      decimated: !!p.decimated
     }))
   };
 }
@@ -384,8 +334,7 @@ function buildAuthoritativeGame(room) {
     gold: 0,
     pvPermanent: 0,
     hand: [],
-    attackTurnBonus: 0,
-    defenseTurnBonus: 0
+    inPlay: [], attackTurnBonus: 0, defenseTurnBonus: 0, decimated: false
   }));
   shuffle(humans, random);
 
@@ -405,8 +354,7 @@ function buildAuthoritativeGame(room) {
       gold: 0,
       pvPermanent: 0,
       hand: [],
-      attackTurnBonus: 0,
-      defenseTurnBonus: 0
+      inPlay: [], attackTurnBonus: 0, defenseTurnBonus: 0, decimated: false
     });
   }
 
@@ -428,7 +376,8 @@ function buildAuthoritativeGame(room) {
     oracleDiscard: [],
     oracleActive: null,
     rngState: (room.seed ^ 0x9e3779b9) >>> 0,
-    movePool: {}, destinationUseCount: {}, attacked: [], battle:null, lastEvent:null, lastRoll:null,
+    movePool: {}, destinationUseCount: {}, attacked: [], lastEvent:null, lastRoll:null,
+    legacyRevision:0, legacySnapshot:null,
     players,
     setup: { activePlayer: 0, stage: 'identity' }
   };
@@ -629,28 +578,23 @@ io.on('connection', socket => {
     if (game.setup) emitGame(room);
   });
 
+  socket.on('legacyStatePush', (payload = {}, ack = () => {}) => {
+    const room=roomForSocket(socket);if(!room||!room.game||room.game.status!=='playing')return rejectGameAction(ack,'La partie n’est pas en cours.');const game=room.game,index=humanGameIndex(room,socket.id);if(index<0)return rejectGameAction(ack,'Joueur introuvable.');
+    const revision=Math.max(0,Math.floor(Number(payload.revision)||0));if(revision!==Number(game.legacyRevision||0)){ack({ok:false,error:'État Online déjà mis à jour.',conflict:true,legacyRevision:Number(game.legacyRevision||0)});socket.emit('gameState',publicGameView(room,socket.id));return}
+    let snapshot=payload.snapshot;if(!snapshot||typeof snapshot!=='object'||!snapshot.G||!Array.isArray(snapshot.G.players)||snapshot.G.players.length!==game.players.length)return rejectGameAction(ack,'État TRIBU invalide.');
+    try{const packed=JSON.stringify(snapshot);if(packed.length>750000)return rejectGameAction(ack,'État TRIBU trop volumineux.');snapshot=JSON.parse(packed)}catch(_){return rejectGameAction(ack,'État TRIBU illisible.')}if(snapshot.G)delete snapshot.G.online;
+    if(!projectLegacySnapshot(game,snapshot))return rejectGameAction(ack,'Impossible de synchroniser cet état.');game.legacySnapshot=snapshot;game.legacyRevision=Number(game.legacyRevision||0)+1;game.revision++;game.lastEvent={kind:'legacySync',player:index};ack({ok:true,legacyRevision:game.legacyRevision});emitGame(room);
+  });
+
   socket.on('gameAction', (payload = {}, ack = () => {}) => {
     const room = roomForSocket(socket);
     if (!room || !room.game || room.game.status !== 'playing') return rejectGameAction(ack, 'La partie n’est pas en cours.');
     const game = room.game;
     const index = humanGameIndex(room, socket.id);
     if (index < 0) return rejectGameAction(ack, 'Joueur introuvable.');
-    const type = String(payload.type || '');
-    if(game.battle){
-      const b=game.battle,priority=b.priorityOrder[b.priorityIndex];
-      if(type==='BATTLE_PASS'){
-        if(priority!==index)return rejectGameAction(ack,'Vous n’avez pas la priorité.');
-        ack({ok:true});battlePass(room,index);return;
-      }
-      if(type==='BATTLE_CARD'){
-        if(priority!==index)return rejectGameAction(ack,'Vous n’avez pas la priorité.');
-        const handIndex=Math.floor(Number(payload.handIndex));if(handIndex<0||handIndex>=game.players[index].hand.length)return rejectGameAction(ack,'Carte introuvable.');
-        const cardId=game.players[index].hand[handIndex],choice=payload.choice===undefined?undefined:String(payload.choice),legal=battleCardLegalityServer(game,index,cardId,choice);if(!legal.ok)return rejectGameAction(ack,legal.error);
-        game.players[index].hand.splice(handIndex,1);game.discard.push(cardId);applyBattleCard(game,index,cardId,choice);b.consecutivePasses=0;b.priorityIndex=(b.priorityIndex+1)%b.priorityOrder.length;game.revision++;ack({ok:true});emitGame(room);scheduleBattlePriority(room);return;
-      }
-      return rejectGameAction(ack,'Une bataille est en cours : terminez d’abord les réactions.');
-    }
     if (game.active !== index) return rejectGameAction(ack, 'Ce n’est pas votre tour.');
+
+    const type = String(payload.type || '');
     if (type === 'DRAW_START') {
       if (game.phase !== 'start') return rejectGameAction(ack, 'Vous ne pouvez pas piocher maintenant.');
       drawCards(game, index, 2); beginAuthoritativePlay(game,index); game.revision++; ack({ ok: true }); emitGame(room); return;
@@ -700,7 +644,7 @@ io.on('connection', socket => {
       }
       if(total<1)return rejectGameAction(ack,'Sélectionnez au moins une unité.');
       picks.forEach(([src,q])=>consumeAuthoritativeMove(game,index,src,q));
-      if(enemy){game.attacked=game.attacked||[];game.attacked.push(target);startAuthoritativeBattle(room,index,target,total,'land',null);game.lastEvent={kind:'battlePending',target,attacker:index}}
+      if(enemy){game.attacked=game.attacked||[];game.attacked.push(target);game.lastEvent=resolveBasicLandBattle(game,index,target,total)}
       else{tc.owner=index;tc.units+=total;tc.hostile=false;game.lastEvent={kind:'move',target,player:index,units:total}}
       game.destinationUseCount=game.destinationUseCount||{};game.destinationUseCount[target]=(game.destinationUseCount[target]||0)+1;
       game.revision++;ack({ok:true,event:game.lastEvent});emitGame(room);return;
@@ -717,7 +661,7 @@ io.on('connection', socket => {
       if(defender!==null&&!enemies.some(e=>e.owner===defender))return rejectGameAction(ack,'Cette flotte ne peut pas être attaquée.');
       if(defender===null&&picks.every(([src])=>src===target))return rejectGameAction(ack,'Choisissez une flotte à attaquer.');
       picks.forEach(([src,q])=>consumeAuthoritativeMove(game,index,src,q));
-      if(defender===null){sea.fleets[index]=(sea.fleets[index]||0)+total;game.lastEvent={kind:'seaMove',target,player:index,units:total}}else{startAuthoritativeBattle(room,index,target,total,'sea',defender);game.lastEvent={kind:'seaBattlePending',target,attacker:index,defender}}
+      if(defender===null){sea.fleets[index]=(sea.fleets[index]||0)+total;game.lastEvent={kind:'seaMove',target,player:index,units:total}}else game.lastEvent=resolveBasicSeaBattle(game,index,target,total,defender);
       game.destinationUseCount=game.destinationUseCount||{};game.destinationUseCount[target]=(game.destinationUseCount[target]||0)+1;game.revision++;ack({ok:true,event:game.lastEvent});emitGame(room);return;
     }
     if(type==='END_PLAY'){
