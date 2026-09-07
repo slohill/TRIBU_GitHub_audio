@@ -1,0 +1,39 @@
+name: Restore legacy movement online
+on:
+  push:
+    branches: [restore-legacy-movement-online-final]
+jobs:
+  patch-test:
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: restore-legacy-movement-online-final }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: python3 .github/scripts/restore_legacy_movement_online.py
+      - run: node --check server/server.js
+      - name: Check inline client JavaScript
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text()
+          js=s.rsplit('<script>',1)[1].split('</script>',1)[0]
+          Path('/tmp/client.js').write_text(js)
+          PY
+          node --check /tmp/client.js
+      - name: Verify legacy movement UX and invariants
+        run: |
+          grep -F "setTimeout(()=>{long=true;onlineMoveAll(id)},480)" index.html
+          grep -F "minus.className='sourceMinus'" index.html
+          grep -F "box.className='floatActions onlineMoveFloat'" index.html
+          grep -F "if(type==='MOVE_SEA')" server/server.js
+          grep -F "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" index.html
+          git diff --check
+      - name: Commit generated files
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html server/server.js
+          git commit -m 'Restaure le déplacement historique en Online'
+          git push origin HEAD:restore-legacy-movement-online-final
