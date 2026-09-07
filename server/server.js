@@ -37,6 +37,7 @@ function publicRoom(room) {
     victoryPoints: room.victoryPoints,
     hostId: room.hostId,
     launched: room.launched,
+    seed: room.launched ? room.seed : null,
     players: room.players.map(p => ({ id: p.id, pseudo: p.pseudo, ready: p.ready, host: p.id === room.hostId }))
   };
 }
@@ -82,6 +83,7 @@ io.on('connection', socket => {
       victoryPoints,
       hostId: socket.id,
       launched: false,
+      seed: null,
       players: [{ id: socket.id, pseudo, ready: false }]
     };
     rooms.set(code, room);
@@ -122,6 +124,7 @@ io.on('connection', socket => {
     if (room.hostId !== socket.id) return ack({ ok: false, error: 'Seul le créateur peut lancer la partie.' });
     if (room.players.length !== room.maxHumans) return ack({ ok: false, error: 'Il manque encore des joueurs ou des joueuses.' });
     if (!room.players.every(p => p.ready)) return ack({ ok: false, error: 'Tout le monde doit être prêt·e.' });
+    room.seed = Math.floor(Math.random() * 0x100000000) >>> 0;
     room.launched = true;
     ack({ ok: true });
     io.to(room.code).emit('gameLaunched', publicRoom(room));
