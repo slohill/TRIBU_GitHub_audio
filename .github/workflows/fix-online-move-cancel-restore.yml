@@ -1,0 +1,43 @@
+name: Fix online move cancel restore
+on:
+  push:
+    branches: [fix-online-move-cancel-and-restart-final]
+jobs:
+  patch-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix-online-move-cancel-and-restart-final
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Patch
+        run: python3 .github/scripts/fix_online_move_cancel_restore.py
+      - name: Check inline client JavaScript
+        run: |
+          python3 - <<'PY'
+          import re
+          s=open('index.html').read()
+          parts=[]
+          for m in re.finditer(r'<script([^>]*)>(.*?)</script>',s,re.S|re.I):
+              if 'src=' not in m.group(1).lower(): parts.append(m.group(2))
+          open('/tmp/client.js','w').write('\n'.join(parts))
+          PY
+          node --check /tmp/client.js
+      - name: Verify invariants
+        run: |
+          grep -F "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" index.html
+          grep -F "onlineRestoreMovePreviewDice(map);" index.html
+          grep -F "data-online-move-original-text" index.html
+          ! grep -F "restart.textContent='Recommencer le placement'" index.html
+          git diff --check
+      - name: Commit generated client
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m "Restaure les unités à l annulation du déplacement Online"
+          git push
