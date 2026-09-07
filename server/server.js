@@ -200,6 +200,13 @@ function publicRoom(room) {
     players: room.players.map(p => ({ id: p.id, playerId: p.playerId, pseudo: p.pseudo, ready: p.ready, host: p.id === room.hostId, connected: p.connected !== false }))
   };
 }
+function cloneJson(value){return value===undefined?undefined:JSON.parse(JSON.stringify(value))}
+function legacyDriverIndex(room){if(!room||!room.game)return -1;for(let i=0;i<room.game.players.length;i++){const p=room.game.players[i];if(!p.bot&&p.connected!==false)return i}return -1}
+function projectLegacySnapshot(game,snapshot){
+ const g=snapshot&&snapshot.G;if(!g||!Array.isArray(g.players)||!g.b||typeof g.b!=='object')return false;
+ if(Number.isInteger(g.active)&&g.active>=0&&g.active<game.players.length)game.active=g.active;game.turn=Math.max(0,Math.floor(Number(g.turn)||0));game.phase=cleanText(g.phase,40)||game.phase;game.dragon=String(g.dragon||game.dragon);game.board=cloneJson(g.b);if(g.sea&&typeof g.sea==='object')game.sea=cloneJson(g.sea);if(Array.isArray(g.deck))game.deck=g.deck.slice();if(Array.isArray(g.discard))game.discard=g.discard.slice();if(Array.isArray(g.oracleDeck))game.oracleDeck=g.oracleDeck.slice();if(Array.isArray(g.oracleDiscard))game.oracleDiscard=g.oracleDiscard.slice();game.oracleActive=g.oracleActive===null?null:Number(g.oracleActive);
+ g.players.forEach((src,i)=>{const dst=game.players[i];if(!dst||!src)return;dst.gold=Number(src.gold||0);dst.pvPermanent=Number(src.pvPermanent||0);dst.hand=Array.isArray(src.hand)?src.hand.slice():dst.hand;dst.inPlay=Array.isArray(src.inPlay)?cloneJson(src.inPlay):dst.inPlay||[];dst.attackTurnBonus=Number(src.attackTurnBonus||0);dst.defenseTurnBonus=Number(src.defenseTurnBonus||0);dst.decimated=!!src.decimated;if(Number.isInteger(src.faction))dst.faction=src.faction;if(src.portrait)dst.portrait=String(src.portrait);if(src.color)dst.color=String(src.color)});return true;
+}
 function publicGameView(room, socketId) {
   const game = room.game;
   if (!game) return null;
@@ -219,6 +226,13 @@ function publicGameView(room, socketId) {
     oracleActive: game.oracleActive,
     oracleNext: game.oracleDeck.length ? game.oracleDeck[game.oracleDeck.length-1] : null,
     lastRoll: game.lastRoll,
+    deck: game.deck.slice(),
+    discard: game.discard.slice(),
+    oracleDeck: game.oracleDeck.slice(),
+    oracleDiscard: game.oracleDiscard.slice(),
+    legacyRevision: Number(game.legacyRevision||0),
+    legacyDriverIndex: legacyDriverIndex(room),
+    legacySnapshot: game.legacySnapshot ? cloneJson(game.legacySnapshot) : null,
     play: game.status==='playing' ? { movePool: game.active===youIndex ? {...(game.movePool||{})} : {}, destinationUseCount: {...(game.destinationUseCount||{})}, attacked: [...(game.attacked||[])], lastEvent: game.lastEvent||null } : null,
     setup: game.setup ? {
       activePlayer: game.setup.activePlayer,
@@ -241,7 +255,11 @@ function publicGameView(room, socketId) {
       gold: p.gold,
       pvPermanent: p.pvPermanent,
       hand: i === youIndex ? p.hand.slice() : undefined,
-      handCount: p.hand.length
+      handCount: p.hand.length,
+      inPlay: Array.isArray(p.inPlay)?cloneJson(p.inPlay):[],
+      attackTurnBonus: Number(p.attackTurnBonus||0),
+      defenseTurnBonus: Number(p.defenseTurnBonus||0),
+      decimated: !!p.decimated
     }))
   };
 }
@@ -315,7 +333,8 @@ function buildAuthoritativeGame(room) {
     regions: [],
     gold: 0,
     pvPermanent: 0,
-    hand: []
+    hand: [],
+    inPlay: [], attackTurnBonus: 0, defenseTurnBonus: 0, decimated: false
   }));
   shuffle(humans, random);
 
@@ -334,7 +353,8 @@ function buildAuthoritativeGame(room) {
       regions: [],
       gold: 0,
       pvPermanent: 0,
-      hand: []
+      hand: [],
+      inPlay: [], attackTurnBonus: 0, defenseTurnBonus: 0, decimated: false
     });
   }
 
@@ -357,6 +377,7 @@ function buildAuthoritativeGame(room) {
     oracleActive: null,
     rngState: (room.seed ^ 0x9e3779b9) >>> 0,
     movePool: {}, destinationUseCount: {}, attacked: [], lastEvent:null, lastRoll:null,
+    legacyRevision:0, legacySnapshot:null,
     players,
     setup: { activePlayer: 0, stage: 'identity' }
   };
@@ -555,6 +576,14 @@ io.on('connection', socket => {
     ack({ ok: true });
     completeSetupIfReady(room);
     if (game.setup) emitGame(room);
+  });
+
+  socket.on('legacyStatePush', (payload = {}, ack = () => {}) => {
+    const room=roomForSocket(socket);if(!room||!room.game||room.game.status!=='playing')return rejectGameAction(ack,'La partie n’est pas en cours.');const game=room.game,index=humanGameIndex(room,socket.id);if(index<0)return rejectGameAction(ack,'Joueur introuvable.');
+    const revision=Math.max(0,Math.floor(Number(payload.revision)||0));if(revision!==Number(game.legacyRevision||0)){ack({ok:false,error:'État Online déjà mis à jour.',conflict:true,legacyRevision:Number(game.legacyRevision||0)});socket.emit('gameState',publicGameView(room,socket.id));return}
+    let snapshot=payload.snapshot;if(!snapshot||typeof snapshot!=='object'||!snapshot.G||!Array.isArray(snapshot.G.players)||snapshot.G.players.length!==game.players.length)return rejectGameAction(ack,'État TRIBU invalide.');
+    try{const packed=JSON.stringify(snapshot);if(packed.length>750000)return rejectGameAction(ack,'État TRIBU trop volumineux.');snapshot=JSON.parse(packed)}catch(_){return rejectGameAction(ack,'État TRIBU illisible.')}if(snapshot.G)delete snapshot.G.online;
+    if(!projectLegacySnapshot(game,snapshot))return rejectGameAction(ack,'Impossible de synchroniser cet état.');game.legacySnapshot=snapshot;game.legacyRevision=Number(game.legacyRevision||0)+1;game.revision++;game.lastEvent={kind:'legacySync',player:index};ack({ok:true,legacyRevision:game.legacyRevision});emitGame(room);
   });
 
   socket.on('gameAction', (payload = {}, ack = () => {}) => {
