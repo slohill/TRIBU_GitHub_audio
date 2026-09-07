@@ -1,0 +1,55 @@
+name: Build clean legacy Online sync
+
+on:
+  push:
+    branches:
+      - clean-online-sync-from-4034-20260907
+    paths:
+      - '.github/scripts/build_clean_legacy_online_sync.py'
+      - '.github/workflows/build-clean-legacy-online-sync.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Apply clean sync patch
+        run: python .github/scripts/build_clean_legacy_online_sync.py
+      - name: Check server syntax
+        run: node --check server/server.js
+      - name: Check browser script syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('index.html').read_text(encoding='utf-8')
+          blocks=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
+          inline='\n'.join(b for b in blocks if b.strip())
+          Path('/tmp/tribu-inline.js').write_text(inline,encoding='utf-8')
+          print('inline JS bytes',len(inline.encode()))
+          PY
+          node --check /tmp/tribu-inline.js
+      - name: Guard local mode invariant
+        run: grep -Fq "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" index.html
+      - name: Guard original movement engine
+        run: |
+          grep -Fq 'function chooseDest(id)' index.html
+          grep -Fq 'function adjust(s,d)' index.html
+          grep -Fq 'function pickAllFromSource(s)' index.html
+          grep -Fq 'function commitMove()' index.html
+      - name: Commit production patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html server/server.js
+          git commit -m 'Reconnecte Online au moteur original complet' || exit 0
+          git push
