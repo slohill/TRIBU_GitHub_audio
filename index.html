@@ -3298,9 +3298,9 @@ function resolveBattle(){
  }
  render();queueBot('après bataille');
 }
-function beginPlay(){if(G&&G.online){if(onlineGameState&&onlineGameState.phase==='recruit')return onlineGameAction('END_RECRUIT');return}if(paidDrawState)return;recruitSnapshot=null;G.phase='play';setMovable();render()}
-function doDraw(){if(G&&G.online)return onlineGameAction('DRAW_START');if(paidDrawState)return;draw(G.active,2);log(p().name+' pioche 2 cartes.');beginPlay()}
-function doHarvest(){if(G&&G.online)return onlineGameAction('HARVEST_START');if(paidDrawState||goldReaction)return;
+function beginPlay(){if(G&&G.online&&!G.online.legacySync){if(onlineGameState&&onlineGameState.phase==='recruit')return onlineGameAction('END_RECRUIT');return}if(paidDrawState)return;recruitSnapshot=null;G.phase='play';setMovable();render()}
+function doDraw(){if(G&&G.online&&!G.online.legacySync)return onlineGameAction('DRAW_START');if(paidDrawState)return;draw(G.active,2);log(p().name+' pioche 2 cartes.');beginPlay()}
+function doHarvest(){if(G&&G.online&&!G.online.legacySync)return onlineGameAction('HARVEST_START');if(paidDrawState||goldReaction)return;
  const receiver=G.active;
  let gain=ownRegs(receiver)*2,cityBonus=0;
  Object.keys(G.b).forEach(r=>{const b=cityAt(r);if(b&&b.owner===receiver)cityBonus+=5});
@@ -3309,14 +3309,14 @@ function doHarvest(){if(G&&G.online)return onlineGameAction('HARVEST_START');if(
  offerGoldGain(receiver,gain,'Récolte','beginPlay');
 }
 function doRecruit(){
- if(G&&G.online)return onlineGameAction('RECRUIT_START');
+ if(G&&G.online&&!G.online.legacySync)return onlineGameAction('RECRUIT_START');
  if(paidDrawState)return;
  recruitSnapshot={player:G.active,gold:p().gold,units:{}};
  Object.keys(G.b).forEach(r=>recruitSnapshot.units[r]=G.b[r].units);
  G.phase='recruit';render();
 }
 function resetRecruitment(){
- if(G&&G.online)return onlineGameAction('RESET_RECRUIT');
+ if(G&&G.online&&!G.online.legacySync)return onlineGameAction('RESET_RECRUIT');
  if(!recruitSnapshot||recruitSnapshot.player!==G.active||G.phase!=='recruit')return;
  p().gold=recruitSnapshot.gold;
  Object.keys(recruitSnapshot.units).forEach(r=>G.b[r].units=recruitSnapshot.units[r]);
@@ -3324,7 +3324,7 @@ function resetRecruitment(){
  render();
 }
 function recruitAt(r){
- if(G&&G.online)return onlineGameAction('RECRUIT_AT',{region:r});
+ if(G&&G.online&&!G.online.legacySync)return onlineGameAction('RECRUIT_AT',{region:r});
  const c=G.b[r];if(c.owner!==G.active)return;
  if(p().gold<1){log('Pas assez d’Or.');render();return}
  if(totalUnits()>=cap()){log('Plafond atteint.');render();return}
@@ -3356,7 +3356,7 @@ function mount(){
  render();
 }
 function toOracle(){
- if(G&&G.online)return onlineGameAction('END_PLAY');
+ if(G&&G.online&&!G.online.legacySync)return onlineGameAction('END_PLAY');
  if(battle||caravanState||paidDrawState||isBot()||isDecimated(G.active))return;
  if(!oraclePassArmed){
    oraclePassArmed=true;
@@ -3651,7 +3651,7 @@ function destroyDragonRegionAndEnd(){
  checkDecimations();advanceTurn('nouveau tour');
 }
 function roll(){
- if(G&&G.online)return onlineGameAction('ORACLE_ROLL');
+ if(G&&G.online&&!G.online.legacySync)return onlineGameAction('ORACLE_ROLL');
  // Un seul lancer Oracle par tour. Dès qu'un 1 lance une résolution, aucun
  // second lancer (humain, bot ou ancien timer) ne peut entrer ici.
  if(paidDrawState||isDecimated(G.active)||oracleState||oracleNoticeState||G.phase!=='oracleRoll')return;
@@ -4553,6 +4553,157 @@ function onlineApplyStateToDisplay(state){
  });
  G.online.myPlayerIndex=state.youIndex;G.online.revision=state.revision;
 }
+// ===== CLEAN ONLINE LEGACY SYNC v1 =====
+// The original TRIBU engine remains the only gameplay engine. Online only stores
+// and relays complete committed engine snapshots. UI drafts such as dest/picks are
+// deliberately not synchronized.
+let onlineLegacyRevision=0,onlineLegacyApplying=false,onlineLegacyLastDigest='',onlineLegacyPushTimer=null;
+function onlineLegacyDriverIndex(){
+ if(!G)return -1;
+ return G.players.findIndex(pl=>!pl.bot);
+}
+function onlineLegacyIsDriver(){return !!(G&&G.online&&G.online.legacySync&&G.online.myPlayerIndex===onlineLegacyDriverIndex())}
+function onlineLegacyEncode(value){
+ return JSON.parse(JSON.stringify(value,(k,v)=>v instanceof Set?{$tribuSet:[...v]}:(typeof v==='function'?undefined:v)));
+}
+function onlineLegacyDecode(value){
+ const walk=v=>{
+   if(!v||typeof v!=='object')return v;
+   if(Array.isArray(v))return v.map(walk);
+   if(Array.isArray(v.$tribuSet))return new Set(v.$tribuSet.map(walk));
+   const out={};Object.entries(v).forEach(([k,x])=>out[k]=walk(x));return out;
+ };
+ return walk(value);
+}
+function onlineLegacyRuleState(){
+ return {
+   movable,usedDest,destinationUseCount,attacked,cycle,battle,buildingMode,portalMode,choiceState,
+   paidDrawState,goldReaction,shadowState,battleStack,egnoState,returnState,dragonRichState,dragonCurseState,
+   dragonPublicState,agentModalState,caravanState,oraclePassArmed,oracleState,seaStormState,oracleClimateVisual,
+   oraclePendingNormalMap,turnEpoch,divinationState,recruitSnapshot,gameOverState,commerceDeals,commerceSeq
+ };
+}
+function onlineLegacySnapshot(){
+ const cleanG=onlineLegacyEncode(G);
+ if(cleanG&&cleanG.online){
+   delete cleanG.online.mySocketId;
+   delete cleanG.online.myPlayerIndex;
+   delete cleanG.online.revision;
+ }
+ return {g:cleanG,rule:onlineLegacyEncode(onlineLegacyRuleState())};
+}
+function onlineLegacyDigest(){try{return JSON.stringify(onlineLegacySnapshot())}catch(_){return ''}}
+function onlineLegacyBootstrap(full,state){
+ const players=(full.players||[]).map((sp,i)=>({
+   name:sp.pseudo||('Joueur '+(i+1)),faction:Number.isInteger(sp.faction)?sp.faction:0,gold:sp.gold||0,pvPermanent:sp.pvPermanent||0,
+   hand:Array.isArray(sp.hand)?sp.hand.slice():[],inPlay:Array.isArray(sp.inPlay)?sp.inPlay.slice():[],attackTurnBonus:0,defenseTurnBonus:0,
+   bot:!!sp.bot,decimated:false,portrait:sp.portrait||null,color:sp.color||null
+ }));
+ COLORS.splice(0,COLORS.length,...BASE_COLORS);(full.players||[]).forEach((sp,i)=>{if(sp.color)COLORS[i]=sp.color});
+ const board={};Object.entries(full.board||{}).forEach(([r,c])=>board[r]={...c});
+ const sea={};Object.keys(SEA).forEach(id=>sea[id]={fleets:{...((full.sea&&full.sea[id]&&full.sea[id].fleets)||{})}});
+ G={active:Number.isInteger(full.active)?full.active:0,turn:full.turn||1,phase:full.phase||'start',dragon:full.dragon||'E4',victoryTarget:full.victoryPoints||3,
+   players,b:board,sea,deck:(full.deck||[]).slice(),discard:(full.discard||[]).slice(),log:(full.log||[]).slice(),
+   oracleDeck:(full.oracleDeck||[]).slice(),oracleDiscard:(full.oracleDiscard||[]).slice(),oracleActive:full.oracleActive===null?null:full.oracleActive,
+   online:{code:full.code||state.code,seed:full.seed||state.seed,mySocketId:onlineSocket&&onlineSocket.id,myPlayerIndex:full.youIndex,hostId:onlineRoom&&onlineRoom.hostId,legacySync:true,revision:full.legacyRevision||0}};
+ G.players.forEach((_,i)=>agentDefaults(i));
+ movable={};usedDest=new Set();destinationUseCount={};attacked=new Set();cycle=1;dest=null;picks={};battle=null;buildingMode=null;portalMode=null;choiceState=null;
+ paidDrawState=null;goldReaction=null;shadowState=null;battleStack=[];egnoState=null;returnState=null;dragonRichState=null;dragonCurseState=null;dragonPublicState=null;
+ agentModalState=null;caravanState=null;oraclePassArmed=false;oracleState=null;seaStormState=null;oracleClimateVisual=null;oraclePendingNormalMap=false;turnEpoch=0;
+ divinationState=null;recruitSnapshot=null;gameOverState=null;commerceDeals=[];commerceSeq=1;
+ if(G.phase==='play')setMovable();else resetMove();
+ onlineLegacyRevision=full.legacyRevision||0;
+ onlineLegacyLastDigest=onlineLegacyDigest();
+ setupState=null;onlineSetupLayout(false);$('setupPanel').classList.add('hidden');$('start').classList.add('hidden');$('game').classList.remove('hidden');
+ render();onlineLegacyLastDigest=onlineLegacyDigest();onlineLegacyLockControls();
+ if(onlineLegacyIsDriver())queueBot('synchronisation Online');
+ if(onlineWelcomeShownKey!==String(state.seed||'game'))onlineShowGameWelcome(state);
+}
+function onlineLegacyApply(packet){
+ if(!packet||!packet.snapshot)return;
+ if(!G||!G.online||!G.online.legacySync)return;
+ const me=packet.youIndex;
+ onlineLegacyApplying=true;
+ const localOnline={code:G.online.code,seed:G.online.seed,mySocketId:onlineSocket&&onlineSocket.id,myPlayerIndex:me,hostId:onlineRoom&&onlineRoom.hostId,legacySync:true,revision:packet.revision};
+ const decoded=onlineLegacyDecode(packet.snapshot),next=decoded.g||{};next.online=localOnline;G=next;
+ const r=decoded.rule||{};
+ movable=r.movable||{};usedDest=r.usedDest instanceof Set?r.usedDest:new Set(r.usedDest||[]);destinationUseCount=r.destinationUseCount||{};attacked=r.attacked instanceof Set?r.attacked:new Set(r.attacked||[]);cycle=r.cycle||1;
+ battle=r.battle||null;buildingMode=r.buildingMode||null;portalMode=r.portalMode||null;choiceState=r.choiceState||null;paidDrawState=r.paidDrawState||null;goldReaction=r.goldReaction||null;
+ shadowState=r.shadowState||null;battleStack=r.battleStack||[];egnoState=r.egnoState||null;returnState=r.returnState||null;dragonRichState=r.dragonRichState||null;dragonCurseState=r.dragonCurseState||null;
+ dragonPublicState=r.dragonPublicState||null;agentModalState=r.agentModalState||null;caravanState=r.caravanState||null;oraclePassArmed=!!r.oraclePassArmed;oracleState=r.oracleState||null;
+ seaStormState=r.seaStormState||null;oracleClimateVisual=r.oracleClimateVisual||null;oraclePendingNormalMap=!!r.oraclePendingNormalMap;turnEpoch=r.turnEpoch||0;divinationState=r.divinationState||null;
+ recruitSnapshot=r.recruitSnapshot||null;gameOverState=r.gameOverState||null;commerceDeals=r.commerceDeals||[];commerceSeq=r.commerceSeq||1;
+ onlineLegacyRevision=packet.revision||0;dest=null;picks={};
+ (G.players||[]).forEach((_,i)=>agentDefaults(i));
+ onlineLegacyLastDigest=onlineLegacyDigest();render();onlineLegacyLastDigest=onlineLegacyDigest();onlineLegacyApplying=false;onlineLegacyLockControls();
+ if(onlineLegacyIsDriver())queueBot('état Online reçu');
+}
+function onlineLegacyStart(state){
+ onlineGameState=state;
+ onlineAck('requestLegacyState',{}).then(res=>{
+   if(res.snapshot){
+     if(!G||!G.online||!G.online.legacySync){
+       // Build a minimal full shell first, then apply the stored canonical snapshot.
+       onlineLegacyBootstrap(res.bootstrap,state);
+     }
+     onlineLegacyApply({snapshot:res.snapshot,revision:res.revision,youIndex:res.youIndex});
+   }else onlineLegacyBootstrap(res.bootstrap,state);
+ }).catch(onlineError);
+}
+function onlineLegacyCanPublish(){
+ if(!G||!G.online||!G.online.legacySync||onlineLegacyApplying||!onlineSocket)return false;
+ const me=G.online.myPlayerIndex;if(!Number.isInteger(me)||!G.players[me]||G.players[me].bot)return false;
+ if(G.players[G.active]&&G.players[G.active].bot)return onlineLegacyIsDriver();
+ return true;
+}
+function onlineLegacyMaybePush(){
+ if(!onlineLegacyCanPublish())return;
+ const digest=onlineLegacyDigest();if(!digest||digest===onlineLegacyLastDigest)return;
+ clearTimeout(onlineLegacyPushTimer);
+ onlineLegacyPushTimer=setTimeout(()=>{
+   if(!onlineLegacyCanPublish())return;
+   const now=onlineLegacyDigest();if(!now||now===onlineLegacyLastDigest)return;
+   const snapshot=onlineLegacySnapshot(),actorIndex=G.online.myPlayerIndex,baseRevision=onlineLegacyRevision;
+   onlineLegacyLastDigest=now;
+   onlineAck('legacyCommit',{baseRevision,actorIndex,snapshot}).then(res=>{
+     onlineLegacyRevision=res.revision;G.online.revision=res.revision;
+   }).catch(err=>{
+     onlineLegacyLastDigest='';
+     if(err&&err.current)onlineLegacyApply(err.current);else onlineError(err);
+   });
+ },90);
+}
+function onlineLegacyViewerNeedsMap(me){
+ if(oracleState&&oracleState.kind==='sacrifice'){
+   const q=oracleState.queues&&oracleState.queues[oracleState.index];if(q&&q.player===me)return true;
+ }
+ if(oracleState&&oracleState.kind==='dragon5'&&oracleState.player===me)return true;
+ if(dragonRichState&&dragonRichState.player===me)return true;
+ return me===G.active;
+}
+function onlineLegacyLockControls(){
+ if(!G||!G.online||!G.online.legacySync)return;
+ const me=G.online.myPlayerIndex,mine=me===G.active&&!G.players[me].bot,botDriver=G.players[G.active]&&G.players[G.active].bot&&onlineLegacyIsDriver();
+ const canTurn=mine||botDriver;
+ const start=canTurn&&G.phase==='start',recruiting=canTurn&&G.phase==='recruit',playing=canTurn&&G.phase==='play',oracleRoll=canTurn&&G.phase==='oracleRoll';
+ const s=$('startTurn');if(s)s.classList.toggle('hidden',!start);
+ if($('draw'))$('draw').disabled=!start;if($('harvest'))$('harvest').disabled=!start;if($('recruit'))$('recruit').disabled=!start;
+ if($('endRecruit'))$('endRecruit').disabled=!recruiting;if($('resetRecruit'))$('resetRecruit').disabled=!recruiting;
+ if($('toOracle'))$('toOracle').disabled=!playing;if($('roll'))$('roll').disabled=!oracleRoll;
+ const map=$('map');if(map)map.style.pointerEvents=onlineLegacyViewerNeedsMap(me)?'':'none';
+ const n=$('status');if(n&&!n.querySelector('.onlineLegacyNotice'))n.insertAdjacentHTML('beforeend','<div class="botNotice onlineLegacyNotice">🌐 Online — moteur original TRIBU synchronisé.</div>');
+}
+const onlineLegacyBaseRender=render;
+render=function(){
+ onlineLegacyBaseRender();
+ if(G&&G.online&&G.online.legacySync){onlineLegacyLockControls();onlineLegacyMaybePush()}
+};
+const onlineLegacyBaseQueueBot=queueBot;
+queueBot=function(reason){
+ if(G&&G.online&&G.online.legacySync&&!onlineLegacyIsDriver())return;
+ return onlineLegacyBaseQueueBot(reason);
+};
+
 function onlineSetupRegionsFor(state){const me=state.players[state.youIndex];return me&&me.province?Object.keys(R).filter(r=>R[r][0]===me.province&&!R[r][2]):[]}
 function onlineSetupMapFeedback(state,active){
  const map=$('map');if(!map)return;const ids=Object.keys(POS),allowed=active?onlineSetupRegionsFor(state):[];
@@ -4583,6 +4734,7 @@ function onlineSetupRegionClick(r){
  renderOnlineAuthoritativeSetup(state);
 }
 function onlineLockControls(){
+ if(G&&G.online&&G.online.legacySync){onlineLegacyLockControls();return}
  if(!G||!G.online||!onlineGameState)return;
  const mine=onlineGameState.active===onlineGameState.youIndex&&onlineGameState.status==='playing'&&!onlineWelcomeActive,start=mine&&onlineGameState.phase==='start',recruiting=mine&&onlineGameState.phase==='recruit',playing=mine&&onlineGameState.phase==='play',oracleMove=mine&&onlineGameState.phase==='oracleMove',oracleRoll=mine&&onlineGameState.phase==='oracleRoll';
  $('startTurn').classList.toggle('hidden',!start);
@@ -4593,11 +4745,13 @@ function onlineLockControls(){
  const n=$('status');if(n)n.innerHTML+='<div class="botNotice">🌐 Online autoritaire — tour, déplacements et Oracle synchronisés par le serveur.'+(onlineGameState.lastRoll?' Dernier dé Oracle : <b>'+onlineGameState.lastRoll+'</b>.':'')+'</div>';onlineRefreshPlayUi();
 }
 function applyOnlineGameState(state){
- const wasSetup=onlineGameState&&onlineGameState.status==='setup',oldPhase=onlineGameState&&onlineGameState.phase;onlineGameState=state;if(oldPhase!==state.phase||state.active!==G?.active)onlineResetMoveDraft();
+ const wasSetup=onlineGameState&&onlineGameState.status==='setup';onlineGameState=state;
  if(state.status==='setup'){renderOnlineAuthoritativeSetup(state);return}
- onlineApplyStateToDisplay(state);setupState=null;onlineSetupLayout(false);$('setupPanel').classList.add('hidden');$('start').classList.add('hidden');$('game').classList.remove('hidden');render();
- if(state.status==='playing'&&(wasSetup||onlineWelcomeShownKey!==String(state.seed||'game')))onlineShowGameWelcome(state);
- onlineLockControls();
+ if(state.status==='playing'){
+   if(G&&G.online&&G.online.legacySync){G.online.serverRevision=state.revision;onlineLegacyLockControls();return}
+   onlineLegacyStart(state);return;
+ }
+ if(wasSetup)onlineSetupLayout(false);
 }
 function launchOnlineRoom(room){
  if(!room||room.seed===null||room.seed===undefined)return onlineError(new Error('Graine de partie absente.'));
@@ -4627,6 +4781,7 @@ function connectOnline(){
   socket.on('roomState',renderOnlineLobby);
   socket.on('gameLaunched',room=>{onlineRoom=room;$('onlineLaunch').disabled=true;$('onlineReady').disabled=true;launchOnlineRoom(room)});
   socket.on('gameState',applyOnlineGameState);
+  socket.on('legacyState',packet=>onlineLegacyApply(packet));
  });
 }
 function onlineAck(action,payload){return connectOnline().then(socket=>new Promise((resolve,reject)=>socket.emit(action,payload,res=>res&&res.ok?resolve(res):reject(new Error(res&&res.error||'Erreur serveur.')))))}

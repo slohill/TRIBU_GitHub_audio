@@ -164,6 +164,7 @@ function resolveBasicSeaBattle(game,index,target,n,defender){
 function ownedMovableAt(game,index,id){if(isSeaId(id))return Number(game.sea[id]&&game.sea[id].fleets&&game.sea[id].fleets[index]||0);const c=game.board[id];return c&&c.owner===index?Number(c.units||0):0}
 function consumeAuthoritativeMove(game,index,id,q){if(isSeaId(id)){game.sea[id].fleets[index]=Math.max(0,Number(game.sea[id].fleets[index]||0)-q)}else{const c=game.board[id];c.units-=q;if(c.units<=0){c.units=0;c.owner=null;c.hostile=c.originalHostile}}game.movePool[id]=Math.max(0,Number(game.movePool[id]||0)-q)}
 function scheduleBotTurn(room){
+  if(room&&room.legacyMode)return;
   if(!room||!room.game||room.game.status!=='playing')return;
   const game=room.game,pl=game.players[game.active];if(!pl||!pl.bot)return;
   clearTimeout(room.botTimer);room.botTimer=setTimeout(()=>runBotTurn(room),650);
@@ -245,6 +246,26 @@ function publicGameView(room, socketId) {
     }))
   };
 }
+// ===== CLEAN ONLINE LEGACY SYNC v1 =====
+function legacyYouIndex(room,socketId){return humanGameIndex(room,socketId)}
+function legacyBootstrapView(room,socketId){
+  const game=room.game,youIndex=legacyYouIndex(room,socketId);
+  return {
+    code:room.code,mode:room.mode,victoryPoints:room.victoryPoints,seed:room.seed,youIndex,legacyRevision:room.legacyRevision||0,
+    status:game.status,phase:game.phase,turn:game.turn,active:game.active,dragon:game.dragon,
+    board:game.board,sea:game.sea,deck:game.deck,discard:game.discard,oracleDeck:game.oracleDeck,oracleDiscard:game.oracleDiscard,oracleActive:game.oracleActive,
+    log:[],players:game.players.map((p,i)=>({index:i,pseudo:p.pseudo,bot:p.bot,connected:p.bot?true:p.connected!==false,color:p.color,portrait:p.portrait,faction:p.faction,province:p.province,regions:(p.regions||[]).slice(),gold:p.gold||0,pvPermanent:p.pvPermanent||0,hand:(p.hand||[]).slice(),inPlay:[]}))
+  };
+}
+function emitLegacy(room,exceptSocketId=null){
+  if(!room||!room.legacySnapshot)return;
+  room.players.forEach(p=>{
+    if(p.id===exceptSocketId)return;
+    const socket=io.sockets.sockets.get(p.id);if(!socket)return;
+    socket.emit('legacyState',{snapshot:room.legacySnapshot,revision:room.legacyRevision||0,youIndex:legacyYouIndex(room,p.id)});
+  });
+}
+
 function emitRoom(room) {
   io.to(room.code).emit('roomState', publicRoom(room));
 }
@@ -292,6 +313,7 @@ function completeSetupIfReady(room) {
 
   game.players.forEach((_, i) => drawCards(game, i, 3));
   game.setup = null;
+  room.legacyMode = true; room.legacyRevision = 0; room.legacySnapshot = null;
   game.status = 'playing';
   game.phase = 'start';
   game.turn = 1;
@@ -555,6 +577,28 @@ io.on('connection', socket => {
     ack({ ok: true });
     completeSetupIfReady(room);
     if (game.setup) emitGame(room);
+  });
+
+
+  socket.on('requestLegacyState', (_payload, ack = () => {}) => {
+    const room=roomForSocket(socket);
+    if(!room||!room.game||room.game.status!=='playing')return rejectGameAction(ack,'La partie complète n’est pas disponible.');
+    const youIndex=humanGameIndex(room,socket.id);if(youIndex<0)return rejectGameAction(ack,'Joueur introuvable.');
+    ack({ok:true,revision:room.legacyRevision||0,youIndex,bootstrap:legacyBootstrapView(room,socket.id),snapshot:room.legacySnapshot||null});
+  });
+
+  socket.on('legacyCommit', (payload = {}, ack = () => {}) => {
+    const room=roomForSocket(socket);
+    if(!room||!room.game||room.game.status!=='playing'||!room.legacyMode)return rejectGameAction(ack,'Synchronisation complète indisponible.');
+    const index=humanGameIndex(room,socket.id);if(index<0)return rejectGameAction(ack,'Joueur introuvable.');
+    if(Number(payload.actorIndex)!==index)return rejectGameAction(ack,'Vous ne pouvez synchroniser que vos propres actions.');
+    const base=Number(payload.baseRevision)||0,current=room.legacyRevision||0;
+    if(base!==current){
+      return ack({ok:false,error:'État de partie plus récent disponible.',current:room.legacySnapshot?{snapshot:room.legacySnapshot,revision:current,youIndex:index}:null});
+    }
+    if(!payload.snapshot||typeof payload.snapshot!=='object')return rejectGameAction(ack,'État de jeu invalide.');
+    room.legacySnapshot=payload.snapshot;room.legacyRevision=current+1;
+    ack({ok:true,revision:room.legacyRevision});emitLegacy(room,socket.id);
   });
 
   socket.on('gameAction', (payload = {}, ack = () => {}) => {
