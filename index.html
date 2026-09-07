@@ -4613,10 +4613,21 @@ function onlineSingleEngineSnapshot(){
 }
 function onlineSingleEngineApply(snapshot,state){
  if(!snapshot||!snapshot.game)return false;onlineEngineApplying=true;clearTimeout(onlineEnginePushTimer);clearTimeout(botTimer);clearTimeout(botReactionTimer);clearInterval(battleTick);clearInterval(paidDrawTick);clearInterval(goldReactionTick);clearInterval(shadowTick);clearInterval(dragonSixTick);clearInterval(oracleNoticeTick);
- const me=state.youIndex,oldOnline=G&&G.online?{...G.online}:{};const s=JSON.parse(JSON.stringify(snapshot));G=s.game;G.online={...oldOnline,code:state.code,seed:state.seed,mySocketId:onlineSocket&&onlineSocket.id,myPlayerIndex:me,hostId:onlineRoom&&onlineRoom.hostId,revision:state.revision,singleEngine:true,engineRevision:Number(state.engineRevision||0),engineDriverIndex:Number.isInteger(state.engineDriverIndex)?state.engineDriverIndex:null};
+ const me=state.youIndex,oldOnline=G&&G.online?{...G.online}:{};
+ const localMoveDraft=(G&&G.online&&G.online.singleEngine&&G.phase==='play'&&G.active===me&&dest)?{dest,picks:{...picks}}:null;
+ const s=JSON.parse(JSON.stringify(snapshot));G=s.game;G.online={...oldOnline,code:state.code,seed:state.seed,mySocketId:onlineSocket&&onlineSocket.id,myPlayerIndex:me,hostId:onlineRoom&&onlineRoom.hostId,revision:state.revision,singleEngine:true,engineRevision:Number(state.engineRevision||0),engineDriverIndex:Number.isInteger(state.engineDriverIndex)?state.engineDriverIndex:null};
  const sh=s.shared||{};battle=sh.battle||null;battleStack=sh.battleStack||[];goldReaction=sh.goldReaction||null;caravanState=sh.caravanState||null;choiceState=sh.choiceState||null;shadowState=sh.shadowState||null;egnoState=sh.egnoState||null;returnState=sh.returnState||null;dragonRichState=sh.dragonRichState||null;dragonCurseState=sh.dragonCurseState||null;dragonPublicState=sh.dragonPublicState||null;dragonSixState=sh.dragonSixState||null;oraclePassArmed=!!sh.oraclePassArmed;oracleState=sh.oracleState||null;seaStormState=sh.seaStormState||null;oracleNoticeState=sh.oracleNoticeState||null;oracleClimateVisual=sh.oracleClimateVisual||null;oraclePendingNormalMap=!!sh.oraclePendingNormalMap;oracleResolutionAfter=sh.oracleResolutionAfter??null;oracleResolutionTurnEpoch=sh.oracleResolutionTurnEpoch??null;turnEpoch=Number(sh.turnEpoch||0);divinationState=sh.divinationState||null;recruitSnapshot=sh.recruitSnapshot||null;gameOverState=sh.gameOverState||null;botActionsThisTurn=Number(sh.botActionsThisTurn||0);movable=sh.movable||{};usedDest=new Set(sh.usedDest||[]);destinationUseCount=sh.destinationUseCount||{};attacked=new Set(sh.attacked||[]);cycle=Number(sh.cycle||1);commerceDeals=Array.isArray(sh.commerceDeals)?sh.commerceDeals:[];commerceSeq=Number(sh.commerceSeq||1);commerceBattlePaused=!!sh.commerceBattlePaused;
- // Les brouillons de clic restent locaux : jamais de destination/picks distants injectés.
- dest=null;picks={};onlineEngineRevision=Number(state.engineRevision||0);onlineEngineLastSent=JSON.stringify(s);onlineEngineApplying=false;return true;
+ // Le brouillon de déplacement est strictement local, mais il ne doit pas être effacé
+ // par un simple écho de synchronisation pendant que le joueur choisit ses unités.
+ dest=null;picks={};
+ if(localMoveDraft&&G.phase==='play'&&G.active===me&&!battle&&!choiceState&&!oracleState&&!divinationState&&legalSources(localMoveDraft.dest).length){
+   dest=localMoveDraft.dest;
+   for(const [src,q] of Object.entries(localMoveDraft.picks||{})){
+     if(!legalSources(dest).includes(src))continue;
+     const n=Math.max(0,Math.min(movableCount(src),Number(q)||0));if(n)picks[src]=n;
+   }
+ }
+ onlineEngineRevision=Number(state.engineRevision||0);onlineEngineLastSent=JSON.stringify(s);onlineEngineApplying=false;return true;
 }
 function onlineSingleEngineLock(){
  if(onlineGameState&&onlineGameState.status==='setup'){const mapEl=$('map'),hand=$('hand');if(mapEl)mapEl.style.pointerEvents='';if(hand)hand.style.pointerEvents='';return}
