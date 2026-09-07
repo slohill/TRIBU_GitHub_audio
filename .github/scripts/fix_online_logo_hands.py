@@ -22,11 +22,10 @@ if old not in s:
 s=s.replace(old,new,1)
 
 # 3) Sort le logo embarqué de l'énorme data URI pour en faire un vrai asset web.
-# Cela évite les problèmes de rendu/cache liés à l'image inline sur l'écran d'accueil.
-m=re.search(r'<img class="onlineBrandLogo" src="data:image/(webp|png);base64,([A-Za-z0-9+/=]+)" alt="([^"]*)">',s)
+# Regex volontairement simple : tout ce qui est entre base64, et le prochain guillemet.
+m=re.search(r'<img class="onlineBrandLogo" src="data:image/(webp|png);base64,([^"]+)" alt="([^"]*)">',s)
 if not m:
-    # Le patch reste idempotent si l'asset est déjà référencé.
-    if 'class="onlineBrandLogo" src="assets/tribu-title.webp"' not in s:
+    if 'class="onlineBrandLogo" src="assets/tribu-title.webp?v=1"' not in s:
         raise SystemExit('online logo data URI anchor missing')
 else:
     ext=m.group(1)
@@ -34,10 +33,7 @@ else:
     out=Path('assets/tribu-title.webp' if ext=='webp' else 'assets/tribu-title.png')
     out.parent.mkdir(parents=True,exist_ok=True)
     out.write_bytes(data)
-    replacement=f'<img class="onlineBrandLogo" src="{out.as_posix()}" alt="{m.group(3)}">'
+    replacement=f'<img class="onlineBrandLogo" src="{out.as_posix()}?v=1" alt="{m.group(3)}">'
     s=s[:m.start()]+replacement+s[m.end():]
-
-# Ajoute une version de cache explicite pour forcer le navigateur à prendre le logo corrigé.
-s=s.replace('src="assets/tribu-title.webp" alt=', 'src="assets/tribu-title.webp?v=1" alt=', 1)
 
 p.write_text(s,encoding='utf-8')
