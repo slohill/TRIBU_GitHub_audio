@@ -3607,7 +3607,12 @@ function oracleDestLocked(id){return !!(seaStormState&&seaStormState.locked&&sea
 
 function dragonTargets(){return physicalNeighbors(G.dragon)}
 function clickSpot(id){
- if(G&&G.online&&onlineGameState){if(onlineGameState.status==='setup')onlineSetupRegionClick(id);else if(onlineGameState.status==='playing'&&onlineGameState.phase==='recruit'&&onlineGameState.active===onlineGameState.youIndex)recruitAt(id);else if(onlineGameState.status==='playing'&&onlineGameState.phase==='play'&&onlineGameState.active===onlineGameState.youIndex)onlineMoveClick(id);else if(onlineGameState.status==='playing'&&onlineGameState.phase==='oracleMove'&&onlineGameState.active===onlineGameState.youIndex)onlineDragonClick(id);return}
+ if(G&&G.online&&onlineGameState&&!(G.online&&G.online.legacySync)){if(onlineGameState.status==='setup')onlineSetupRegionClick(id);else if(onlineGameState.status==='playing'&&onlineGameState.phase==='recruit'&&onlineGameState.active===onlineGameState.youIndex)recruitAt(id);else if(onlineGameState.status==='playing'&&onlineGameState.phase==='play'&&onlineGameState.active===onlineGameState.youIndex)onlineMoveClick(id);else if(onlineGameState.status==='playing'&&onlineGameState.phase==='oracleMove'&&onlineGameState.active===onlineGameState.youIndex)onlineDragonClick(id);return}
+ if(G&&G.online&&G.online.legacySync){
+   const me=G.online.myPlayerIndex;
+   const reactionMap=(oracleState&&oracleState.kind==='sacrifice'&&oracleState.queues&&oracleState.queues[oracleState.index]&&oracleState.queues[oracleState.index].player===me)||(oracleState&&oracleState.kind==='dragon5'&&oracleState.player===me)||(dragonRichState&&dragonRichState.player===me);
+   if(me!==G.active&&!reactionMap)return;
+ }
  if(setupState){if(setupState.stage==='regions')setupRegionClick(id);return}
  if(divinationState)return;
  if(oracleNoticeState)return;
@@ -4690,7 +4695,7 @@ function onlineLegacyLockControls(){
  if($('draw'))$('draw').disabled=!start;if($('harvest'))$('harvest').disabled=!start;if($('recruit'))$('recruit').disabled=!start;
  if($('endRecruit'))$('endRecruit').disabled=!recruiting;if($('resetRecruit'))$('resetRecruit').disabled=!recruiting;
  if($('toOracle'))$('toOracle').disabled=!playing;if($('roll'))$('roll').disabled=!oracleRoll;
- const map=$('map');if(map)map.style.pointerEvents=onlineLegacyViewerNeedsMap(me)?'':'none';
+ const map=$('map');if(map)map.style.pointerEvents='';
  const n=$('status');if(n&&!n.querySelector('.onlineLegacyNotice'))n.insertAdjacentHTML('beforeend','<div class="botNotice onlineLegacyNotice">🌐 Online — moteur original TRIBU synchronisé.</div>');
 }
 const onlineLegacyBaseRender=render;
