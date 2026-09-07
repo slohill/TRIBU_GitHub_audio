@@ -1,0 +1,43 @@
+name: Fix Online atomic bot turn
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - '.github/scripts/fix_online_bot_atomic_turn.py'
+      - '.github/workflows/fix-online-bot-atomic-turn.yml'
+permissions:
+  contents: write
+jobs:
+  patch-and-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Apply atomic bot fix
+        run: python .github/scripts/fix_online_bot_atomic_turn.py
+      - name: Check browser script syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('index.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script[^>]*>(.*?)</script>',s,re.S)
+          Path('/tmp/tribu.js').write_text('\n'.join(scripts),encoding='utf-8')
+          PY
+          node --check /tmp/tribu.js
+      - name: Guard atomic bot behavior
+        run: |
+          grep -q "if(!activePlayer||!activePlayer.bot)onlineLegacyMaybePush()" index.html
+          grep -q "Une synchro distante ne relance pas un bot" index.html
+          grep -q "Désactivé : un tour bot Online est exécuté atomiquement" index.html
+      - name: Commit production fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Exécute les tours bots Online atomiquement'
+          git push
