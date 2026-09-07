@@ -248,7 +248,8 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 
 .setupPanel{position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:260;width:min(520px,82%);background:#111e;border:2px solid #d6d6d6;border-radius:10px;padding:10px 12px;box-shadow:0 8px 24px #000c;text-align:center}
 .setupPanel.hidden{display:none}
-.setupPanel h3{margin:0 0 7px;font-size:16px}
+.setupPanel h3{margin:0 0 12px;font-size:16px;line-height:1.25}
+#setupText{display:block;margin:0 0 12px;line-height:1.35}
 .setupChoices{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin-top:8px}
 .setupChoices button{min-width:110px;padding:6px 8px}
 .setupNameGrid{display:grid;grid-template-columns:1fr;gap:6px;text-align:left;margin-top:8px}
@@ -4457,13 +4458,14 @@ function renderOnlineAuthoritativeSetup(state){
  }else if(stage==='identity'){
    onlineSetupSelectedRegions=[];
    $('setupText').innerHTML='Province attribuée au hasard : <b>'+me.province+'</b><br>Choisissez votre couleur puis votre encart de faction.';
-   BASE_COLORS.forEach((color,i)=>{if(state.setup.usedColors.includes(color))return;const b=document.createElement('button');b.className='setupColorBtn';b.dataset.color=color;b.textContent=COLOR_NAMES[i];b.style.borderColor=color;b.style.color=color;b.onclick=()=>{box.querySelectorAll('.setupColorBtn').forEach(x=>x.classList.remove('selected'));b.classList.add('selected');box.dataset.color=color;onlineSetupIdentityReady(box)}});
+   BASE_COLORS.forEach((color,i)=>{if(state.setup.usedColors.includes(color))return;const b=document.createElement('button');b.className='setupColorBtn';b.dataset.color=color;b.textContent=COLOR_NAMES[i];b.style.borderColor=color;b.style.color=color;b.onclick=()=>{box.querySelectorAll('.setupColorBtn').forEach(x=>x.classList.remove('selected'));b.classList.add('selected');box.dataset.color=color;onlineSetupIdentityReady(box)};box.appendChild(b)});
    const br=document.createElement('div');br.style.flexBasis='100%';box.appendChild(br);
    Object.entries(FACTION_PORTRAIT_META).forEach(([key,meta])=>{if(state.setup.usedPortraits.includes(key))return;const b=document.createElement('button');b.className='setupFactionPortrait';b.dataset.portrait=key;b.innerHTML='<img src="'+FACTION_PORTRAITS[key]+'" alt="'+meta.label+'"><span>'+meta.label+'</span>';b.onclick=()=>{box.querySelectorAll('.setupFactionPortrait').forEach(x=>x.classList.remove('selected'));b.classList.add('selected');box.dataset.portrait=key;onlineSetupIdentityReady(box)};box.appendChild(b)});
    const br2=document.createElement('div');br2.style.flexBasis='100%';box.appendChild(br2);const ok=document.createElement('button');ok.id='onlineSetupIdentityConfirm';ok.textContent='Valider couleur et faction';ok.disabled=true;ok.onclick=()=>onlineAck('setupIdentity',{color:box.dataset.color,portrait:box.dataset.portrait}).catch(onlineError);box.appendChild(ok);
  }else if(stage==='regions'){
-   $('setupText').innerHTML='Province <b>'+me.province+'</b> — choisissez <b>2 régions parmi les 4 régions non hostiles</b>.<br>Sélection : <b>'+onlineSetupSelectedRegions.length+'/2</b>';
-   const ok=document.createElement('button');ok.textContent='Valider les 2 régions';ok.disabled=onlineSetupSelectedRegions.length!==2;ok.onclick=()=>onlineAck('setupRegions',{regions:onlineSetupSelectedRegions.slice()}).catch(onlineError);box.appendChild(ok);
+   $('setupText').innerHTML='Province <b>'+me.province+'</b> — cliquez directement sur la carte pour installer vos unités dans <b>2 régions parmi les 4 régions non hostiles</b>.<br>Sélection : <b>'+onlineSetupSelectedRegions.length+'/2</b>';
+   const ok=document.createElement('button');ok.textContent='Valider le placement';ok.disabled=onlineSetupSelectedRegions.length!==2;ok.onclick=()=>onlineAck('setupRegions',{regions:onlineSetupSelectedRegions.slice()}).catch(onlineError);box.appendChild(ok);
+   const restart=document.createElement('button');restart.textContent='Recommencer le placement';restart.disabled=onlineSetupSelectedRegions.length===0;restart.onclick=()=>{onlineSetupSelectedRegions=[];renderOnlineAuthoritativeSetup(state)};box.appendChild(restart);
  }
  renderMap();renderPlayerRail();
 }
