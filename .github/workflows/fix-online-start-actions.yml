@@ -31,9 +31,17 @@ jobs:
           node --check /tmp/tribu-inline.js
       - name: Verify start actions invariants
         run: |
-          grep -F "const start=can&&phase==='start'" index.html
-          grep -F "$('draw').disabled=!start;$('harvest').disabled=!start;$('recruit').disabled=!start;" index.html
-          grep -F "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" index.html
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          checks=[
+            "const start=can&&phase==='start'",
+            "$('draw').disabled=!start;$('harvest').disabled=!start;$('recruit').disabled=!start;",
+            "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};"
+          ]
+          for c in checks:
+            assert c in s, c
+          PY
           git diff --check
       - name: Commit generated production file
         run: |
