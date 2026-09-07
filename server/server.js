@@ -110,8 +110,8 @@ function gamePermissions(room, socketId) {
     seat,
     canSetup: game.phase === 'setup' && game.setup.activeSeat === seat,
     canDraw: game.phase === 'start' && ownTurn,
-    canHarvest: game.phase === 'start' && ownTurn,
-    canRecruit: game.phase === 'start' && ownTurn,
+    canHarvest: false,
+    canRecruit: false,
     canAct: game.phase === 'play' && ownTurn,
     canOracle: game.phase === 'oracle' && ownTurn
   };
@@ -180,6 +180,7 @@ function applySetupChoice(game, seat, color, portraitKey, regions) {
   });
 }
 function finishSetupIfReady(game) {
+  if (game.phase !== 'setup') return false;
   if (game.players.some(p => !p.color || !p.portrait || p.regions.length !== 2)) return false;
   game.phase = 'start';
   game.setup.activeSeat = null;
@@ -207,7 +208,7 @@ function createAuthoritativeGame(room) {
   const rng = seededRandom(room.seed);
   const humans = room.players.map(p => ({ socketId: p.id, pseudo: p.pseudo, bot: false }));
   const bots = Array.from({ length: room.bots }, (_, i) => ({ socketId: null, pseudo: `Bot ${i + 1}`, bot: true }));
-  const participants = shuffle(humans.concat(bots), rng);
+  const participants = shuffle(humans, rng).concat(bots);
   const provinces = shuffle(Object.keys(SETUP_REGIONS), rng).slice(0, participants.length);
   const board = {};
   ALL_REGIONS.forEach(region => {
