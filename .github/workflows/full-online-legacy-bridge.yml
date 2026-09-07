@@ -1,0 +1,52 @@
+name: Full Online legacy bridge
+on:
+  push:
+    branches: [full-online-transplant-from-4034]
+    paths:
+      - '.github/scripts/full_online_legacy_bridge.py'
+      - '.github/workflows/full-online-legacy-bridge.yml'
+permissions:
+  contents: write
+jobs:
+  patch-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Patch
+        run: python .github/scripts/full_online_legacy_bridge.py
+      - name: Check server JavaScript
+        run: node --check server/server.js
+      - name: Check inline client JavaScript
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('index.html').read_text(encoding='utf-8')
+          blocks=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S)
+          Path('/tmp/tribu-inline.js').write_text('\n'.join(blocks),encoding='utf-8')
+          PY
+          node --check /tmp/tribu-inline.js
+      - name: Verify full-game invariants
+        run: |
+          grep -F "function battleCardLegality" index.html
+          grep -F "function renderCommerce" index.html
+          grep -F "function playPermanentCard" index.html
+          grep -F "function resolveBattle" index.html
+          grep -F "legacyStatePush" server/server.js
+          grep -F "moteur original TRIBU synchronisé" index.html
+          grep -F "G.online&&!G.online.fullLegacy" index.html
+          grep -F "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" index.html
+          git diff --check
+      - name: Commit generated production files
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html server/server.js
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Réactive le jeu TRIBU complet dans Online'
+          git push
