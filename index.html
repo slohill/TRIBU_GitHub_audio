@@ -4641,7 +4641,7 @@ function onlineLegacyApply(packet){
  onlineLegacyRevision=packet.revision||0;dest=null;picks={};
  (G.players||[]).forEach((_,i)=>agentDefaults(i));
  onlineLegacyLastDigest=onlineLegacyDigest();render();onlineLegacyLastDigest=onlineLegacyDigest();onlineLegacyApplying=false;onlineLegacyLockControls();
- if(onlineLegacyIsDriver())queueBot('état Online reçu');
+ if(onlineLegacyIsDriver()){queueBot('état Online reçu');setTimeout(onlineLegacyEnsureBotProgress,1200);}
 }
 function onlineLegacyStart(state){
  onlineGameState=state;
@@ -4708,6 +4708,23 @@ queueBot=function(reason){
  if(G&&G.online&&G.online.legacySync&&!onlineLegacyIsDriver())return;
  return onlineLegacyBaseQueueBot(reason);
 };
+// Filet de sécurité Online : le navigateur conducteur doit toujours relancer
+// le moteur original lorsqu'un bot devient joueur actif. Cela couvre les cas où
+// le passage de tour arrive par synchronisation distante et où aucun timer bot
+// local n'était encore armé.
+let onlineLegacyBotWatchdog=null;
+function onlineLegacyEnsureBotProgress(){
+ if(!G||!G.online||!G.online.legacySync||!onlineLegacyIsDriver())return;
+ if(!G.players[G.active]||!G.players[G.active].bot)return;
+ if(gameOverState||battle||shadowState||paidDrawState||goldReaction||oracleNoticeState||dragonSixState||dragonPublicState||dragonCurseState||caravanState||divinationState)return;
+ if(botTimer)return;
+ onlineLegacyBaseQueueBot('filet de sécurité Online bot');
+}
+function onlineLegacyStartBotWatchdog(){
+ if(onlineLegacyBotWatchdog)return;
+ onlineLegacyBotWatchdog=setInterval(onlineLegacyEnsureBotProgress,900);
+}
+onlineLegacyStartBotWatchdog();
 
 function onlineSetupRegionsFor(state){const me=state.players[state.youIndex];return me&&me.province?Object.keys(R).filter(r=>R[r][0]===me.province&&!R[r][2]):[]}
 function onlineSetupMapFeedback(state,active){
