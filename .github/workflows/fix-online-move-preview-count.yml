@@ -1,0 +1,36 @@
+name: Fix online move preview count
+on:
+  push:
+    branches: [fix-online-move-preview-count-v2]
+jobs:
+  patch-test:
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: fix-online-move-preview-count-v2 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: python3 .github/scripts/fix_online_move_preview_count.py
+      - name: Check inline client JavaScript
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text()
+          js=s.rsplit('<script>',1)[1].split('</script>',1)[0]
+          Path('/tmp/client.js').write_text(js)
+          PY
+          node --check /tmp/client.js
+      - name: Verify invariants
+        run: |
+          grep -F "d.dataset.owner=owner" index.html
+          grep -F "remaining=Math.max(0,onlineOwnUnits(id)-q)" index.html
+          grep -F "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" index.html
+          git diff --check
+      - name: Commit generated client
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Rétablit le décompte visuel des unités avant validation Online'
+          git push origin HEAD:fix-online-move-preview-count-v2
