@@ -1,0 +1,22 @@
+name: Online setup map guidance v3
+on: [push]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: online-setup-map-guidance
+      - run: python3 .github/scripts/patch_online_setup_map_guidance.py
+      - run: git diff --check
+      - run: |
+          python3 -c "import re; from pathlib import Path; s=Path('index.html').read_text(); Path('/tmp/inline.js').write_text(chr(10).join(re.findall(r'<script(?:\\s[^>]*)?>(.*?)</script>',s,re.S)))"
+          node --check /tmp/inline.js
+      - run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Guide le placement Online directement sur la carte'
+          git push origin HEAD:online-setup-map-guidance
