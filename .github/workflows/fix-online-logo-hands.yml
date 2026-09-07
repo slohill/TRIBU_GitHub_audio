@@ -41,3 +41,4 @@ jobs:
           git diff --cached --check
           git commit -m "Corrige le logo et la main propre à chaque joueur Online"
           git push
+# retry robust logo extraction
