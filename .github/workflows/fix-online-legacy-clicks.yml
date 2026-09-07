@@ -1,0 +1,48 @@
+name: Fix Online legacy clicks
+
+on:
+  push:
+    branches:
+      - clean-online-sync-from-4034-20260907
+    paths:
+      - '.github/scripts/fix_online_legacy_clicks.py'
+      - '.github/workflows/fix-online-legacy-clicks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Apply click fix
+        run: python .github/scripts/fix_online_legacy_clicks.py
+      - name: Check browser script syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('index.html').read_text(encoding='utf-8')
+          blocks=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
+          Path('/tmp/tribu-inline.js').write_text('\n'.join(b for b in blocks if b.strip()),encoding='utf-8')
+          PY
+          node --check /tmp/tribu-inline.js
+      - name: Guard click routing
+        run: |
+          grep -Fq "onlineGameState&&!(G.online&&G.online.legacySync)" index.html
+          grep -Fq "if(me!==G.active&&!reactionMap)return;" index.html
+          grep -Fq "map.style.pointerEvents=''" index.html
+      - name: Commit production fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Rétablit les clics du moteur original en Online' || exit 0
+          git push
