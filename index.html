@@ -4516,16 +4516,16 @@ function onlineDisplayGame(state){
  }));
  state.players.forEach((sp,i)=>{if(sp.color)COLORS[i]=sp.color});
  const board={};Object.entries(state.board||{}).forEach(([r,c])=>board[r]={...c});
- const sea={};Object.keys(SEA).forEach(id=>sea[id]={fleets:{}});
+ const sea={};Object.keys(SEA).forEach(id=>sea[id]={fleets:{...((state.sea&&state.sea[id]&&state.sea[id].fleets)||{})}});
  const active=Number.isInteger(state.active)?state.active:0;
  G={active,turn:state.turn||0,phase:state.phase||'setup',dragon:state.dragon||'E4',victoryTarget:state.victoryPoints||3,
-   players,b:board,sea,deck:[],discard:[],log:[],oracleDeck:[],oracleDiscard:[],oracleActive:null,
+   players,b:board,sea,deck:[],discard:[],log:[],oracleDeck:[],oracleDiscard:[],oracleActive:state.oracleActive===null?null:state.oracleActive,
    online:{code:state.code,seed:state.seed,mySocketId:onlineSocket&&onlineSocket.id,myPlayerIndex:state.youIndex,hostId:onlineRoom&&onlineRoom.hostId,revision:state.revision}};
 }
 function onlineApplyStateToDisplay(state){
  if(!G||!G.online){onlineDisplayGame(state);return}
  G.active=Number.isInteger(state.active)?state.active:0;G.turn=state.turn||0;G.phase=state.phase||'setup';G.dragon=state.dragon||'E4';G.victoryTarget=state.victoryPoints||3;G.oracleActive=state.oracleActive===null?null:state.oracleActive;
- Object.entries(state.board||{}).forEach(([r,c])=>G.b[r]={...c});
+ Object.entries(state.board||{}).forEach(([r,c])=>G.b[r]={...c});Object.keys(SEA).forEach(id=>{if(!G.sea[id])G.sea[id]={fleets:{}};G.sea[id].fleets={...((state.sea&&state.sea[id]&&state.sea[id].fleets)||{})}});
  state.players.forEach((sp,i)=>{
    if(!G.players[i])return;
    const pl=G.players[i];pl.name=sp.pseudo;pl.faction=Number.isInteger(sp.faction)?sp.faction:0;pl.gold=sp.gold||0;pl.pvPermanent=sp.pvPermanent||0;pl.bot=!!sp.bot;pl.portrait=sp.portrait||null;pl.color=sp.color||null;pl.remoteHandCount=sp.handCount||0;
@@ -4570,7 +4570,7 @@ function onlineLockControls(){
  $('endRecruit').disabled=!recruiting;const rr=$('resetRecruit');if(rr)rr.disabled=!recruiting;
  $('toOracle').disabled=!playing;$('roll').disabled=!oracleRoll;
  const h=$('hand');if(h)h.querySelectorAll('.card').forEach(c=>{c.onclick=null;c.classList.remove('playablePermanent','battlePlayable');c.classList.add('battleBlocked')});
- const n=$('status');if(n)n.innerHTML+='<div class="botNotice">🌐 Online autoritaire — tour, déplacements et Oracle synchronisés par le serveur.</div>';onlineRefreshPlayUi();
+ const n=$('status');if(n)n.innerHTML+='<div class="botNotice">🌐 Online autoritaire — tour, déplacements et Oracle synchronisés par le serveur.'+(onlineGameState.lastRoll?' Dernier dé Oracle : <b>'+onlineGameState.lastRoll+'</b>.':'')+'</div>';onlineRefreshPlayUi();
 }
 function applyOnlineGameState(state){
  const wasSetup=onlineGameState&&onlineGameState.status==='setup',oldPhase=onlineGameState&&onlineGameState.phase;onlineGameState=state;if(oldPhase!==state.phase||state.active!==G?.active)onlineResetMoveDraft();

@@ -127,7 +127,7 @@ function destroyAtDragon(game){
 function advanceAuthoritativeTurn(room){
   const game=room.game;if(!game)return;
   game.active=(game.active+1)%game.players.length;if(game.active===0)game.turn++;
-  game.phase='start';game.movePool={};game.destinationUseCount={};game.attacked=[];game.recruitSnapshot=null;game.lastRoll=null;game.revision++;
+  game.phase='start';game.movePool={};game.destinationUseCount={};game.attacked=[];game.recruitSnapshot=null;game.revision++;
   emitGame(room);scheduleBotTurn(room);
 }
 function resolveOracleRoll(room){
