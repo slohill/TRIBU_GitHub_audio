@@ -387,6 +387,12 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 @keyframes onlineSetupPulse{from{filter:brightness(1)}to{filter:brightness(1.35)}}
 @media(prefers-reduced-motion:reduce){.spot.onlineSetupAvailable{animation:none}}
 
+
+/* Début de partie Online */
+.onlineGameWelcome{position:absolute;inset:0;z-index:180;display:flex;align-items:center;justify-content:center;padding:24px;background:#0007;pointer-events:none}
+.onlineGameWelcomeCard{max-width:640px;background:#111e;border:2px solid #d9c776;border-radius:14px;padding:24px 30px;text-align:center;font-size:25px;font-weight:900;line-height:1.3;box-shadow:0 10px 34px #000c}
+@media(max-width:760px){.onlineGameWelcomeCard{font-size:20px;padding:20px}}
+
 </style></head>
 <body>
 <section id="start"><div class="onlineStartBox">
@@ -902,8 +908,10 @@ function audioBattleCue(){audioPlaySfx('drums',.72);audioPlaySfx('horn',.92)}
 function audioStartAmbient(index=0,time=0,fade=true){
  audioAmbientIndex=index%2;audioMode='ambient';
  const name=audioAmbientIndex===0?'ambient1':'ambient2',a=audioTrack(name),other=audioTrack(audioAmbientIndex===0?'ambient2':'ambient1');
- other.pause();
- a.onended=()=>{if(audioMode!=='ambient')return;audioAmbientIndex=1-audioAmbientIndex;audioStartAmbient(audioAmbientIndex,0,false)};
+ other.pause();other.ontimeupdate=null;
+ a._tribuFading=false;
+ a.ontimeupdate=()=>{if(audioMode!=='ambient'||a._tribuFading||!Number.isFinite(a.duration))return;if(a.duration-a.currentTime<=1.15){a._tribuFading=true;audioFadeTo(a,0,950)}};
+ a.onended=()=>{if(audioMode!=='ambient')return;a._tribuFading=false;audioAmbientIndex=1-audioAmbientIndex;audioStartAmbient(audioAmbientIndex,0,true)};
  if(!audioMusicEnabled)return;
  a.volume=fade?0:.36;audioSafePlay(a,time);if(fade)audioFadeTo(a,.36,900);
 }
@@ -3289,9 +3297,9 @@ function resolveBattle(){
  }
  render();queueBot('après bataille');
 }
-function beginPlay(){if(paidDrawState)return;recruitSnapshot=null;G.phase='play';setMovable();render()}
+function beginPlay(){if(G&&G.online){if(onlineGameState&&onlineGameState.phase==='recruit')return onlineGameAction('END_RECRUIT');return}if(paidDrawState)return;recruitSnapshot=null;G.phase='play';setMovable();render()}
 function doDraw(){if(G&&G.online)return onlineGameAction('DRAW_START');if(paidDrawState)return;draw(G.active,2);log(p().name+' pioche 2 cartes.');beginPlay()}
-function doHarvest(){if(paidDrawState||goldReaction)return;
+function doHarvest(){if(G&&G.online)return onlineGameAction('HARVEST_START');if(paidDrawState||goldReaction)return;
  const receiver=G.active;
  let gain=ownRegs(receiver)*2,cityBonus=0;
  Object.keys(G.b).forEach(r=>{const b=cityAt(r);if(b&&b.owner===receiver)cityBonus+=5});
@@ -3300,12 +3308,14 @@ function doHarvest(){if(paidDrawState||goldReaction)return;
  offerGoldGain(receiver,gain,'Récolte','beginPlay');
 }
 function doRecruit(){
+ if(G&&G.online)return onlineGameAction('RECRUIT_START');
  if(paidDrawState)return;
  recruitSnapshot={player:G.active,gold:p().gold,units:{}};
  Object.keys(G.b).forEach(r=>recruitSnapshot.units[r]=G.b[r].units);
  G.phase='recruit';render();
 }
 function resetRecruitment(){
+ if(G&&G.online)return onlineGameAction('RESET_RECRUIT');
  if(!recruitSnapshot||recruitSnapshot.player!==G.active||G.phase!=='recruit')return;
  p().gold=recruitSnapshot.gold;
  Object.keys(recruitSnapshot.units).forEach(r=>G.b[r].units=recruitSnapshot.units[r]);
@@ -3313,6 +3323,7 @@ function resetRecruitment(){
  render();
 }
 function recruitAt(r){
+ if(G&&G.online)return onlineGameAction('RECRUIT_AT',{region:r});
  const c=G.b[r];if(c.owner!==G.active)return;
  if(p().gold<1){log('Pas assez d’Or.');render();return}
  if(totalUnits()>=cap()){log('Plafond atteint.');render();return}
@@ -3594,7 +3605,7 @@ function oracleDestLocked(id){return !!(seaStormState&&seaStormState.locked&&sea
 
 function dragonTargets(){return physicalNeighbors(G.dragon)}
 function clickSpot(id){
- if(G&&G.online&&onlineGameState){if(onlineGameState.status==='setup')onlineSetupRegionClick(id);return}
+ if(G&&G.online&&onlineGameState){if(onlineGameState.status==='setup')onlineSetupRegionClick(id);else if(onlineGameState.status==='playing'&&onlineGameState.phase==='recruit'&&onlineGameState.active===onlineGameState.youIndex)recruitAt(id);return}
  if(setupState){if(setupState.stage==='regions')setupRegionClick(id);return}
  if(divinationState)return;
  if(oracleNoticeState)return;
@@ -4427,6 +4438,12 @@ function onlinePseudo(){const input=$('onlinePseudo');let v=(input&&input.value|
 function showOnlineScreen(id){document.querySelectorAll('.onlineScreen').forEach(x=>x.classList.add('hidden'));$(id).classList.remove('hidden')}
 function launchLegacyMode(mode,victory=3){COLORS.splice(0,COLORS.length,...BASE_COLORS);$('gameMode').value=mode;$('victoryMode').value=String(victory);$('start').classList.add('hidden');$('game').classList.remove('hidden');init()}
 function onlineModeLabel(mode){return ({'2v3-online':'2 joueurs vs 3 bots','3v2-online':'3 joueurs vs 2 bots','3h':'3 joueurs','4h':'4 joueurs','5h':'5 joueurs'})[mode]||mode}
+let onlineWelcomeShownKey=null,onlineWelcomeActive=false,onlineWelcomeTimer=null;
+function onlineShowGameWelcome(state){
+ const key=String(state.seed||'game');if(onlineWelcomeShownKey===key)return;onlineWelcomeShownKey=key;onlineWelcomeActive=true;
+ clearTimeout(onlineWelcomeTimer);const map=$('map');if(map){const old=map.querySelector('.onlineGameWelcome');if(old)old.remove();const ov=document.createElement('div');ov.className='onlineGameWelcome';ov.innerHTML='<div class="onlineGameWelcomeCard">Bienvenu·e·s dans Myrmigate : la partie peut commencer</div>';map.appendChild(ov);onlineWelcomeTimer=setTimeout(()=>{ov.remove();onlineWelcomeActive=false;onlineLockControls()},3000)}else{onlineWelcomeTimer=setTimeout(()=>{onlineWelcomeActive=false;onlineLockControls()},3000)}
+ audioEnterGame();
+}
 function onlineSeatCount(mode){return mode==='2v3-online'?2:mode==='3v2-online'?3:mode==='3h'?3:mode==='4h'?4:5}
 function onlineBotCount(mode){return mode==='2v3-online'?3:mode==='3v2-online'?2:0}
 function onlineEscape(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
@@ -4488,17 +4505,20 @@ function onlineSetupRegionClick(r){
 }
 function onlineLockControls(){
  if(!G||!G.online||!onlineGameState)return;
- const mine=onlineGameState.active===onlineGameState.youIndex&&onlineGameState.status==='playing';
- $('startTurn').classList.toggle('hidden',!mine||onlineGameState.phase!=='start');
- $('draw').disabled=!(mine&&onlineGameState.phase==='start');
- ['harvest','recruit','endRecruit','toOracle','roll'].forEach(id=>{const el=$(id);if(el)el.disabled=true});
+ const mine=onlineGameState.active===onlineGameState.youIndex&&onlineGameState.status==='playing'&&!onlineWelcomeActive,start=mine&&onlineGameState.phase==='start',recruiting=mine&&onlineGameState.phase==='recruit';
+ $('startTurn').classList.toggle('hidden',!start);
+ $('draw').disabled=!start;$('harvest').disabled=!start;$('recruit').disabled=!start;
+ $('endRecruit').disabled=!recruiting;const rr=$('resetRecruit');if(rr)rr.disabled=!recruiting;
+ ['toOracle','roll'].forEach(id=>{const el=$(id);if(el)el.disabled=true});
  const h=$('hand');if(h)h.querySelectorAll('.card').forEach(c=>{c.onclick=null;c.classList.remove('playablePermanent','battlePlayable');c.classList.add('battleBlocked')});
- const n=$('status');if(n)n.innerHTML+='<div class="botNotice">🌐 Online autoritaire — seules les actions déjà migrées vers le serveur sont activées.</div>';
+ const n=$('status');if(n)n.innerHTML+='<div class="botNotice">🌐 Online autoritaire — début de tour synchronisé par le serveur.</div>';
 }
 function applyOnlineGameState(state){
- onlineGameState=state;
+ const wasSetup=onlineGameState&&onlineGameState.status==='setup';onlineGameState=state;
  if(state.status==='setup'){renderOnlineAuthoritativeSetup(state);return}
- onlineApplyStateToDisplay(state);setupState=null;onlineSetupLayout(false);$('setupPanel').classList.add('hidden');$('start').classList.add('hidden');$('game').classList.remove('hidden');render();onlineLockControls();
+ onlineApplyStateToDisplay(state);setupState=null;onlineSetupLayout(false);$('setupPanel').classList.add('hidden');$('start').classList.add('hidden');$('game').classList.remove('hidden');render();
+ if(state.status==='playing'&&(wasSetup||onlineWelcomeShownKey!==String(state.seed||'game')))onlineShowGameWelcome(state);
+ onlineLockControls();
 }
 function launchOnlineRoom(room){
  if(!room||room.seed===null||room.seed===undefined)return onlineError(new Error('Graine de partie absente.'));

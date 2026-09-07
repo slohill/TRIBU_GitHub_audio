@@ -33,6 +33,11 @@ const ALL_REGIONS = Array.from({ length: 9 }, (_, p) => {
 }).flat();
 const CARD_COUNTS = [4,4,2,3,3,1,2,3,4,3,1,4,2,3,4,1,4,3,1,2,1,3];
 const ORACLE_IDS = [0,1,2,2,3,3,4,5];
+const FACTION_CAP = [3,3,2];
+const TERRAIN = {};
+['A1','A2','A3','A4','A5','B1','B2','C1','C2','C3'].forEach(r=>TERRAIN[r]='e');
+['B3','B4','B5','C4','C5','D1','D2','D3','D4','D5','E1','E2','E3','E4','E5','F1','F2','F3','F4','F5','G1','H1','H2','H3','H4'].forEach(r=>TERRAIN[r]='t');
+['G2','G3','G4','G5','H5','I1','I2','I3','I4','I5'].forEach(r=>TERRAIN[r]='d');
 
 function cleanText(value, max = 30) {
   return String(value || '').trim().replace(/\s+/g, ' ').slice(0, max);
@@ -68,6 +73,16 @@ function makeDeck(random) {
 function drawCards(game, playerIndex, count) {
   const hand = game.players[playerIndex].hand;
   for (let i = 0; i < count && game.deck.length; i++) hand.push(game.deck.pop());
+}
+function ownedRegionCount(game, playerIndex) {
+  return Object.values(game.board).filter(c => c.owner === playerIndex && c.units > 0).length;
+}
+function totalUnitsFor(game, playerIndex) {
+  return Object.values(game.board).reduce((n,c)=>n+(c.owner===playerIndex?c.units:0),0);
+}
+function unitCapFor(game, playerIndex) {
+  const faction=game.players[playerIndex].faction;
+  return ownedRegionCount(game,playerIndex)*(FACTION_CAP[faction]||2);
 }
 function makeBoard() {
   const board = {};
@@ -431,12 +446,36 @@ io.on('connection', socket => {
     const type = String(payload.type || '');
     if (type === 'DRAW_START') {
       if (game.phase !== 'start') return rejectGameAction(ack, 'Vous ne pouvez pas piocher maintenant.');
-      drawCards(game, index, 2);
-      game.phase = 'play';
-      game.revision++;
-      ack({ ok: true });
-      emitGame(room);
-      return;
+      drawCards(game, index, 2); game.phase = 'play'; game.revision++; ack({ ok: true }); emitGame(room); return;
+    }
+    if (type === 'HARVEST_START') {
+      if (game.phase !== 'start') return rejectGameAction(ack, 'Vous ne pouvez pas récolter maintenant.');
+      game.players[index].gold += ownedRegionCount(game,index)*2; game.phase='play'; game.revision++; ack({ok:true}); emitGame(room); return;
+    }
+    if (type === 'RECRUIT_START') {
+      if (game.phase !== 'start') return rejectGameAction(ack, 'Vous ne pouvez pas recruter maintenant.');
+      game.recruitSnapshot={player:index,gold:game.players[index].gold,units:Object.fromEntries(Object.entries(game.board).map(([r,c])=>[r,c.units]))};
+      game.phase='recruit'; game.revision++; ack({ok:true}); emitGame(room); return;
+    }
+    if (type === 'RESET_RECRUIT') {
+      if (game.phase !== 'recruit' || !game.recruitSnapshot || game.recruitSnapshot.player!==index) return rejectGameAction(ack, 'Aucun recrutement à recommencer.');
+      game.players[index].gold=game.recruitSnapshot.gold; Object.entries(game.recruitSnapshot.units).forEach(([r,u])=>{game.board[r].units=u}); game.revision++; ack({ok:true}); emitGame(room); return;
+    }
+    if (type === 'RECRUIT_AT') {
+      if (game.phase !== 'recruit') return rejectGameAction(ack, 'Vous n’êtes pas en phase de recrutement.');
+      const r=String(payload.region||''),cell=game.board[r],player=game.players[index];
+      if (!cell || cell.owner!==index) return rejectGameAction(ack, 'Choisissez une de vos régions.');
+      if (player.gold<1) return rejectGameAction(ack, 'Pas assez d’Or.');
+      if (totalUnitsFor(game,index)>=unitCapFor(game,index)) return rejectGameAction(ack, 'Plafond d’unités atteint.');
+      const terrain=TERRAIN[r],faction=player.faction;
+      if(faction===0&&terrain==='d')return rejectGameAction(ack,'Les Griffes-Blanches ne recrutent pas dans le désert.');
+      if(faction===1&&terrain==='e')return rejectGameAction(ack,'Les Reptones ne recrutent pas dans la neige.');
+      let q=(faction===0&&terrain==='e')||(faction===1&&terrain==='d')?2:1; q=Math.min(q,unitCapFor(game,index)-totalUnitsFor(game,index));
+      player.gold--; cell.units+=q; game.revision++; ack({ok:true}); emitGame(room); return;
+    }
+    if (type === 'END_RECRUIT') {
+      if (game.phase !== 'recruit') return rejectGameAction(ack, 'Vous n’êtes pas en phase de recrutement.');
+      game.recruitSnapshot=null; game.phase='play'; game.revision++; ack({ok:true}); emitGame(room); return;
     }
     return rejectGameAction(ack, 'Action Online pas encore migrée vers le serveur.');
   });
