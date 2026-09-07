@@ -4444,56 +4444,64 @@ function onlineResumeClear(){localStorage.removeItem(ONLINE_RESUME_KEY);onlineRe
 function onlineResumeRefresh(){const v=onlineResumeRead(),b=$('onlineResumeRoom'),h=$('onlineResumeHint');if(!b||!h)return;b.classList.toggle('hidden',!v);h.classList.toggle('hidden',!v);if(v){b.textContent='Partie en cours';h.textContent=(v.pseudo||'Joueur')+' · '+v.code}}
 let onlineMoveDraft={target:null,picks:{}};
 function onlineResetMoveDraft(){onlineMoveDraft={target:null,picks:{}}}
-function onlineLandNeighbors(id){return R[id]?R[id][3].slice():[]}
 function onlineMovePool(id){return Number(onlineGameState&&onlineGameState.play&&onlineGameState.play.movePool&&onlineGameState.play.movePool[id]||0)}
+function onlinePhysicalNeighbors(id){return isSea(id)?[...(SEA[id]||[]),...(PORTS[id]||[])]:[...(R[id]?R[id][3]:[]),...(R[id]?R[id][4]:[])]}
+function onlineOwnUnits(id){const st=onlineGameState;if(!st)return 0;if(isSea(id))return Number(st.sea&&st.sea[id]&&st.sea[id].fleets&&st.sea[id].fleets[st.youIndex]||0);const c=st.board&&st.board[id];return c&&c.owner===st.youIndex?Number(c.units||0):0}
+function onlineSeaEnemies(id){const st=onlineGameState,s=st&&st.sea&&st.sea[id];if(!s)return[];return Object.entries(s.fleets||{}).map(([owner,units])=>({owner:+owner,units:+units||0})).filter(x=>x.owner!==st.youIndex&&x.units>0)}
 function onlineTargetEnemy(id){const c=onlineGameState&&onlineGameState.board&&onlineGameState.board[id];return !!(c&&(c.hostile||(c.owner!==null&&c.owner!==onlineGameState.youIndex&&c.units>0)))}
 function onlineLegalMoveSources(target){
- const st=onlineGameState;if(!st||st.phase!=='play'||st.active!==st.youIndex||!R[target])return[];
- const enemy=onlineTargetEnemy(target),play=st.play||{};
+ const st=onlineGameState;if(!st||st.phase!=='play'||st.active!==st.youIndex||!POS[target])return[];
+ const play=st.play||{},enemy=!isSea(target)&&onlineTargetEnemy(target);
  if(enemy&&(play.attacked||[]).includes(target))return[];
  if(!enemy&&Number((play.destinationUseCount||{})[target]||0)>=1)return[];
- return onlineLandNeighbors(target).filter(src=>{const c=st.board[src];return c&&c.owner===st.youIndex&&onlineMovePool(src)>0});
+ const src=onlinePhysicalNeighbors(target).filter(id=>onlineOwnUnits(id)>0&&onlineMovePool(id)>0);
+ if(isSea(target)&&onlineSeaEnemies(target).length&&onlineOwnUnits(target)>0&&onlineMovePool(target)>0&&!src.includes(target))src.unshift(target);
+ return src;
 }
 function onlineMoveSelected(){return Object.values(onlineMoveDraft.picks||{}).reduce((a,b)=>a+(Number(b)||0),0)}
-function onlineMoveAdjust(src,delta){const max=onlineMovePool(src),cur=Number(onlineMoveDraft.picks[src]||0),next=Math.max(0,Math.min(max,cur+delta));if(next)onlineMoveDraft.picks[src]=next;else delete onlineMoveDraft.picks[src];onlineRefreshPlayUi()}
-function onlineMoveAll(src){const max=onlineMovePool(src);if(max>0)onlineMoveDraft.picks[src]=max;onlineRefreshPlayUi()}
+function onlineMoveAdjust(src,delta){const max=Math.min(onlineMovePool(src),onlineOwnUnits(src)),cur=Number(onlineMoveDraft.picks[src]||0),next=Math.max(0,Math.min(max,cur+delta));if(next)onlineMoveDraft.picks[src]=next;else delete onlineMoveDraft.picks[src];onlineRefreshPlayUi()}
+function onlineMoveAll(src){const max=Math.min(onlineMovePool(src),onlineOwnUnits(src));if(max>0)onlineMoveDraft.picks[src]=max;onlineRefreshPlayUi()}
 function onlineMoveClick(id){
  if(!onlineGameState||onlineGameState.phase!=='play'||onlineGameState.active!==onlineGameState.youIndex)return;
  const legal=onlineMoveDraft.target?onlineLegalMoveSources(onlineMoveDraft.target):[];
- if(onlineMoveDraft.target&&legal.includes(id)){
-   onlineMoveAdjust(id,1);return;
- }
- const src=onlineLegalMoveSources(id);if(!src.length)return;
+ if(onlineMoveDraft.target&&legal.includes(id)){onlineMoveAdjust(id,1);return}
+ if(!onlineLegalMoveSources(id).length)return;
  onlineMoveDraft={target:id,picks:{}};onlineRefreshPlayUi();
 }
-function onlineCommitMove(){
- if(!onlineMoveDraft.target||onlineMoveSelected()<1)return;
- const target=onlineMoveDraft.target,sources={...onlineMoveDraft.picks};onlineResetMoveDraft();
- onlineGameAction('MOVE_LAND',{target,sources});
+function onlineFloatingActionPosition(target){const [x,y]=POS[target],sources=onlineLegalMoveSources(target),dirs=[{dx:0,dy:-7},{dx:0,dy:7},{dx:-6,dy:0},{dx:6,dy:0}];let best=dirs[0],score=-Infinity;dirs.forEach(d=>{const px=x+d.dx,py=y+d.dy;if(px<3||px>97||py<3||py>97)return;let nearest=999;sources.forEach(src=>{const [sx,sy]=POS[src];nearest=Math.min(nearest,Math.hypot(px-sx,py-sy))});if(nearest>score){score=nearest;best=d}});return[x+best.dx,y+best.dy]}
+function onlineCloseSeaChoice(){hideBattle();battle=null}
+function onlineSendMove(defender=null){
+ const target=onlineMoveDraft.target;if(!target||onlineMoveSelected()<1)return;
+ const sources={...onlineMoveDraft.picks},type=isSea(target)?'MOVE_SEA':'MOVE_LAND';onlineResetMoveDraft();onlineCloseSeaChoice();onlineGameAction(type,{target,sources,defender});
 }
-function onlinePhysicalNeighbors(id){return isSea(id)?[...(SEA[id]||[]),...(PORTS[id]||[])]:[...(R[id]?R[id][3]:[]),...(R[id]?R[id][4]:[])]}
-function onlineDragonClick(id){
- const st=onlineGameState;if(!st||st.phase!=='oracleMove'||st.active!==st.youIndex)return;
- if(!onlinePhysicalNeighbors(st.dragon).includes(id))return;onlineGameAction('DRAGON_MOVE',{target:id});
+function onlineOpenSeaChoice(){
+ const target=onlineMoveDraft.target,enemies=onlineSeaEnemies(target),sourceIds=Object.keys(onlineMoveDraft.picks).filter(x=>onlineMoveDraft.picks[x]>0),sameAreaOnly=sourceIds.length>0&&sourceIds.every(x=>x===target);
+ if(!enemies.length){onlineSendMove(null);return}
+ battle={kind:'seaChoice',target,total:onlineMoveSelected()};showBattle();
+ $('battleSideInfo').innerHTML='<b>Aire maritime</b><br>Des flottes adverses sont présentes.';$('priorityInfo').textContent=sameAreaOnly?'Choisissez la flotte à attaquer.':'Choisissez : naviguer ou attaquer une flotte.';$('priorityTimer').textContent='';$('priorityStack').innerHTML='';
+ const actions=$('tacticalButtons');actions.innerHTML='';
+ if(!sameAreaOnly){const nav=document.createElement('button');nav.textContent='Naviguer';nav.onclick=()=>onlineSendMove(null);actions.appendChild(nav)}
+ enemies.forEach(e=>{const b=document.createElement('button');b.textContent='Attaquer '+(G.players[e.owner]?G.players[e.owner].name:'joueur')+' ('+e.units+')';b.onclick=()=>onlineSendMove(e.owner);actions.appendChild(b)});
+ const cancel=document.createElement('button');cancel.textContent='Annuler';cancel.onclick=onlineCloseSeaChoice;actions.appendChild(cancel)
 }
+function onlineCommitMove(){if(!onlineMoveDraft.target||onlineMoveSelected()<1)return;if(isSea(onlineMoveDraft.target)&&onlineSeaEnemies(onlineMoveDraft.target).length)return onlineOpenSeaChoice();onlineSendMove(null)}
+function onlineDragonClick(id){const st=onlineGameState;if(!st||st.phase!=='oracleMove'||st.active!==st.youIndex)return;if(!onlinePhysicalNeighbors(st.dragon).includes(id))return;onlineGameAction('DRAGON_MOVE',{target:id})}
 function onlineRefreshPlayUi(){
  const st=onlineGameState,map=$('map'),srcBox=$('sources'),hint=$('hint');if(!st||!map)return;
- map.querySelectorAll('.spot').forEach(x=>{x.classList.remove('onlineMoveAvailable','dest','src','onlineOracleTarget');x.querySelectorAll('.onlineMovePickBadge').forEach(b=>b.remove())});
- if(st.status!=='playing'||st.active!==st.youIndex){if(srcBox)srcBox.innerHTML='';return}
+ map.querySelectorAll('.floatActions.onlineMoveFloat').forEach(x=>x.remove());
+ map.querySelectorAll('.spot').forEach(x=>{x.classList.remove('onlineMoveAvailable','dest','src','srcHold','onlineOracleTarget');x.querySelectorAll('.sourceMinus,.onlineMovePickBadge,.ghost').forEach(b=>b.remove());x.onpointerdown=null;x.onpointerup=null;x.onpointerleave=null;x.onpointercancel=null;x.onclick=()=>onlineMoveClick(x.dataset.region)});
+ if(srcBox){srcBox.innerHTML='';srcBox.style.display=''}
+ if(st.status!=='playing'||st.active!==st.youIndex)return;
  if(st.phase==='play'){
-   Object.keys(R).forEach(id=>{if(onlineLegalMoveSources(id).length){const sp=map.querySelector('.spot[data-region="'+id+'"]');if(sp)sp.classList.add('onlineMoveAvailable')}});
+   Object.keys(POS).forEach(id=>{if(onlineLegalMoveSources(id).length){const sp=map.querySelector('.spot[data-region="'+id+'"]');if(sp)sp.classList.add('onlineMoveAvailable')}});
    if(onlineMoveDraft.target){
-     const t=map.querySelector('.spot[data-region="'+onlineMoveDraft.target+'"]');if(t){t.classList.add('dest');const total=onlineMoveSelected();if(total){const g=document.createElement('span');g.className='ghost';g.textContent=total;t.appendChild(g)}}
-     const sources=onlineLegalMoveSources(onlineMoveDraft.target);
-     sources.forEach(id=>{const sp=map.querySelector('.spot[data-region="'+id+'"]');if(!sp)return;sp.classList.add('src','srcHold');const q=Number(onlineMoveDraft.picks[id]||0);if(q){const minus=document.createElement('button');minus.className='sourceMinus';minus.textContent='−';minus.title='Remettre 1 unité';minus.onpointerdown=e=>e.stopPropagation();minus.onclick=e=>{e.stopPropagation();onlineMoveAdjust(id,-1)};sp.appendChild(minus);const b=document.createElement('span');b.className='onlineMovePickBadge';b.textContent=q+' sélectionnée'+(q>1?'s':'');sp.appendChild(b)}});
-     if(hint)hint.innerHTML='Destination choisie — cliquez sur les <b>sources jaunes</b>, ou utilisez les boutons ci-dessous.';
-     if(srcBox){srcBox.innerHTML='';sources.forEach(id=>{const q=Number(onlineMoveDraft.picks[id]||0),max=onlineMovePool(id),d=document.createElement('div');d.className='source';d.innerHTML='<button title="Clic : +1">'+id+'</button><button>−</button><span>'+q+'/'+max+'</span><button>+</button><button>Tout</button>';const bs=d.querySelectorAll('button');bs[0].onclick=()=>onlineMoveAdjust(id,1);bs[1].onclick=()=>onlineMoveAdjust(id,-1);bs[2].onclick=()=>onlineMoveAdjust(id,1);bs[3].onclick=()=>onlineMoveAll(id);srcBox.appendChild(d)});const actions=document.createElement('div');actions.className='row';actions.innerHTML='<button id="onlineMoveConfirm" '+(onlineMoveSelected()?'':'disabled')+'>Valider le déplacement</button><button id="onlineMoveCancel">Annuler</button>';srcBox.appendChild(actions)}
-     const ok=$('onlineMoveConfirm'),no=$('onlineMoveCancel');if(ok)ok.onclick=onlineCommitMove;if(no)no.onclick=()=>{onlineResetMoveDraft();onlineRefreshPlayUi()};
-   }else{if(hint)hint.textContent='Cliquez sur la destination.';if(srcBox)srcBox.innerHTML=''}
+     const target=onlineMoveDraft.target,t=map.querySelector('.spot[data-region="'+target+'"]');if(t){t.classList.add('dest');const total=onlineMoveSelected();if(total){const g=document.createElement('span');g.className='ghost';g.textContent=total;t.appendChild(g)}}
+     onlineLegalMoveSources(target).forEach(id=>{const sp=map.querySelector('.spot[data-region="'+id+'"]');if(!sp)return;sp.classList.add('src','srcHold');const q=Number(onlineMoveDraft.picks[id]||0);if(q>0){const minus=document.createElement('button');minus.className='sourceMinus';minus.textContent='−';minus.title='Remettre 1 unité';minus.onpointerdown=e=>e.stopPropagation();minus.onclick=e=>{e.stopPropagation();onlineMoveAdjust(id,-1)};sp.appendChild(minus)}let timer=null,long=false;sp.onpointerdown=e=>{if(e.target!==sp)return;e.preventDefault();long=false;timer=setTimeout(()=>{long=true;onlineMoveAll(id)},480)};sp.onpointerup=()=>{if(timer)clearTimeout(timer)};sp.onpointerleave=()=>{if(timer)clearTimeout(timer)};sp.onpointercancel=()=>{if(timer)clearTimeout(timer)};sp.onclick=e=>{if(e.target!==sp)return;if(long){long=false;return}onlineMoveAdjust(id,1)}});
+     if(hint)hint.innerHTML='Destination choisie — cliquez sur une source jaune (+1) ou maintenez pour tout sélectionner.';
+     const fp=onlineFloatingActionPosition(target),box=document.createElement('div');box.className='floatActions onlineMoveFloat';box.style.left=fp[0]+'%';box.style.top=fp[1]+'%';box.innerHTML='<button class="no">✕</button><button class="yes">✓ '+onlineMoveSelected()+'</button>';const bs=box.querySelectorAll('button');bs[0].onclick=()=>{onlineResetMoveDraft();onlineRefreshPlayUi()};bs[1].onclick=onlineCommitMove;bs[1].disabled=onlineMoveSelected()===0;map.appendChild(box)
+   }else if(hint)hint.textContent='Cliquez sur la destination.';
  }
- if(st.phase==='oracleMove'){
-   onlinePhysicalNeighbors(st.dragon).forEach(id=>{const sp=map.querySelector('.spot[data-region="'+id+'"]');if(sp)sp.classList.add('onlineOracleTarget')});
- }
+ if(st.phase==='oracleMove')onlinePhysicalNeighbors(st.dragon).forEach(id=>{const sp=map.querySelector('.spot[data-region="'+id+'"]');if(sp){sp.classList.add('onlineOracleTarget');sp.onclick=()=>onlineDragonClick(id)}})
 }
 function onlinePseudo(){const input=$('onlinePseudo');let v=(input&&input.value||'').trim();if(!v){v=ONLINE_RANDOM_NAMES[Math.floor(Math.random()*ONLINE_RANDOM_NAMES.length)];if(input)input.value=v}return v}
 function showOnlineScreen(id){document.querySelectorAll('.onlineScreen').forEach(x=>x.classList.add('hidden'));$(id).classList.remove('hidden')}
