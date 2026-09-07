@@ -1,0 +1,39 @@
+name: Authoritative play core
+on:
+  push:
+    branches: [online-authoritative-play-core]
+jobs:
+  patch-test:
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: online-authoritative-play-core }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: python3 .github/scripts/patch_authoritative_play_core.py
+      - run: node --check server/server.js
+      - name: Check inline client JavaScript
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text()
+          js=s.rsplit('<script>',1)[1].split('</script>',1)[0]
+          Path('/tmp/client.js').write_text(js)
+          PY
+          node --check /tmp/client.js
+      - name: Verify invariants
+        run: |
+          grep -F "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" index.html
+          grep -F "if(type==='MOVE_LAND')" server/server.js
+          grep -F "if(type==='DRAGON_MOVE')" server/server.js
+          grep -F "if(type==='ORACLE_ROLL')" server/server.js
+          grep -F "function onlineRefreshPlayUi" index.html
+          git diff --check
+      - name: Commit generated files
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html server/server.js
+          git commit -m 'Ajoute la boucle de jeu autoritaire principale'
+          git push origin HEAD:online-authoritative-play-core
