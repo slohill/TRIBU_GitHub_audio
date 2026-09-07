@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
+const crypto = require('crypto');
 const { Server } = require('socket.io');
 
 const PORT = process.env.PORT || 3000;
@@ -45,6 +46,8 @@ function cleanText(value, max = 30) {
 function cleanCode(value) {
   return cleanText(value, 12).toUpperCase().replace(/[^A-Z0-9_-]/g, '');
 }
+function reconnectToken() { return crypto.randomBytes(24).toString('hex'); }
+function playerId() { return crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex'); }
 function randomPseudo() {
   return DEFAULT_NAMES[Math.floor(Math.random() * DEFAULT_NAMES.length)];
 }
@@ -102,7 +105,7 @@ function publicRoom(room) {
     hostId: room.hostId,
     launched: room.launched,
     seed: room.launched ? room.seed : null,
-    players: room.players.map(p => ({ id: p.id, pseudo: p.pseudo, ready: p.ready, host: p.id === room.hostId, connected: p.connected !== false }))
+    players: room.players.map(p => ({ id: p.id, playerId: p.playerId, pseudo: p.pseudo, ready: p.ready, host: p.id === room.hostId, connected: p.connected !== false }))
   };
 }
 function publicGameView(room, socketId) {
@@ -203,6 +206,7 @@ function buildAuthoritativeGame(room) {
   const random = seededRandom(room.seed);
   const humans = room.players.map(p => ({
     socketId: p.id,
+    playerId: p.playerId,
     pseudo: p.pseudo,
     bot: false,
     connected: p.connected !== false,
@@ -307,12 +311,12 @@ io.on('connection', socket => {
       launched: false,
       seed: null,
       game: null,
-      players: [{ id: socket.id, pseudo, ready: false, connected: true }]
+      players: [{ id: socket.id, playerId: playerId(), reconnectToken: reconnectToken(), pseudo, ready: false, connected: true }]
     };
     rooms.set(code, room);
     socket.join(code);
     socket.data.roomCode = code;
-    ack({ ok: true, room: publicRoom(room) });
+    ack({ ok: true, room: publicRoom(room), resume: { code, pseudo, playerId: room.players[0].playerId, token: room.players[0].reconnectToken } });
     emitRoom(room);
   });
 
@@ -324,11 +328,28 @@ io.on('connection', socket => {
     if (room.launched) return ack({ ok: false, error: 'Cette partie a déjà commencé.' });
     if (room.players.length >= room.maxHumans) return ack({ ok: false, error: 'Cette partie est complète.' });
     const pseudo = cleanText(payload.pseudo, 24) || randomPseudo();
-    room.players.push({ id: socket.id, pseudo, ready: false, connected: true });
+    const joined = { id: socket.id, playerId: playerId(), reconnectToken: reconnectToken(), pseudo, ready: false, connected: true };
+    room.players.push(joined);
     socket.join(code);
     socket.data.roomCode = code;
-    ack({ ok: true, room: publicRoom(room) });
+    ack({ ok: true, room: publicRoom(room), resume: { code, pseudo: joined.pseudo, playerId: joined.playerId, token: joined.reconnectToken } });
     emitRoom(room);
+  });
+
+  socket.on('resumeRoom', (payload = {}, ack = () => {}) => {
+    const code = cleanCode(payload.code), pid = cleanText(payload.playerId, 80), token = cleanText(payload.token, 120);
+    const room = rooms.get(code);
+    if (!room || !room.launched || !room.game) return ack({ ok:false, error:'Cette partie en cours n’est plus disponible.' });
+    const lobbyPlayer = room.players.find(p => p.playerId === pid && p.reconnectToken === token);
+    if (!lobbyPlayer) return ack({ ok:false, error:'Impossible de vérifier votre place dans cette partie.' });
+    leaveCurrentRoom(socket);
+    const oldSocketId=lobbyPlayer.id; lobbyPlayer.id=socket.id; lobbyPlayer.connected=true;
+    if (room.hostId===oldSocketId) room.hostId=socket.id;
+    const gp=room.game.players.find(p=>!p.bot&&p.playerId===pid);
+    if(!gp) return ack({ok:false,error:'Siège de jeu introuvable.'});
+    gp.socketId=socket.id;gp.connected=true;socket.join(code);socket.data.roomCode=code;
+    const resume={code,pseudo:lobbyPlayer.pseudo,playerId:pid,token:lobbyPlayer.reconnectToken};
+    ack({ok:true,room:publicRoom(room),game:publicGameView(room,socket.id),resume});emitRoom(room);emitGame(room);
   });
 
   socket.on('setReady', (ready, ack = () => {}) => {

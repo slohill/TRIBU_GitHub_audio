@@ -428,7 +428,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 
   <div id="onlineJoinScreen" class="onlineScreen hidden">
     <div class="onlineField"><label>Code de la partie</label><input id="onlineJoinCode" maxlength="12" placeholder="Entrez le code reçu"></div>
-    <div class="onlineActions"><button id="onlineJoinRoom" class="onlinePrimary">Rejoindre</button><button class="onlineBack" data-online-back>← Retour</button></div>
+    <div class="onlineActions"><button id="onlineJoinRoom" class="onlinePrimary">Rejoindre</button><button id="onlineResumeRoom" class="onlineSecondary hidden">Partie en cours</button><button class="onlineBack" data-online-back>← Retour</button></div><div id="onlineResumeHint" class="onlineStatus hidden"></div>
     <div class="onlineNotice">La connexion au vrai serveur sera branchée à l’étape suivante. Cet écran prépare déjà le flux et l’interface.</div>
   </div>
 
@@ -4434,6 +4434,11 @@ audioLoadPrefs();audioWireControls();document.addEventListener('pointerdown',()=
 const ONLINE_RANDOM_NAMES=['Aube-Rousse','Corne-de-Brume','Loup-Serein','Éclat-de-Silex','Rivière-Noire','Chêne-Ardent','Renard-d’Or','Lune-Fauve','Vent-du-Nord','Pierre-Claire'];
 const ONLINE_SERVER='https://tribu-online.onrender.com';
 let onlineSelectedMode=null,onlineReadyState=false,onlineSocket=null,onlineRoom=null,onlineGameState=null,onlineSetupSelectedRegions=[],onlineSetupDraft={color:null,portrait:null};
+const ONLINE_RESUME_KEY='tribuOnlineResumeV1';
+function onlineResumeRead(){try{const v=JSON.parse(localStorage.getItem(ONLINE_RESUME_KEY)||'null');return v&&v.code&&v.playerId&&v.token?v:null}catch(_){return null}}
+function onlineResumeSave(v){if(!v)return;localStorage.setItem(ONLINE_RESUME_KEY,JSON.stringify(v));onlineResumeRefresh()}
+function onlineResumeClear(){localStorage.removeItem(ONLINE_RESUME_KEY);onlineResumeRefresh()}
+function onlineResumeRefresh(){const v=onlineResumeRead(),b=$('onlineResumeRoom'),h=$('onlineResumeHint');if(!b||!h)return;b.classList.toggle('hidden',!v);h.classList.toggle('hidden',!v);if(v){b.textContent='Partie en cours';h.textContent=(v.pseudo||'Joueur')+' · '+v.code}}
 function onlinePseudo(){const input=$('onlinePseudo');let v=(input&&input.value||'').trim();if(!v){v=ONLINE_RANDOM_NAMES[Math.floor(Math.random()*ONLINE_RANDOM_NAMES.length)];if(input)input.value=v}return v}
 function showOnlineScreen(id){document.querySelectorAll('.onlineScreen').forEach(x=>x.classList.add('hidden'));$(id).classList.remove('hidden')}
 function launchLegacyMode(mode,victory=3){COLORS.splice(0,COLORS.length,...BASE_COLORS);$('gameMode').value=mode;$('victoryMode').value=String(victory);$('start').classList.add('hidden');$('game').classList.remove('hidden');init()}
@@ -4554,14 +4559,16 @@ function onlineAck(action,payload){return connectOnline().then(socket=>new Promi
 function onlineError(err){alert(err&&err.message?err.message:String(err))}
 $('startBtn').onclick=()=>launchLegacyMode($('gameMode').value,+$('victoryMode').value||3);
 $('onlineCreate').onclick=()=>{onlinePseudo();showOnlineScreen('onlineCreateScreen')};
-$('onlineJoin').onclick=()=>{onlinePseudo();showOnlineScreen('onlineJoinScreen')};
+$('onlineJoin').onclick=()=>{onlinePseudo();onlineResumeRefresh();showOnlineScreen('onlineJoinScreen')};
 $('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};
 document.querySelectorAll('[data-online-mode]').forEach(b=>b.onclick=()=>{onlineSelectedMode=b.dataset.onlineMode;if(onlineSelectedMode==='1v4'){launchLegacyMode('1v4',3);return}showOnlineScreen('onlineConfigScreen')});
 document.querySelectorAll('[data-online-back]').forEach(b=>b.onclick=()=>{if(onlineSocket&&onlineRoom)onlineSocket.emit('leaveRoom');onlineRoom=null;showOnlineScreen('onlineHome')});
-$('onlineCreateRoom').onclick=async()=>{try{onlinePseudo();if(!$('onlineRoomCode').value.trim())$('onlineRoomCode').value='TRB-'+Math.floor(1000+Math.random()*9000);const res=await onlineAck('createRoom',{pseudo:onlinePseudo(),name:$('onlineRoomName').value,code:$('onlineRoomCode').value,mode:onlineSelectedMode,maxHumans:onlineSeatCount(onlineSelectedMode),bots:onlineBotCount(onlineSelectedMode),victoryPoints:+$('onlineVictory').value});renderOnlineLobby(res.room)}catch(e){onlineError(e)}};
+$('onlineCreateRoom').onclick=async()=>{try{onlinePseudo();if(!$('onlineRoomCode').value.trim())$('onlineRoomCode').value='TRB-'+Math.floor(1000+Math.random()*9000);const res=await onlineAck('createRoom',{pseudo:onlinePseudo(),name:$('onlineRoomName').value,code:$('onlineRoomCode').value,mode:onlineSelectedMode,maxHumans:onlineSeatCount(onlineSelectedMode),bots:onlineBotCount(onlineSelectedMode),victoryPoints:+$('onlineVictory').value});onlineResumeSave(res.resume);renderOnlineLobby(res.room)}catch(e){onlineError(e)}};
 $('onlineReady').onclick=async()=>{try{await onlineAck('setReady',!onlineReadyState)}catch(e){onlineError(e)}};
-$('onlineJoinRoom').onclick=async()=>{try{const code=$('onlineJoinCode').value.trim();if(!code){$('onlineJoinCode').focus();return}const res=await onlineAck('joinRoom',{code,pseudo:onlinePseudo()});renderOnlineLobby(res.room)}catch(e){onlineError(e)}};
+$('onlineJoinRoom').onclick=async()=>{try{const code=$('onlineJoinCode').value.trim();if(!code){$('onlineJoinCode').focus();return}const res=await onlineAck('joinRoom',{code,pseudo:onlinePseudo()});onlineResumeSave(res.resume);renderOnlineLobby(res.room)}catch(e){onlineError(e)}};
+$('onlineResumeRoom').onclick=async()=>{const saved=onlineResumeRead();if(!saved)return onlineResumeRefresh();try{const res=await onlineAck('resumeRoom',saved);onlineResumeSave(res.resume);onlineRoom=res.room;onlineSelectedMode=res.room.mode;$('victoryMode').value=String(res.room.victoryPoints||3);applyOnlineGameState(res.game)}catch(e){onlineResumeClear();onlineError(e)}};
 $('onlineLaunch').onclick=async()=>{try{await onlineAck('launchGame',{})}catch(e){onlineError(e)}};
+onlineResumeRefresh();
 document.addEventListener('pointerdown',e=>{
  // Un clic hors des encarts joueurs referme le détail actuellement épinglé.
  if(pinnedPlayer!==null&&!e.target.closest('.playerCard')){
