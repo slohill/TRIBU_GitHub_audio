@@ -1,0 +1,43 @@
+name: Fix Online colors v2
+on:
+  push:
+    branches:
+      - online-color-fix
+    paths:
+      - .github/workflows/fix-online-colors-v2.yml
+permissions:
+  contents: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: online-color-fix
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: python3 .github/scripts/fix_online_colors.py
+      - run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          assert "state.players.forEach((sp,i)=>{if(sp.color)COLORS[i]=sp.color})" in s
+          assert "if(sp.color)COLORS[i]=sp.color;" in s
+          assert "color:sp.color||null" in s
+          assert "COLORS.splice(0,COLORS.length,...BASE_COLORS);$('gameMode').value=mode" in s
+          assert "const BASE_COLORS=['#ff4fc3','#ffd92f','#6ab34c','#7ec8ff','#ff3b30'];" in s
+          assert "const COLOR_NAMES=['Rose','Jaune','Vert','Bleu','Rouge'];" in s
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          blocks=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S)
+          Path('/tmp/inline.js').write_text('\n'.join(blocks),encoding='utf-8')
+          PY
+          node --check /tmp/inline.js
+          git diff --check
+      - run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Respecte les couleurs choisies en Online'
+          git push origin HEAD:online-color-fix
