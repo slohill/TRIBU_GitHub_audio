@@ -1,0 +1,40 @@
+name: Test logo and Online private hand fix
+'on':
+  push:
+    branches:
+      - fix-online-logo-hands-2
+    paths:
+      - .github/workflows/test-logo-hand-fix.yml
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply focused fix
+        run: python3 .github/scripts/apply_logo_hand_fix.py
+      - name: Validate
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('index.html').read_text(encoding='utf-8')
+          assert 'function isHotseatMode(){return !!G&&!G.online&&humanPlayers().length>1}' in s
+          assert 'G.online.myPlayerIndex' in s
+          assert 'assets/tribu-title.webp?v=2' in s
+          assert Path('assets/tribu-title.webp').exists()
+          assert Path('assets/tribu-title.webp').stat().st_size > 10000
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          scripts=re.findall(r'<script(?: [^>]*)?>(.*?)</script>',s,re.S)
+          Path('/tmp/tribu.js').write_text('\n'.join(scripts),encoding='utf-8')
+          PY
+          node --check /tmp/tribu.js
+          git diff --check
+      - name: Commit tested result on working branch
+        run: |
+          git config user.name "TRIBU fixes"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html assets/tribu-title.webp
+          git commit -m "Corrige le logo et la main propre à chaque joueur Online"
+          git push
