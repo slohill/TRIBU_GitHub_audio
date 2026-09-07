@@ -1,5 +1,4 @@
 from pathlib import Path
-import re
 
 p=Path('index.html')
 s=p.read_text()
@@ -16,10 +15,9 @@ if old not in s:
     raise SystemExit('ownDie preview block not found')
 s=s.replace(old,new,1)
 
-# Retire uniquement le bouton de recommencement de l'installation Online.
-pat=re.compile(r"const restart=document\.createElement\('button'\);restart\.textContent='Recommencer le placement';restart\.disabled=onlineSetupSelectedRegions\.length===0;.*?box\.appendChild\(restart\);",re.S)
-s,n=pat.subn('',s,count=1)
-if n!=1:
-    raise SystemExit(f'online setup restart button not found: {n}')
+restart="  const restart=document.createElement('button');restart.textContent='Recommencer le placement';restart.disabled=onlineSetupSelectedRegions.length===0;restart.onclick=()=>{onlineSetupSelectedRegions=[];renderOnlineAuthoritativeSetup(state)};box.appendChild(restart)"
+if restart not in s:
+    raise SystemExit('online setup restart line not found')
+s=s.replace(restart,'',1)
 
 p.write_text(s)
