@@ -1,0 +1,27 @@
+name: Online setup right column v3
+on:
+  push:
+    branches: [online-setup-right-column]
+    paths: [.github/workflows/online-setup-right-column-v3.yml]
+permissions:
+  contents: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: online-setup-right-column}
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - run: python3 .github/scripts/patch_setup_right.py
+      - run: node --check server/server.js
+      - run: |
+          python3 -c "import re; from pathlib import Path; s=Path('index.html').read_text(); assert \"onlineAck('setupComplete'\" in s; assert 'onlineSetupLayout(true)' in s; assert \"$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};\" in s; Path('/tmp/inline.js').write_text('\\n'.join(re.findall(r'<script(?:\\s[^>]*)?>(.*?)</script>',s,re.S)))"
+          node --check /tmp/inline.js
+          git diff --check
+      - run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html server/server.js
+          git commit -m 'Regroupe l installation Online dans la colonne droite'
+          git push origin HEAD:online-setup-right-column
