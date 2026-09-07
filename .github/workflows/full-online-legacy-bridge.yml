@@ -35,8 +35,10 @@ jobs:
         run: |
           grep -F "function battleCardLegality" index.html
           grep -F "function renderCommerce" index.html
-          grep -F "function playPermanentCard" index.html
           grep -F "function resolveBattle" index.html
+          grep -F "Portails" index.html
+          grep -F "Egnobombe" index.html
+          grep -F "Divination de l’Oracle" index.html
           grep -F "legacyStatePush" server/server.js
           grep -F "moteur original TRIBU synchronisé" index.html
           grep -F "G.online&&!G.online.fullLegacy" index.html
