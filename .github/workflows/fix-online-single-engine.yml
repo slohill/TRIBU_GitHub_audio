@@ -1,0 +1,54 @@
+name: Fix Online single engine
+on:
+  push:
+    branches: [fix-online-single-engine-from-4034]
+    paths:
+      - '.github/scripts/fix_online_single_engine.py'
+      - '.github/workflows/fix-online-single-engine.yml'
+permissions:
+  contents: write
+jobs:
+  patch-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Patch
+        run: python .github/scripts/fix_online_single_engine.py
+      - name: Check server JavaScript
+        run: node --check server/server.js
+      - name: Check inline client JavaScript
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('index.html').read_text(encoding='utf-8')
+          blocks=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S)
+          Path('/tmp/tribu-inline.js').write_text('\n'.join(blocks),encoding='utf-8')
+          PY
+          node --check /tmp/tribu-inline.js
+      - name: Verify single-engine invariants
+        run: |
+          grep -F "G.online&&!G.online.singleEngine" index.html
+          grep -F "G.online&&G.online.singleEngine&&!onlineSingleEngineCanAct()" index.html
+          grep -F "function onlineSingleEngineSnapshot" index.html
+          grep -F "function singleEngineCanPush" server/server.js
+          grep -F "if(room.game.singleEngine)return;" server/server.js
+          grep -F "function battleCardLegality" index.html
+          grep -F "function commitMovement" index.html
+          grep -F "function roll()" index.html
+          grep -F "function renderCommerce" index.html
+          grep -F "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" index.html
+          git diff --check
+      - name: Commit generated production files
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html server/server.js
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Unifie le moteur original et la synchronisation Online'
+          git push
