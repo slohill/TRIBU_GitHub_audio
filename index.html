@@ -4467,6 +4467,7 @@ function renderOnlineAuthoritativeSetup(state){
    const ok=document.createElement('button');ok.textContent='Valider le placement';ok.disabled=onlineSetupSelectedRegions.length!==2;ok.onclick=()=>onlineAck('setupRegions',{regions:onlineSetupSelectedRegions.slice()}).catch(onlineError);box.appendChild(ok);
    const restart=document.createElement('button');restart.textContent='Recommencer le placement';restart.disabled=onlineSetupSelectedRegions.length===0;restart.onclick=()=>{onlineSetupSelectedRegions=[];renderOnlineAuthoritativeSetup(state)};box.appendChild(restart);
  }
+ const boardMapImage=$('boardMapImage');if(boardMapImage)boardMapImage.src='assets/images/maps/map_normal.png';
  renderMap();renderPlayerRail();
 }
 function onlineSetupIdentityReady(box){const b=$('onlineSetupIdentityConfirm');if(b)b.disabled=!(box.dataset.color&&box.dataset.portrait)}
