@@ -21,3 +21,4 @@ new="""function onlineSingleEngineLock(){
 if old not in s: raise SystemExit('onlineSingleEngineLock anchor not found')
 p.write_text(s.replace(old,new,1),encoding='utf-8')
 print('start actions lock fixed')
+# trigger workflow after workflow file creation
