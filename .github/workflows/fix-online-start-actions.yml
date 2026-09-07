@@ -1,0 +1,45 @@
+name: Fix Online start actions
+on:
+  push:
+    branches: [fix-online-setup-region-click]
+    paths:
+      - '.github/scripts/fix_online_start_actions.py'
+      - '.github/workflows/fix-online-start-actions.yml'
+permissions:
+  contents: write
+jobs:
+  patch-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Patch
+        run: python .github/scripts/fix_online_start_actions.py
+      - name: Check inline client JavaScript
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('index.html').read_text(encoding='utf-8')
+          blocks=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S)
+          Path('/tmp/tribu-inline.js').write_text('\n'.join(blocks),encoding='utf-8')
+          PY
+          node --check /tmp/tribu-inline.js
+      - name: Verify start actions invariants
+        run: |
+          grep -F "const start=can&&phase==='start'" index.html
+          grep -F "$('draw').disabled=!start;$('harvest').disabled=!start;$('recruit').disabled=!start;" index.html
+          grep -F "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" index.html
+          git diff --check
+      - name: Commit generated production file
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Réactive les actions de début de tour Online'
+          git push
