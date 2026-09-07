@@ -17,26 +17,22 @@ const io = new Server(server, {
 
 const rooms = new Map();
 const DEFAULT_NAMES = ['Aube','Brume','Croc','Dune','Écorce','Faucon','Givre','Lune','Silex','Torrent'];
-const SETUP_COLORS = ['#ff4fc3','#ffd92f','#6ab34c','#7ec8ff','#ff3b30'];
-const SETUP_PORTRAITS = [
-  { key: 'GB_A', faction: 0 }, { key: 'GB_B', faction: 0 },
-  { key: 'R_A', faction: 1 }, { key: 'R_B', faction: 1 },
-  { key: 'Y_A', faction: 2 }, { key: 'Y_B', faction: 2 }
-];
-const SETUP_REGIONS = {
-  A: ['A1','A2','A3','A4'],
-  B: ['B1','B2','B4','B5'],
-  C: ['C1','C2','C4','C5'],
-  D: ['D1','D2','D3','D4'],
-  E: ['E1','E2','E3','E5'],
-  F: ['F1','F2','F4','F5'],
-  G: ['G1','G3','G4','G5'],
-  H: ['H1','H2','H4','H5'],
-  I: ['I1','I2','I3','I4']
+const COLORS = ['#ff4fc3','#ffd92f','#6ab34c','#7ec8ff','#ff3b30'];
+const PORTRAITS = ['GB_A','GB_B','R_A','R_B','Y_A','Y_B'];
+const PORTRAIT_FACTION = { GB_A:0, GB_B:0, R_A:1, R_B:1, Y_A:2, Y_B:2 };
+const PROVINCES = ['A','B','C','D','E','F','G','H','I'];
+const PROVINCE_REGIONS = {
+  A:['A1','A2','A3','A4'], B:['B1','B2','B4','B5'], C:['C1','C2','C4','C5'],
+  D:['D1','D2','D3','D4'], E:['E1','E2','E3','E5'], F:['F1','F2','F4','F5'],
+  G:['G1','G3','G4','G5'], H:['H1','H2','H4','H5'], I:['I1','I2','I3','I4']
 };
-const ALL_REGIONS = Object.values(SETUP_REGIONS).flat().concat(['A5','B3','C3','D5','E4','F3','G2','H3','I5']);
 const HOSTILE_REGIONS = new Set(['A5','B3','C3','D5','E4','F3','G2','H3','I5']);
+const ALL_REGIONS = Array.from({ length: 9 }, (_, p) => {
+  const letter = String.fromCharCode(65 + p);
+  return Array.from({ length: 5 }, (_, n) => `${letter}${n + 1}`);
+}).flat();
 const CARD_COUNTS = [4,4,2,3,3,1,2,3,4,3,1,4,2,3,4,1,4,3,1,2,1,3];
+const ORACLE_IDS = [0,1,2,2,3,3,4,5];
 
 function cleanText(value, max = 30) {
   return String(value || '').trim().replace(/\s+/g, ' ').slice(0, max);
@@ -48,33 +44,37 @@ function randomPseudo() {
   return DEFAULT_NAMES[Math.floor(Math.random() * DEFAULT_NAMES.length)];
 }
 function seededRandom(seed) {
-  let x = (Number(seed) || 1) >>> 0;
-  return () => {
-    x = (x + 0x6D2B79F5) >>> 0;
-    let t = x;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  let a = (Number(seed) >>> 0) || 0x6d2b79f5;
+  return function () {
+    a |= 0;
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-function shuffle(list, rng = Math.random) {
-  for (let i = list.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [list[i], list[j]] = [list[j], list[i]];
+function shuffle(array, random = Math.random) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
   }
-  return list;
+  return array;
 }
-function makeDeck(rng) {
+function makeDeck(random) {
   const deck = [];
-  CARD_COUNTS.forEach((count, cardId) => {
-    for (let n = 0; n < count; n++) deck.push(cardId);
-  });
-  return shuffle(deck, rng);
+  CARD_COUNTS.forEach((count, id) => { for (let n = 0; n < count; n++) deck.push(id); });
+  return shuffle(deck, random);
 }
-function drawCards(game, seat, count) {
-  const player = game.players[seat];
-  if (!player) return;
-  for (let i = 0; i < count && game.deck.length; i++) player.hand.push(game.deck.pop());
+function drawCards(game, playerIndex, count) {
+  const hand = game.players[playerIndex].hand;
+  for (let i = 0; i < count && game.deck.length; i++) hand.push(game.deck.pop());
+}
+function makeBoard() {
+  const board = {};
+  ALL_REGIONS.forEach(id => {
+    board[id] = { owner: null, units: 0, hostile: HOSTILE_REGIONS.has(id), originalHostile: HOSTILE_REGIONS.has(id), building: null };
+  });
+  return board;
 }
 function publicRoom(room) {
   return {
@@ -87,196 +87,190 @@ function publicRoom(room) {
     hostId: room.hostId,
     launched: room.launched,
     seed: room.launched ? room.seed : null,
-    players: room.players.map(p => ({ id: p.id, pseudo: p.pseudo, ready: p.ready, host: p.id === room.hostId }))
+    players: room.players.map(p => ({ id: p.id, pseudo: p.pseudo, ready: p.ready, host: p.id === room.hostId, connected: p.connected !== false }))
   };
 }
-function emitRoom(room) {
-  io.to(room.code).emit('roomState', publicRoom(room));
-}
-function roomForSocket(socket) {
-  const code = socket.data.roomCode;
-  return code ? rooms.get(code) : null;
-}
-function gameSeatForSocket(room, socketId) {
-  if (!room || !room.game) return -1;
-  return room.game.players.findIndex(p => !p.bot && p.socketId === socketId);
-}
-function gamePermissions(room, socketId) {
-  const game = room && room.game;
-  if (!game) return {};
-  const seat = gameSeatForSocket(room, socketId);
-  const ownTurn = seat >= 0 && game.activeSeat === seat;
-  return {
-    seat,
-    canSetup: game.phase === 'setup' && game.setup.activeSeat === seat,
-    canDraw: game.phase === 'start' && ownTurn,
-    canHarvest: false,
-    canRecruit: false,
-    canAct: game.phase === 'play' && ownTurn,
-    canOracle: game.phase === 'oracle' && ownTurn
-  };
-}
-function publicGameFor(room, socketId) {
+function publicGameView(room, socketId) {
   const game = room.game;
-  const seat = gameSeatForSocket(room, socketId);
+  if (!game) return null;
+  const youIndex = game.players.findIndex(p => p.socketId === socketId);
   return {
     code: room.code,
     mode: room.mode,
     victoryPoints: room.victoryPoints,
+    seed: room.seed,
     revision: game.revision,
+    status: game.status,
     phase: game.phase,
-    activeSeat: game.activeSeat,
+    turn: game.turn,
+    active: game.active,
     dragon: game.dragon,
-    setup: game.phase === 'setup' ? {
-      activeSeat: game.setup.activeSeat,
+    setup: game.setup ? {
+      activePlayer: game.setup.activePlayer,
+      stage: game.setup.stage,
       usedColors: game.players.map(p => p.color).filter(Boolean),
       usedPortraits: game.players.map(p => p.portrait).filter(Boolean)
     } : null,
+    youIndex,
+    board: game.board,
     players: game.players.map((p, i) => ({
-      seat: i,
+      index: i,
       pseudo: p.pseudo,
       bot: p.bot,
+      connected: p.bot ? true : p.connected !== false,
       color: p.color,
       portrait: p.portrait,
       faction: p.faction,
       province: p.province,
       regions: p.regions.slice(),
       gold: p.gold,
-      handCount: p.hand.length,
-      hand: i === seat ? p.hand.slice() : undefined
-    })),
-    board: game.board,
-    permissions: gamePermissions(room, socketId)
+      pvPermanent: p.pvPermanent,
+      hand: i === youIndex ? p.hand.slice() : undefined,
+      handCount: p.hand.length
+    }))
   };
+}
+function emitRoom(room) {
+  io.to(room.code).emit('roomState', publicRoom(room));
 }
 function emitGame(room) {
   if (!room.game) return;
   room.players.forEach(p => {
     const socket = io.sockets.sockets.get(p.id);
-    if (socket) socket.emit('gameState', publicGameFor(room, p.id));
+    if (socket) socket.emit('gameState', publicGameView(room, p.id));
   });
 }
-function autoConfigureBot(game, seat, rng) {
-  const player = game.players[seat];
-  const usedColors = new Set(game.players.map(p => p.color).filter(Boolean));
-  const usedPortraits = new Set(game.players.map(p => p.portrait).filter(Boolean));
-  const color = SETUP_COLORS.find(c => !usedColors.has(c));
-  const portrait = SETUP_PORTRAITS.find(p => !usedPortraits.has(p.key));
-  const eligible = SETUP_REGIONS[player.province].slice();
-  shuffle(eligible, rng);
-  applySetupChoice(game, seat, color, portrait.key, eligible.slice(0, 2));
+function roomForSocket(socket) {
+  const code = socket.data.roomCode;
+  return code ? rooms.get(code) : null;
 }
-function applySetupChoice(game, seat, color, portraitKey, regions) {
-  const player = game.players[seat];
-  const portrait = SETUP_PORTRAITS.find(p => p.key === portraitKey);
-  player.color = color;
-  player.portrait = portraitKey;
-  player.faction = portrait.faction;
-  player.regions = regions.slice();
-  regions.forEach(region => {
-    game.board[region].owner = seat;
-    game.board[region].units = 3;
-    game.board[region].hostile = false;
-  });
+function humanGameIndex(room, socketId) {
+  return room.game ? room.game.players.findIndex(p => !p.bot && p.socketId === socketId) : -1;
 }
-function finishSetupIfReady(game) {
-  if (game.phase !== 'setup') return false;
-  if (game.players.some(p => !p.color || !p.portrait || p.regions.length !== 2)) return false;
-  game.phase = 'start';
-  game.setup.activeSeat = null;
-  game.activeSeat = 0;
-  game.players.forEach((_p, seat) => drawCards(game, seat, 3));
-  game.revision++;
-  return true;
+function currentSetupPlayer(room) {
+  if (!room.game || !room.game.setup) return null;
+  return room.game.players[room.game.setup.activePlayer] || null;
 }
-function advanceSetup(game) {
-  if (finishSetupIfReady(game)) return;
-  let next = game.setup.activeSeat === null ? 0 : game.setup.activeSeat + 1;
-  while (next < game.players.length && game.players[next].color) next++;
-  game.setup.activeSeat = next < game.players.length ? next : null;
-}
-function resolveAutomaticSetup(game) {
-  const rng = game.rng;
-  while (game.phase === 'setup' && game.setup.activeSeat !== null && game.players[game.setup.activeSeat].bot) {
-    autoConfigureBot(game, game.setup.activeSeat, rng);
-    game.revision++;
-    advanceSetup(game);
+function completeSetupIfReady(room) {
+  const game = room.game;
+  if (!game || !game.setup) return;
+  const humanCount = room.maxHumans;
+  if (game.setup.activePlayer < humanCount) return;
+
+  const random = seededRandom((room.seed ^ 0xa5a5a5a5) >>> 0);
+  const freeColors = COLORS.filter(c => !game.players.some(p => p.color === c));
+  const freePortraits = PORTRAITS.filter(p => !game.players.some(x => x.portrait === p));
+  for (let i = humanCount; i < game.players.length; i++) {
+    const bot = game.players[i];
+    bot.color = freeColors.shift() || COLORS[i % COLORS.length];
+    bot.portrait = freePortraits.shift() || PORTRAITS[i % PORTRAITS.length];
+    bot.faction = PORTRAIT_FACTION[bot.portrait] ?? (i % 3);
+    const allowed = PROVINCE_REGIONS[bot.province].slice();
+    shuffle(allowed, random);
+    bot.regions = allowed.slice(0, 2);
+    bot.regions.forEach(r => {
+      game.board[r].owner = i;
+      game.board[r].units = 3;
+      game.board[r].hostile = false;
+    });
   }
-  finishSetupIfReady(game);
+
+  game.players.forEach((_, i) => drawCards(game, i, 3));
+  game.setup = null;
+  game.status = 'playing';
+  game.phase = 'start';
+  game.turn = 1;
+  game.active = 0;
+  game.revision++;
+  emitGame(room);
 }
-function createAuthoritativeGame(room) {
-  const rng = seededRandom(room.seed);
-  const humans = room.players.map(p => ({ socketId: p.id, pseudo: p.pseudo, bot: false }));
-  const bots = Array.from({ length: room.bots }, (_, i) => ({ socketId: null, pseudo: `Bot ${i + 1}`, bot: true }));
-  const participants = shuffle(humans, rng).concat(bots);
-  const provinces = shuffle(Object.keys(SETUP_REGIONS), rng).slice(0, participants.length);
-  const board = {};
-  ALL_REGIONS.forEach(region => {
-    board[region] = { owner: null, units: 0, hostile: HOSTILE_REGIONS.has(region) };
-  });
-  const game = {
-    revision: 1,
-    phase: 'setup',
-    activeSeat: 0,
-    dragon: 'E4',
-    rng,
-    deck: makeDeck(rng),
-    discard: [],
-    board,
-    setup: { activeSeat: 0 },
-    players: participants.map((p, seat) => ({
-      seat,
-      socketId: p.socketId,
-      pseudo: p.pseudo,
-      bot: p.bot,
-      province: provinces[seat],
+function buildAuthoritativeGame(room) {
+  const random = seededRandom(room.seed);
+  const humans = room.players.map(p => ({
+    socketId: p.id,
+    pseudo: p.pseudo,
+    bot: false,
+    connected: p.connected !== false,
+    color: null,
+    portrait: null,
+    faction: null,
+    province: null,
+    regions: [],
+    gold: 0,
+    pvPermanent: 0,
+    hand: []
+  }));
+  shuffle(humans, random);
+
+  const totalPlayers = Math.min(5, room.maxHumans + room.bots);
+  const players = humans.slice(0, room.maxHumans);
+  for (let i = players.length; i < totalPlayers; i++) {
+    players.push({
+      socketId: null,
+      pseudo: `Bot ${i - room.maxHumans + 1}`,
+      bot: true,
+      connected: true,
       color: null,
       portrait: null,
       faction: null,
+      province: null,
       regions: [],
-      hand: [],
-      gold: 0
-    }))
+      gold: 0,
+      pvPermanent: 0,
+      hand: []
+    });
+  }
+
+  const provinces = shuffle(PROVINCES.slice(), random).slice(0, totalPlayers);
+  players.forEach((p, i) => { p.province = provinces[i]; });
+
+  return {
+    revision: 1,
+    status: 'setup',
+    phase: 'setup',
+    turn: 0,
+    active: null,
+    dragon: 'E4',
+    board: makeBoard(),
+    deck: makeDeck(random),
+    discard: [],
+    oracleDeck: shuffle(ORACLE_IDS.slice(), random),
+    oracleDiscard: [],
+    oracleActive: null,
+    players,
+    setup: { activePlayer: 0, stage: 'identity' }
   };
-  resolveAutomaticSetup(game);
-  return game;
-}
-function validateSetupChoice(room, socket, payload) {
-  const game = room.game;
-  if (!game || game.phase !== 'setup') return 'La phase de création est terminée.';
-  const seat = gameSeatForSocket(room, socket.id);
-  if (seat < 0) return 'Joueur introuvable dans la partie.';
-  if (game.setup.activeSeat !== seat) return "Ce n'est pas votre tour de choisir.";
-  const player = game.players[seat];
-  const color = cleanText(payload.color, 20);
-  const portraitKey = cleanText(payload.portrait, 10);
-  const regions = Array.isArray(payload.regions) ? payload.regions.map(r => cleanText(r, 3)) : [];
-  if (!SETUP_COLORS.includes(color)) return 'Couleur invalide.';
-  if (game.players.some((p, i) => i !== seat && p.color === color)) return 'Cette couleur est déjà prise.';
-  if (!SETUP_PORTRAITS.some(p => p.key === portraitKey)) return 'Faction invalide.';
-  if (game.players.some((p, i) => i !== seat && p.portrait === portraitKey)) return 'Cet encart de faction est déjà pris.';
-  if (regions.length !== 2 || new Set(regions).size !== 2) return 'Choisissez exactement 2 régions différentes.';
-  const eligible = SETUP_REGIONS[player.province] || [];
-  if (!regions.every(r => eligible.includes(r))) return 'Une région choisie ne fait pas partie de votre province attribuée.';
-  return null;
 }
 function leaveCurrentRoom(socket) {
   const room = roomForSocket(socket);
   if (!room) return;
-  room.players = room.players.filter(p => p.id !== socket.id);
   socket.leave(room.code);
   socket.data.roomCode = null;
+
+  if (room.launched) {
+    const lobbyPlayer = room.players.find(p => p.id === socket.id);
+    if (lobbyPlayer) lobbyPlayer.connected = false;
+    const gi = humanGameIndex(room, socket.id);
+    if (gi >= 0) room.game.players[gi].connected = false;
+    emitRoom(room);
+    emitGame(room);
+    return;
+  }
+
+  room.players = room.players.filter(p => p.id !== socket.id);
   if (!room.players.length) {
     rooms.delete(room.code);
     return;
   }
   if (room.hostId === socket.id) room.hostId = room.players[0].id;
   emitRoom(room);
-  if (room.launched && room.game) emitGame(room);
+}
+function rejectGameAction(ack, error) {
+  ack({ ok: false, error });
 }
 
 io.on('connection', socket => {
-  socket.emit('serverReady', { ok: true, authority: 'server-v1' });
+  socket.emit('serverReady', { ok: true, authority: 'server' });
 
   socket.on('createRoom', (payload = {}, ack = () => {}) => {
     leaveCurrentRoom(socket);
@@ -298,7 +292,7 @@ io.on('connection', socket => {
       launched: false,
       seed: null,
       game: null,
-      players: [{ id: socket.id, pseudo, ready: false }]
+      players: [{ id: socket.id, pseudo, ready: false, connected: true }]
     };
     rooms.set(code, room);
     socket.join(code);
@@ -315,7 +309,7 @@ io.on('connection', socket => {
     if (room.launched) return ack({ ok: false, error: 'Cette partie a déjà commencé.' });
     if (room.players.length >= room.maxHumans) return ack({ ok: false, error: 'Cette partie est complète.' });
     const pseudo = cleanText(payload.pseudo, 24) || randomPseudo();
-    room.players.push({ id: socket.id, pseudo, ready: false });
+    room.players.push({ id: socket.id, pseudo, ready: false, connected: true });
     socket.join(code);
     socket.data.roomCode = code;
     ack({ ok: true, room: publicRoom(room) });
@@ -340,51 +334,90 @@ io.on('connection', socket => {
     if (!room.players.every(p => p.ready)) return ack({ ok: false, error: 'Tout le monde doit être prêt·e.' });
     room.seed = Math.floor(Math.random() * 0x100000000) >>> 0;
     room.launched = true;
-    room.game = createAuthoritativeGame(room);
+    room.game = buildAuthoritativeGame(room);
     ack({ ok: true });
     io.to(room.code).emit('gameLaunched', publicRoom(room));
     emitGame(room);
   });
 
-  socket.on('setupChoice', (payload = {}, ack = () => {}) => {
+  socket.on('requestGameState', (_payload, ack = () => {}) => {
     const room = roomForSocket(socket);
-    if (!room || !room.launched || !room.game) return ack({ ok: false, error: 'Partie indisponible.' });
-    const error = validateSetupChoice(room, socket, payload);
-    if (error) return ack({ ok: false, error });
+    if (!room || !room.game) return rejectGameAction(ack, 'Aucune partie active.');
+    ack({ ok: true, game: publicGameView(room, socket.id) });
+  });
+
+  socket.on('setupIdentity', (payload = {}, ack = () => {}) => {
+    const room = roomForSocket(socket);
+    if (!room || !room.game || !room.game.setup) return rejectGameAction(ack, 'Installation indisponible.');
     const game = room.game;
-    const seat = gameSeatForSocket(room, socket.id);
-    applySetupChoice(game, seat, payload.color, payload.portrait, payload.regions);
+    const index = humanGameIndex(room, socket.id);
+    if (index < 0) return rejectGameAction(ack, 'Joueur introuvable.');
+    if (game.setup.activePlayer !== index || game.setup.stage !== 'identity') return rejectGameAction(ack, 'Ce n’est pas votre tour de choisir votre identité.');
+
+    const color = String(payload.color || '');
+    const portrait = String(payload.portrait || '');
+    if (!COLORS.includes(color)) return rejectGameAction(ack, 'Couleur invalide.');
+    if (!PORTRAITS.includes(portrait)) return rejectGameAction(ack, 'Faction invalide.');
+    if (game.players.some((p, i) => i !== index && p.color === color)) return rejectGameAction(ack, 'Cette couleur est déjà prise.');
+    if (game.players.some((p, i) => i !== index && p.portrait === portrait)) return rejectGameAction(ack, 'Cet encart de faction est déjà pris.');
+
+    const player = game.players[index];
+    player.color = color;
+    player.portrait = portrait;
+    player.faction = PORTRAIT_FACTION[portrait];
+    game.setup.stage = 'regions';
     game.revision++;
-    advanceSetup(game);
-    resolveAutomaticSetup(game);
-    ack({ ok: true, game: publicGameFor(room, socket.id) });
+    ack({ ok: true });
     emitGame(room);
+  });
+
+  socket.on('setupRegions', (payload = {}, ack = () => {}) => {
+    const room = roomForSocket(socket);
+    if (!room || !room.game || !room.game.setup) return rejectGameAction(ack, 'Installation indisponible.');
+    const game = room.game;
+    const index = humanGameIndex(room, socket.id);
+    if (index < 0) return rejectGameAction(ack, 'Joueur introuvable.');
+    if (game.setup.activePlayer !== index || game.setup.stage !== 'regions') return rejectGameAction(ack, 'Ce n’est pas votre tour de choisir vos régions.');
+
+    const regions = Array.isArray(payload.regions) ? payload.regions.map(String) : [];
+    const unique = [...new Set(regions)];
+    const allowed = PROVINCE_REGIONS[game.players[index].province] || [];
+    if (unique.length !== 2 || !unique.every(r => allowed.includes(r))) return rejectGameAction(ack, 'Choisissez exactement deux régions valides de votre province.');
+
+    const player = game.players[index];
+    player.regions = unique;
+    unique.forEach(r => {
+      game.board[r].owner = index;
+      game.board[r].units = 3;
+      game.board[r].hostile = false;
+    });
+    game.setup.activePlayer++;
+    game.setup.stage = 'identity';
+    game.revision++;
+    ack({ ok: true });
+    completeSetupIfReady(room);
+    if (game.setup) emitGame(room);
   });
 
   socket.on('gameAction', (payload = {}, ack = () => {}) => {
     const room = roomForSocket(socket);
-    if (!room || !room.launched || !room.game) return ack({ ok: false, error: 'Partie indisponible.' });
+    if (!room || !room.game || room.game.status !== 'playing') return rejectGameAction(ack, 'La partie n’est pas en cours.');
     const game = room.game;
-    const seat = gameSeatForSocket(room, socket.id);
-    const type = cleanText(payload.type, 24).toUpperCase();
-    if (seat < 0) return ack({ ok: false, error: 'Joueur introuvable.' });
-    if (game.activeSeat !== seat) return ack({ ok: false, error: "Ce n'est pas votre tour." });
-    if (type === 'DRAW') {
-      if (game.phase !== 'start') return ack({ ok: false, error: 'Vous ne pouvez pas piocher maintenant.' });
-      drawCards(game, seat, 2);
+    const index = humanGameIndex(room, socket.id);
+    if (index < 0) return rejectGameAction(ack, 'Joueur introuvable.');
+    if (game.active !== index) return rejectGameAction(ack, 'Ce n’est pas votre tour.');
+
+    const type = String(payload.type || '');
+    if (type === 'DRAW_START') {
+      if (game.phase !== 'start') return rejectGameAction(ack, 'Vous ne pouvez pas piocher maintenant.');
+      drawCards(game, index, 2);
       game.phase = 'play';
       game.revision++;
       ack({ ok: true });
       emitGame(room);
       return;
     }
-    ack({ ok: false, error: 'Action Online non encore disponible.' });
-  });
-
-  socket.on('requestGameState', (_payload, ack = () => {}) => {
-    const room = roomForSocket(socket);
-    if (!room || !room.game) return ack({ ok: false, error: 'Partie indisponible.' });
-    ack({ ok: true, game: publicGameFor(room, socket.id) });
+    return rejectGameAction(ack, 'Action Online pas encore migrée vers le serveur.');
   });
 
   socket.on('leaveRoom', () => leaveCurrentRoom(socket));

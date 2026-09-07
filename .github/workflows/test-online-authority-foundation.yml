@@ -1,0 +1,67 @@
+name: Test online authority foundation
+
+on:
+  push:
+    branches: [online-authoritative-foundation]
+    paths:
+      - '.github/workflows/test-online-authority-foundation.yml'
+      - '.github/scripts/patch_online_authority_client.py'
+      - 'server/server.js'
+
+permissions:
+  contents: write
+
+jobs:
+  test-and-patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: online-authoritative-foundation
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Check server syntax
+        run: node --check server/server.js
+      - name: Apply client authority patch
+        run: python3 .github/scripts/patch_online_authority_client.py
+      - name: Validate client invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          required=[
+            "socket.on('gameState',applyOnlineGameState)",
+            "onlineAck('setupIdentity'",
+            "onlineAck('setupRegions'",
+            "onlineGameAction('DRAW_START')",
+            "if(G&&G.online&&onlineGameState){if(onlineGameState.status==='setup')onlineSetupRegionClick(id);return}",
+            "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};"
+          ]
+          for x in required:
+            assert x in s, x
+          assert "function isHotseatMode(){return !!G&&!G.online&&humanPlayers().length>1}" in s
+          PY
+      - name: Check inline JavaScript syntax
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          blocks=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S)
+          Path('/tmp/tribu-inline.js').write_text('\n'.join(blocks),encoding='utf-8')
+          PY
+          node --check /tmp/tribu-inline.js
+      - name: Diff check
+        run: git diff --check
+      - name: Commit tested client patch
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'No index change to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Branche le client sur l installation autoritaire Online'
+          git push origin HEAD:online-authoritative-foundation
