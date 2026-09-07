@@ -1,0 +1,36 @@
+name: Restore online movement UX
+on:
+  push:
+    branches: [restore-online-movement-ux]
+jobs:
+  patch-test:
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: restore-online-movement-ux }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: python3 .github/scripts/restore_online_movement_ux.py
+      - name: Check inline client JavaScript
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text()
+          js=s.rsplit('<script>',1)[1].split('</script>',1)[0]
+          Path('/tmp/client.js').write_text(js)
+          PY
+          node --check /tmp/client.js
+      - name: Verify invariants
+        run: |
+          grep -F "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" index.html
+          grep -F "function onlineMoveAll(src)" index.html
+          grep -F "Valider le déplacement" index.html
+          git diff --check
+      - name: Commit generated client
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Rétablit l ancien système de déplacement Online'
+          git push origin HEAD:restore-online-movement-ux
