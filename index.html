@@ -3677,7 +3677,7 @@ function factionDieImage(owner){
 }
 
 function die(owner,count,region=null){
- const d=document.createElement('span');d.className='die';
+ const d=document.createElement('span');d.className='die';d.dataset.owner=owner;
  d.style.backgroundImage='url("'+factionDieImage(owner)+'")';
  d.style.backgroundColor='transparent';
  d.style.backgroundBlendMode='normal';
@@ -4496,7 +4496,7 @@ function onlineRefreshPlayUi(){
    Object.keys(POS).forEach(id=>{if(onlineLegalMoveSources(id).length){const sp=map.querySelector('.spot[data-region="'+id+'"]');if(sp)sp.classList.add('onlineMoveAvailable')}});
    if(onlineMoveDraft.target){
      const target=onlineMoveDraft.target,t=map.querySelector('.spot[data-region="'+target+'"]');if(t){t.classList.add('dest');const total=onlineMoveSelected();if(total){const g=document.createElement('span');g.className='ghost';g.textContent=total;t.appendChild(g)}}
-     onlineLegalMoveSources(target).forEach(id=>{const sp=map.querySelector('.spot[data-region="'+id+'"]');if(!sp)return;sp.classList.add('src','srcHold');const q=Number(onlineMoveDraft.picks[id]||0);if(q>0){const minus=document.createElement('button');minus.className='sourceMinus';minus.textContent='−';minus.title='Remettre 1 unité';minus.onpointerdown=e=>e.stopPropagation();minus.onclick=e=>{e.stopPropagation();onlineMoveAdjust(id,-1)};sp.appendChild(minus)}let timer=null,long=false;sp.onpointerdown=e=>{if(e.target!==sp)return;e.preventDefault();long=false;timer=setTimeout(()=>{long=true;onlineMoveAll(id)},480)};sp.onpointerup=()=>{if(timer)clearTimeout(timer)};sp.onpointerleave=()=>{if(timer)clearTimeout(timer)};sp.onpointercancel=()=>{if(timer)clearTimeout(timer)};sp.onclick=e=>{if(e.target!==sp)return;if(long){long=false;return}onlineMoveAdjust(id,1)}});
+     onlineLegalMoveSources(target).forEach(id=>{const sp=map.querySelector('.spot[data-region="'+id+'"]');if(!sp)return;sp.classList.add('src','srcHold');const q=Number(onlineMoveDraft.picks[id]||0),remaining=Math.max(0,onlineOwnUnits(id)-q),ownDie=sp.querySelector('.die[data-owner="'+st.youIndex+'"]');if(ownDie){ownDie.textContent=remaining;ownDie.title='Unités : '+remaining;ownDie.style.display=remaining>0?'':'none'}if(q>0){const minus=document.createElement('button');minus.className='sourceMinus';minus.textContent='−';minus.title='Remettre 1 unité';minus.onpointerdown=e=>e.stopPropagation();minus.onclick=e=>{e.stopPropagation();onlineMoveAdjust(id,-1)};sp.appendChild(minus)}let timer=null,long=false;sp.onpointerdown=e=>{if(e.target!==sp)return;e.preventDefault();long=false;timer=setTimeout(()=>{long=true;onlineMoveAll(id)},480)};sp.onpointerup=()=>{if(timer)clearTimeout(timer)};sp.onpointerleave=()=>{if(timer)clearTimeout(timer)};sp.onpointercancel=()=>{if(timer)clearTimeout(timer)};sp.onclick=e=>{if(e.target!==sp)return;if(long){long=false;return}onlineMoveAdjust(id,1)}});
      if(hint)hint.innerHTML='Destination choisie — cliquez sur une source jaune (+1) ou maintenez pour tout sélectionner.';
      const fp=onlineFloatingActionPosition(target),box=document.createElement('div');box.className='floatActions onlineMoveFloat';box.style.left=fp[0]+'%';box.style.top=fp[1]+'%';box.innerHTML='<button class="no">✕</button><button class="yes">✓ '+onlineMoveSelected()+'</button>';const bs=box.querySelectorAll('button');bs[0].onclick=()=>{onlineResetMoveDraft();onlineRefreshPlayUi()};bs[1].onclick=onlineCommitMove;bs[1].disabled=onlineMoveSelected()===0;map.appendChild(box)
    }else if(hint)hint.textContent='Cliquez sur la destination.';
