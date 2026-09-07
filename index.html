@@ -375,6 +375,10 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 .onlineScreen.hidden{display:none}.onlineLead{text-align:center;opacity:.82;margin:0 0 14px}.onlineField{display:flex;flex-direction:column;gap:5px;margin:10px 0}.onlineField label{font-size:12px;font-weight:900}.onlineField input,.onlineField select{width:100%;box-sizing:border-box;padding:10px 11px;border-radius:8px;border:1px solid #56645e;background:#1b2521;color:#fff;font-size:14px}
 .onlineActions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}.onlineActions button,.onlineModeGrid button,.onlineBack,.onlinePrimary{padding:11px 12px;border-radius:9px;font-weight:900}.onlinePrimary{border:2px solid #d8bd63;background:#332f18;color:#fff}.onlineSecondary{border:1px solid #607169;background:#202b26;color:#fff}.onlineModeGrid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}.onlineModeGrid button{background:#1e2924;border:1px solid #5b6d64;color:#fff;text-align:left}.onlineModeGrid button b{display:block;font-size:14px}.onlineModeGrid button small{display:block;margin-top:3px;opacity:.72;font-size:10px}.onlineSectionTitle{font-size:14px;font-weight:900;margin:15px 0 6px;color:#e7cf77}.onlineBack{margin-top:14px;background:#1a211e;border:1px solid #4d5a54;color:#ddd}.localTestBtn{display:block;margin:18px auto 0;background:transparent!important;border:1px dashed #59645f!important;color:#9da8a2!important;font-size:10px!important;padding:6px 10px!important;width:auto!important}.onlineLobby{border:1px solid #59675f;border-radius:11px;background:#19221e;padding:12px;margin-top:12px}.onlineLobbyHead{display:flex;justify-content:space-between;gap:8px;align-items:center}.onlineCode{font-family:monospace;font-size:16px;font-weight:900;letter-spacing:.12em;color:#f0d271}.onlinePlayerRow{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid #334039;font-size:12px}.onlinePlayerRow:first-of-type{margin-top:8px}.readyBadge{padding:3px 7px;border-radius:999px;background:#254b32;color:#bdf0c9;font-size:10px;font-weight:900}.waitingBadge{padding:3px 7px;border-radius:999px;background:#353b38;color:#b8c0bc;font-size:10px}.onlineNotice{font-size:11px;line-height:1.4;padding:9px;border-radius:8px;background:#2b2b1d;border:1px solid #665f32;margin-top:10px;color:#e8dda8}.onlineReadyRow{display:flex;gap:8px;margin-top:10px}.onlineReadyRow button{flex:1}.onlineStatus{text-align:center;font-size:11px;opacity:.75;margin-top:8px}
 @media(max-width:620px){.onlineActions,.onlineModeGrid{grid-template-columns:1fr}.onlineStartBox{padding:16px}}
+
+.setupPanel.onlineSetupSide{position:static;left:auto;top:auto;transform:none;width:auto;box-sizing:border-box;margin:0 0 10px;background:#111e;box-shadow:none;z-index:auto}
+.setupPanel.onlineSetupSide .setupChoices{max-height:62vh;overflow-y:auto;align-content:flex-start}
+@media(max-width:760px){.setupPanel.onlineSetupSide .setupChoices{max-height:none}}
 </style></head>
 <body>
 <section id="start"><div class="onlineStartBox">
@@ -4410,7 +4414,7 @@ function render(){
 audioLoadPrefs();audioWireControls();document.addEventListener('pointerdown',()=>audioMaybeWelcome(),{passive:true});
 const ONLINE_RANDOM_NAMES=['Aube-Rousse','Corne-de-Brume','Loup-Serein','Éclat-de-Silex','Rivière-Noire','Chêne-Ardent','Renard-d’Or','Lune-Fauve','Vent-du-Nord','Pierre-Claire'];
 const ONLINE_SERVER='https://tribu-online.onrender.com';
-let onlineSelectedMode=null,onlineReadyState=false,onlineSocket=null,onlineRoom=null,onlineGameState=null,onlineSetupSelectedRegions=[];
+let onlineSelectedMode=null,onlineReadyState=false,onlineSocket=null,onlineRoom=null,onlineGameState=null,onlineSetupSelectedRegions=[],onlineSetupDraft={color:null,portrait:null};
 function onlinePseudo(){const input=$('onlinePseudo');let v=(input&&input.value||'').trim();if(!v){v=ONLINE_RANDOM_NAMES[Math.floor(Math.random()*ONLINE_RANDOM_NAMES.length)];if(input)input.value=v}return v}
 function showOnlineScreen(id){document.querySelectorAll('.onlineScreen').forEach(x=>x.classList.add('hidden'));$(id).classList.remove('hidden')}
 function launchLegacyMode(mode,victory=3){$('gameMode').value=mode;$('victoryMode').value=String(victory);$('start').classList.add('hidden');$('game').classList.remove('hidden');init()}
@@ -4445,34 +4449,25 @@ function onlineApplyStateToDisplay(state){
  G.online.myPlayerIndex=state.youIndex;G.online.revision=state.revision;
 }
 function onlineSetupRegionsFor(state){const me=state.players[state.youIndex];return me&&me.province?Object.keys(R).filter(r=>R[r][0]===me.province&&!R[r][2]):[]}
+function onlineSetupLayout(active){
+ const panel=$('setupPanel'),right=document.querySelector('.rightSection'),map=$('map');
+ if(active){if(right&&panel.parentNode!==right)right.insertBefore(panel,right.firstChild);if(right){const title=right.querySelector(':scope > b');if(title)title.style.display='none';const grid=right.querySelector(':scope > .turnGrid');if(grid)grid.style.display='none'}panel.classList.add('onlineSetupSide')}
+ else{if(map&&panel.parentNode!==map)map.insertBefore(panel,$('divinationPanel'));panel.classList.remove('onlineSetupSide');if(right){const title=right.querySelector(':scope > b');if(title)title.style.display='';const grid=right.querySelector(':scope > .turnGrid');if(grid)grid.style.display=''}}
+}
 function renderOnlineAuthoritativeSetup(state){
- onlineApplyStateToDisplay(state);setupState=null;
- $('start').classList.add('hidden');$('game').classList.remove('hidden');
- const panel=$('setupPanel');panel.classList.remove('hidden');
- const me=state.players[state.youIndex],active=state.setup&&state.setup.activePlayer===state.youIndex,stage=state.setup&&state.setup.stage;
- $('setupTitle').textContent='Installation Online — '+(me?me.pseudo:'TRIBU');
- const box=$('setupChoices');box.innerHTML='';
- if(!active){
-   const current=state.players[state.setup.activePlayer];
-   $('setupText').innerHTML='Province attribuée : <b>'+(me&&me.province||'—')+'</b><br>En attente de <b>'+(current?current.pseudo:'un autre joueur')+'</b>.';
- }else if(stage==='identity'){
-   onlineSetupSelectedRegions=[];
-   $('setupText').innerHTML='Province attribuée au hasard : <b>'+me.province+'</b><br>Choisissez votre couleur puis votre encart de faction.';
-   BASE_COLORS.forEach((color,i)=>{if(state.setup.usedColors.includes(color))return;const b=document.createElement('button');b.className='setupColorBtn';b.dataset.color=color;b.textContent=COLOR_NAMES[i];b.style.borderColor=color;b.style.color=color;b.onclick=()=>{box.querySelectorAll('.setupColorBtn').forEach(x=>x.classList.remove('selected'));b.classList.add('selected');box.dataset.color=color;onlineSetupIdentityReady(box)};box.appendChild(b)});
-   const br=document.createElement('div');br.style.flexBasis='100%';box.appendChild(br);
-   Object.entries(FACTION_PORTRAIT_META).forEach(([key,meta])=>{if(state.setup.usedPortraits.includes(key))return;const b=document.createElement('button');b.className='setupFactionPortrait';b.dataset.portrait=key;b.innerHTML='<img src="'+FACTION_PORTRAITS[key]+'" alt="'+meta.label+'"><span>'+meta.label+'</span>';b.onclick=()=>{box.querySelectorAll('.setupFactionPortrait').forEach(x=>x.classList.remove('selected'));b.classList.add('selected');box.dataset.portrait=key;onlineSetupIdentityReady(box)};box.appendChild(b)});
-   const br2=document.createElement('div');br2.style.flexBasis='100%';box.appendChild(br2);const ok=document.createElement('button');ok.id='onlineSetupIdentityConfirm';ok.textContent='Valider couleur et faction';ok.disabled=true;ok.onclick=()=>onlineAck('setupIdentity',{color:box.dataset.color,portrait:box.dataset.portrait}).catch(onlineError);box.appendChild(ok);
- }else if(stage==='regions'){
-   $('setupText').innerHTML='Province <b>'+me.province+'</b> — cliquez directement sur la carte pour installer vos unités dans <b>2 régions parmi les 4 régions non hostiles</b>.<br>Sélection : <b>'+onlineSetupSelectedRegions.length+'/2</b>';
-   const ok=document.createElement('button');ok.textContent='Valider le placement';ok.disabled=onlineSetupSelectedRegions.length!==2;ok.onclick=()=>onlineAck('setupRegions',{regions:onlineSetupSelectedRegions.slice()}).catch(onlineError);box.appendChild(ok);
-   const restart=document.createElement('button');restart.textContent='Recommencer le placement';restart.disabled=onlineSetupSelectedRegions.length===0;restart.onclick=()=>{onlineSetupSelectedRegions=[];renderOnlineAuthoritativeSetup(state)};box.appendChild(restart);
- }
- const boardMapImage=$('boardMapImage');if(boardMapImage)boardMapImage.src='assets/images/maps/map_normal.png';
- renderMap();renderPlayerRail();
+ onlineApplyStateToDisplay(state);setupState=null;$('start').classList.add('hidden');$('game').classList.remove('hidden');onlineSetupLayout(true);
+ const panel=$('setupPanel');panel.classList.remove('hidden');const me=state.players[state.youIndex],active=state.setup&&state.setup.activePlayer===state.youIndex;$('setupTitle').textContent='Installation — '+(me?me.pseudo:'TRIBU');const box=$('setupChoices');box.innerHTML='';
+ if(!active){const current=state.players[state.setup.activePlayer];$('setupText').innerHTML='Votre province : <b>'+(me&&me.province||'—')+'</b><br>En attente de <b>'+(current?current.pseudo:'un autre joueur')+'</b>.'}
+ else{$('setupText').innerHTML='Province <b>'+me.province+'</b><br>Choisissez votre couleur et votre faction, puis cliquez sur <b>2 régions</b> de votre province directement sur la carte.<br>Placement : <b>'+onlineSetupSelectedRegions.length+'/2</b>';
+  BASE_COLORS.forEach((color,i)=>{if(state.setup.usedColors.includes(color))return;const b=document.createElement('button');b.className='setupColorBtn'+(onlineSetupDraft.color===color?' selected':'');b.textContent=COLOR_NAMES[i];b.style.borderColor=color;b.style.color=color;b.onclick=()=>{onlineSetupDraft.color=color;renderOnlineAuthoritativeSetup(state)};box.appendChild(b)});const br=document.createElement('div');br.style.flexBasis='100%';box.appendChild(br);
+  Object.entries(FACTION_PORTRAIT_META).forEach(([key,meta])=>{if(state.setup.usedPortraits.includes(key))return;const b=document.createElement('button');b.className='setupFactionPortrait'+(onlineSetupDraft.portrait===key?' selected':'');b.innerHTML='<img src="'+FACTION_PORTRAITS[key]+'" alt="'+meta.label+'"><span>'+meta.label+'</span>';b.onclick=()=>{onlineSetupDraft.portrait=key;renderOnlineAuthoritativeSetup(state)};box.appendChild(b)});const br2=document.createElement('div');br2.style.flexBasis='100%';box.appendChild(br2);
+  const ok=document.createElement('button');ok.textContent='Valider mon installation';ok.disabled=!(onlineSetupDraft.color&&onlineSetupDraft.portrait&&onlineSetupSelectedRegions.length===2);ok.onclick=()=>onlineAck('setupComplete',{color:onlineSetupDraft.color,portrait:onlineSetupDraft.portrait,regions:onlineSetupSelectedRegions.slice()}).then(()=>{onlineSetupSelectedRegions=[];onlineSetupDraft={color:null,portrait:null}}).catch(onlineError);box.appendChild(ok);
+  const restart=document.createElement('button');restart.textContent='Recommencer le placement';restart.disabled=onlineSetupSelectedRegions.length===0;restart.onclick=()=>{onlineSetupSelectedRegions=[];renderOnlineAuthoritativeSetup(state)};box.appendChild(restart)}
+ const boardMapImage=$('boardMapImage');if(boardMapImage)boardMapImage.src='assets/images/maps/map_normal.png';renderMap();renderPlayerRail()
 }
 function onlineSetupIdentityReady(box){const b=$('onlineSetupIdentityConfirm');if(b)b.disabled=!(box.dataset.color&&box.dataset.portrait)}
 function onlineSetupRegionClick(r){
- const state=onlineGameState;if(!state||state.status!=='setup'||!state.setup||state.setup.activePlayer!==state.youIndex||state.setup.stage!=='regions')return;
+ const state=onlineGameState;if(!state||state.status!=='setup'||!state.setup||state.setup.activePlayer!==state.youIndex)return;
  const allowed=onlineSetupRegionsFor(state);if(!allowed.includes(r))return;
  const at=onlineSetupSelectedRegions.indexOf(r);if(at>=0)onlineSetupSelectedRegions.splice(at,1);else if(onlineSetupSelectedRegions.length<2)onlineSetupSelectedRegions.push(r);
  renderOnlineAuthoritativeSetup(state);
@@ -4489,7 +4484,7 @@ function onlineLockControls(){
 function applyOnlineGameState(state){
  onlineGameState=state;
  if(state.status==='setup'){renderOnlineAuthoritativeSetup(state);return}
- onlineApplyStateToDisplay(state);setupState=null;$('setupPanel').classList.add('hidden');$('start').classList.add('hidden');$('game').classList.remove('hidden');render();onlineLockControls();
+ onlineApplyStateToDisplay(state);setupState=null;onlineSetupLayout(false);$('setupPanel').classList.add('hidden');$('start').classList.add('hidden');$('game').classList.remove('hidden');render();onlineLockControls();
 }
 function launchOnlineRoom(room){
  if(!room||room.seed===null||room.seed===undefined)return onlineError(new Error('Graine de partie absente.'));

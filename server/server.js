@@ -346,6 +346,27 @@ io.on('connection', socket => {
     ack({ ok: true, game: publicGameView(room, socket.id) });
   });
 
+  socket.on('setupComplete', (payload = {}, ack = () => {}) => {
+    const room = roomForSocket(socket);
+    if (!room || !room.game || !room.game.setup) return rejectGameAction(ack, 'Installation indisponible.');
+    const game = room.game;
+    const index = humanGameIndex(room, socket.id);
+    if (index < 0) return rejectGameAction(ack, 'Joueur introuvable.');
+    if (game.setup.activePlayer !== index) return rejectGameAction(ack, 'Ce n’est pas votre tour de vous installer.');
+    const color = String(payload.color || ''), portrait = String(payload.portrait || '');
+    const unique = [...new Set(Array.isArray(payload.regions) ? payload.regions.map(String) : [])];
+    const player = game.players[index], allowed = PROVINCE_REGIONS[player.province] || [];
+    if (!COLORS.includes(color)) return rejectGameAction(ack, 'Couleur invalide.');
+    if (!PORTRAITS.includes(portrait)) return rejectGameAction(ack, 'Faction invalide.');
+    if (game.players.some((p, i) => i !== index && p.color === color)) return rejectGameAction(ack, 'Cette couleur est déjà prise.');
+    if (game.players.some((p, i) => i !== index && p.portrait === portrait)) return rejectGameAction(ack, 'Cet encart de faction est déjà pris.');
+    if (unique.length !== 2 || !unique.every(r => allowed.includes(r))) return rejectGameAction(ack, 'Choisissez exactement deux régions valides de votre province.');
+    player.color=color; player.portrait=portrait; player.faction=PORTRAIT_FACTION[portrait]; player.regions=unique;
+    unique.forEach(r => { game.board[r].owner=index; game.board[r].units=3; game.board[r].hostile=false; });
+    game.setup.activePlayer++; game.setup.stage='identity'; game.revision++;
+    ack({ok:true}); completeSetupIfReady(room); if(game.setup) emitGame(room);
+  });
+
   socket.on('setupIdentity', (payload = {}, ack = () => {}) => {
     const room = roomForSocket(socket);
     if (!room || !room.game || !room.game.setup) return rejectGameAction(ack, 'Installation indisponible.');
