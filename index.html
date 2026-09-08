@@ -4634,6 +4634,7 @@ function onlineLegacyBootstrap(full,state){
  divinationState=null;recruitSnapshot=null;gameOverState=null;commerceDeals=[];commerceSeq=1;
  if(G.phase==='play')setMovable();else resetMove();
  onlineLegacyRevision=full.legacyRevision||0;
+ onlineLegacyBotDriverOwner=null;
  onlineLegacyLastDigest=onlineLegacyDigest();
  setupState=null;onlineSetupLayout(false);$('setupPanel').classList.add('hidden');$('start').classList.add('hidden');$('game').classList.remove('hidden');
  render();onlineLegacyLastDigest=onlineLegacyDigest();onlineLegacyLockControls();
