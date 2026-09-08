@@ -1225,6 +1225,7 @@ function playAmbush(playerIndex){
  log(isHotseatMode()?'Nouvelle fenêtre de réaction hot-seat, sans chrono.':'Nouvelle fenêtre de réaction : 10 secondes.');
  startGoldReactionTimer();
  render();
+ if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();
  maybeBotAmbush();
 }
 function maybeBotAmbush(){
@@ -1791,7 +1792,7 @@ function playTax(handIndex){
 }
 function closeChoice(){choiceState=null;$('choiceOverlay').classList.add('hidden');$('choiceCards').innerHTML=''}
 function playCouncil(handIndex){
- if(choiceState)return;
+ if(choiceState||goldReaction)return;
  const found=cardFromViewerHand(handIndex,'Conseil de guerre');if(!found)return;
  const actor=found.viewer;
  const battleCouncil=!!battle;
@@ -2607,6 +2608,7 @@ function passReturn(){
  clearTopBanner();
  log(p().name+' choisit de ne pas revenir ce tour.');
  advanceTurn('retour passé');
+ if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();
 }
 function reformAt(r){
  if(!returnState||!returnRegions(G.active).includes(r))return;
@@ -2621,7 +2623,9 @@ function reformAt(r){
  pl.gold=3;draw(i,3);
  log('⚔ Les troupes de '+pl.name+' se sont reformées !');
  log(pl.name+' revient en '+r+' avec 3 unités, 3 cartes et 3 Or.');
- G.phase='start';resetMove();render();queueBot('joueur reformé');
+ G.phase='start';resetMove();render();
+ if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();
+ queueBot('joueur reformé');
 }
 function clearTopBanner(){
  const el=$('battleBanner');
@@ -3590,6 +3594,7 @@ function oracleSacrificeClick(r){
    log(p(q.player).name+' sacrifie '+q.chosen.join(', ')+'.');
    oracleState.index++;advanceOracleSacrifice();
  }else render();
+ if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();
 }
 function dragonSimplePathExists(from,steps,blocked){
  if(steps<=0)return true;
@@ -4409,7 +4414,7 @@ function render(){
  }
  const isViewerHand=handPlayer===localViewer()&&!G.players[handPlayer].bot&&!isDecimated(handPlayer);
  if(isViewerHand&&!choiceState&&c.name==='Taxe'){d.classList.add('playablePermanent');d.title='Jouer Taxe maintenant';d.onclick=()=>playTax(handIndex)}
- if(isViewerHand&&!choiceState&&c.name==='Conseil de guerre'){d.classList.add('playablePermanent');d.title='Jouer Conseil de guerre maintenant';d.onclick=()=>playCouncil(handIndex)}
+ if(isViewerHand&&!choiceState&&!goldReaction&&c.name==='Conseil de guerre'){d.classList.add('playablePermanent');d.title='Jouer Conseil de guerre maintenant';d.onclick=()=>playCouncil(handIndex)}
  if(isViewerHand&&!choiceState&&c.name==='Portails'){d.classList.add('playablePermanent');d.title='Poser les Portails maintenant';d.onclick=()=>beginPortals(handIndex)}
  if(isViewerHand&&!choiceState&&c.name==='Section de l’ombre'){
    d.classList.add('playablePermanent');d.title='Jouer Section de l’ombre';d.onclick=()=>startShadow(handIndex);
@@ -4602,7 +4607,11 @@ function onlineLegacyOwnsBattlePriority(){
  if(!G||!G.online||!G.online.legacySync||!battle)return true;
  const priority=currentPriorityPlayer();
  if(!Number.isInteger(priority)||!G.players[priority])return false;
- if(G.players[priority].bot)return onlineLegacyCanExecuteBot();
+ if(G.players[priority].bot){
+   const me=G.online.myPlayerIndex;
+   const activeHumanOwns=Number.isInteger(me)&&G.active===me&&G.players[me]&&!G.players[me].bot;
+   return onlineLegacyCanExecuteBot()||activeHumanOwns;
+ }
  return priority===G.online.myPlayerIndex;
 }
 function onlineLegacyEncode(value){
@@ -4737,10 +4746,7 @@ function onlineLegacyPushNow(){
  const send=(baseRevision,retry)=>onlineAck('legacyCommit',{baseRevision,actorIndex,snapshot}).then(res=>{
    onlineLegacyRevision=Math.max(onlineLegacyRevision,res.revision||0);G.online.revision=onlineLegacyRevision;onlineLegacyLastDigest=digest;
  }).catch(err=>{
-   if(retry&&err&&err.current&&Number.isInteger(err.current.revision)){
-     onlineLegacyRevision=Math.max(onlineLegacyRevision,err.current.revision);G.online.revision=onlineLegacyRevision;
-     return send(onlineLegacyRevision,false);
-   }
+   if(err&&err.current){onlineLegacyLastDigest='';onlineLegacyApply(err.current);return}
    onlineLegacyLastDigest='';onlineError(err);
  });
  send(onlineLegacyRevision,true);
@@ -4920,7 +4926,7 @@ function connectOnline(){
   socket.on('legacyState',packet=>onlineLegacyApply(packet));
  });
 }
-function onlineAck(action,payload){return connectOnline().then(socket=>new Promise((resolve,reject)=>socket.emit(action,payload,res=>res&&res.ok?resolve(res):reject(new Error(res&&res.error||'Erreur serveur.')))))}
+function onlineAck(action,payload){return connectOnline().then(socket=>new Promise((resolve,reject)=>socket.emit(action,payload,res=>{if(res&&res.ok){resolve(res);return}const err=new Error(res&&res.error||'Erreur serveur.');if(res&&res.current)err.current=res.current;reject(err)})))}
 function onlineError(err){alert(err&&err.message?err.message:String(err))}
 $('startBtn').onclick=()=>launchLegacyMode($('gameMode').value,+$('victoryMode').value||3);
 $('onlineCreate').onclick=()=>{onlinePseudo();showOnlineScreen('onlineCreateScreen')};
