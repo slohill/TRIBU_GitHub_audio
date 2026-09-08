@@ -1,0 +1,42 @@
+name: Audit fix Oracle gold rules
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths: [scripts/audit_fix_oracle_gold_rules.py, .github/workflows/audit-fix-oracle-gold-rules.yml]
+permissions: {contents: write}
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Guard expected main
+        run: test "$(git rev-parse HEAD)" = "6e5a76da449349781bc459c55c3094a9045ae0c7"
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.x'}
+      - name: Load patch
+        run: curl -fsSL https://raw.githubusercontent.com/slohill/TRIBU_GitHub_audio/clean-online-sync-from-4034-20260907/scripts/audit_fix_oracle_gold_rules.py -o /tmp/patch.py
+      - run: python /tmp/patch.py
+      - name: Syntax and audit guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text();Path('/tmp/tribu.js').write_text(s.rsplit('<script>',1)[1].split('</script>',1)[0])
+          assert "openOfficialCard(name,'Oracle',oracleEffectText(name))" in s
+          assert "$('cardZoomImage')" not in s
+          assert "if(isViewerHand&&!choiceState&&c.name==='Conseil de guerre')" in s
+          assert ".deckCorner{position:absolute;left:50%;right:auto;top:8px;transform:translateX(-50%)" in s
+          assert "if(c.units>0)return false;" in s and "if(effectiveHostile(r))return false;" in s
+          assert "pauseGoldReactionForCard" in s and "resumeGoldReactionAfterCard" in s and "goldReaction.pausedByCard" in s
+          assert "assets/images/cards/oracle/tempete_de_sable.png" in s
+          assert "activeName.closest('.oracleMini')" in s and "nextName.closest('.oracleMini')" in s
+          PY
+          node --check /tmp/tribu.js
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m "Corrige l ouverture des Oracles et audite les règles demandées"
+          git push origin HEAD:main
