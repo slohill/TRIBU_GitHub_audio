@@ -1803,10 +1803,10 @@ function playCouncil(handIndex){
  if(choiceState)return;
  const found=cardFromViewerHand(handIndex,'Conseil de guerre');if(!found)return;
  const actor=found.viewer;
- const pausedGold=!!goldReaction;if(pausedGold)pauseGoldReactionForCard();
  const battleCouncil=!!battle;
+ if(battleCouncil&&currentPriorityPlayer()!==actor)return;
+ const pausedGold=!!goldReaction;if(pausedGold)pauseGoldReactionForCard();
  if(battleCouncil){
-   if(currentPriorityPlayer()!==actor)return;
    clearInterval(battleTick);clearTimeout(botReactionTimer);
  }
  G.players[actor].hand.splice(handIndex,1);G.discard.push(found.id);draw(actor,2);
@@ -3409,7 +3409,12 @@ function toOracle(){
 
 function oracleName(){return G.oracleActive===null?'Aucun':ORACLES[G.oracleActive].name}
 const ORACLE_CARD_ART={'Canicule':'assets/images/cards/oracle/canicule.png','Vague de froid':'assets/images/cards/oracle/vague_de_froid.png','Givre mortel':'assets/images/cards/oracle/givre_mortel.png','Tempête de sable':'assets/images/cards/oracle/tempete_de_sable.png','Tempête en mer':'assets/images/cards/oracle/tempete_en_mer.png','En quête de destruction':'assets/images/cards/oracle/en_quete_de_destruction.png'};
-function openOracleCardById(id){if(id===null||id===undefined||!ORACLES[id])return;const src=ORACLE_CARD_ART[ORACLES[id].name];if(!src)return;const ov=$('cardZoomOverlay'),img=$('cardZoomImage');if(!ov||!img)return;img.src=src;img.alt=ORACLES[id].name;ov.classList.remove('hidden')}
+function openOracleCardById(id){
+ if(id===null||id===undefined||!ORACLES[id])return;
+ const name=ORACLES[id].name;
+ if(!ORACLE_CARD_ART[name])return;
+ openOfficialCard(name,'Oracle',oracleEffectText(name));
+}
 function refillOracleDeck(){
  if(G.oracleDeck.length)return;
  G.oracleDeck=shuffleArray(G.oracleDiscard.splice(0));
@@ -4425,7 +4430,7 @@ function render(){
  }
  const isViewerHand=handPlayer===localViewer()&&!G.players[handPlayer].bot&&!isDecimated(handPlayer);
  if(isViewerHand&&!choiceState&&c.name==='Taxe'){d.classList.add('playablePermanent');d.title='Jouer Taxe maintenant';d.onclick=()=>playTax(handIndex)}
- if(isViewerHand&&!choiceState&&!goldReaction&&c.name==='Conseil de guerre'){d.classList.add('playablePermanent');d.title='Jouer Conseil de guerre maintenant';d.onclick=()=>playCouncil(handIndex)}
+ if(isViewerHand&&!choiceState&&c.name==='Conseil de guerre'){d.classList.add('playablePermanent');d.title='Jouer Conseil de guerre maintenant';d.onclick=()=>playCouncil(handIndex)}
  if(isViewerHand&&!choiceState&&c.name==='Portails'){d.classList.add('playablePermanent');d.title='Poser les Portails maintenant';d.onclick=()=>beginPortals(handIndex)}
  if(isViewerHand&&!choiceState&&c.name==='Section de l’ombre'){
    d.classList.add('playablePermanent');d.title='Jouer Section de l’ombre';d.onclick=()=>startShadow(handIndex);
@@ -4825,12 +4830,15 @@ function onlineLegacyLockControls(){
 }
 function wireOracleCardPreviews(){
  const activeId=G&&G.oracleActive!==null?G.oracleActive:null,nextId=G?nextOracle():null;
- const candidates=[
-   [$('oracleActive'),activeId],[$('oracleActiveName'),activeId],[$('oracleNext'),nextId],[$('oracleNextName'),nextId]
- ];
- candidates.forEach(([el,id])=>{if(!el||id===null||id===undefined)return;el.style.cursor='pointer';el.onclick=e=>{e.stopPropagation();openOracleCardById(id)}});
- document.querySelectorAll('[data-oracle-active]').forEach(el=>{el.style.cursor='pointer';el.onclick=e=>{e.stopPropagation();openOracleCardById(activeId)}});
- document.querySelectorAll('[data-oracle-next]').forEach(el=>{el.style.cursor='pointer';el.onclick=e=>{e.stopPropagation();openOracleCardById(nextId)}});
+ const activeName=$('oracleActiveName'),nextName=$('oracleNextName');
+ const activeBox=activeName&&activeName.closest('.oracleMini'),nextBox=nextName&&nextName.closest('.oracleMini');
+ const bind=(el,id)=>{
+   if(!el)return;
+   const available=id!==null&&id!==undefined;
+   el.style.cursor=available?'pointer':'';
+   el.onclick=available?(e=>{e.preventDefault();e.stopPropagation();openOracleCardById(id)}):null;
+ };
+ bind(activeBox,activeId);bind(activeName,activeId);bind(nextBox,nextId);bind(nextName,nextId);
 }
 const onlineLegacyBaseRender=render;
 render=function(){
