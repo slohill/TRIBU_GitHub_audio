@@ -2883,11 +2883,13 @@ function passPriority(){
   if(battle.consecutivePasses>=battle.priorityOrder.length){
     clearInterval(battleTick);
     resolveBattle();
+    if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();
     return;
   }
   advancePriority(false);
   renderBattle();
   prepareCurrentBattleReaction();
+  if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();
 }
 function playBattleCard(handIndex){
   if(caravanState||divinationState)return;
@@ -2931,6 +2933,7 @@ function playBattleCardForOwner(owner,handIndex){
     advancePriority(true);
     renderBattle();render();
     prepareCurrentBattleReaction();
+    if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();
   }
 }
 function finishBattleCards(){
@@ -3014,7 +3017,11 @@ function queueBotReaction(){
 }
 
 function renderBattle(){
-  if(!battle || battle.kind==='seaChoice'){renderBattleBanner();return;}
+  if(!battle || battle.kind==='seaChoice'){
+    renderBattleBanner();
+    if(!battle){hideBattle();const t=$('tacticalButtons');if(t)t.innerHTML='';const pi=$('priorityInfo');if(pi)pi.innerHTML='';const pt=$('priorityTimer');if(pt)pt.textContent='';}
+    return;
+  }
   renderBattleBanner();
   showBattle();
   const ap=battlePower('attacker'),dp=battlePower('defender');
@@ -4582,7 +4589,7 @@ function onlineApplyStateToDisplay(state){
 // The original TRIBU engine remains the only gameplay engine. Online only stores
 // and relays complete committed engine snapshots. UI drafts such as dest/picks are
 // deliberately not synchronized.
-let onlineLegacyRevision=0,onlineLegacyApplying=false,onlineLegacyLastDigest='',onlineLegacyPushTimer=null,onlineLegacyBotDriverIndex=null;
+let onlineLegacyRevision=0,onlineLegacyApplying=false,onlineLegacyLastDigest='',onlineLegacyPushTimer=null,onlineLegacyBotDriverIndex=null,onlineLegacyBattleViewSeconds=null;
 function onlineLegacyDriverIndex(){
  if(!G)return -1;
  return G.players.findIndex(pl=>!pl.bot);
@@ -4676,15 +4683,15 @@ function onlineLegacyApply(packet){
 }
 function onlineLegacyResumeBattleView(){
  clearInterval(battleTick);clearTimeout(botReactionTimer);
- if(!battle)return;
+ if(!battle){onlineLegacyBattleViewSeconds=null;hideBattle();return;}
  showBattle();renderBattle();
  const priority=currentPriorityPlayer(),me=G.online&&G.online.myPlayerIndex;
  const myHumanPriority=Number.isInteger(priority)&&priority===me&&G.players[priority]&&!G.players[priority].bot;
  if(myHumanPriority){
    battleTick=setInterval(()=>{
-     if(!battle){clearInterval(battleTick);return}
+     if(!battle){clearInterval(battleTick);hideBattle();return}
      battle.seconds=Math.max(0,battle.seconds-1);renderBattle();
-     if(battle.seconds<=0){clearInterval(battleTick);passPriority();onlineLegacyPushNow()}
+     if(battle.seconds<=0){clearInterval(battleTick);passPriority()}
    },1000);
    return;
  }
@@ -4692,12 +4699,13 @@ function onlineLegacyResumeBattleView(){
    resumeBattleTimer();
    return;
  }
- // Spectateur : animation locale uniquement, aucune mutation de règles à 0.
+ // Spectateur : le chrono affiché descend, mais l'état canonique reste intact.
+ onlineLegacyBattleViewSeconds=Math.max(0,Number(battle.seconds)||0);
  battleTick=setInterval(()=>{
-   if(!battle){clearInterval(battleTick);return}
-   if(battle.seconds>0)battle.seconds--;
-   renderBattle();
-   if(battle.seconds<=0)clearInterval(battleTick);
+   if(!battle){clearInterval(battleTick);hideBattle();return}
+   onlineLegacyBattleViewSeconds=Math.max(0,onlineLegacyBattleViewSeconds-1);
+   const pt=$('priorityTimer');if(pt)pt.textContent=onlineLegacyBattleViewSeconds+' s';
+   if(onlineLegacyBattleViewSeconds<=0)clearInterval(battleTick);
  },1000);
 }
 function onlineLegacyStart(state){
