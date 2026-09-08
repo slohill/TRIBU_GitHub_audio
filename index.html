@@ -4681,6 +4681,7 @@ function onlineLegacyApply(packet){
      showBattle();renderBattle();
      battleTick=setInterval(()=>{if(!battle){clearInterval(battleTick);return}if(battle.seconds>0)battle.seconds--;renderBattle()},1000);
    }
+   if(onlineLegacyCanExecuteBot())prepareCurrentBattleReaction();
  }
 }
 function onlineLegacyStart(state){
