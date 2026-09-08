@@ -1726,7 +1726,7 @@ function chooseShadowTarget(r){
 }
 function resumeBattleTimer(){
  clearInterval(battleTick);if(!battle)return;
- if(!isHotseatMode()&&onlineLegacyOwnsBattlePriority())battleTick=setInterval(()=>{if(!battle)return;battle.seconds--;renderBattle();if(battle.seconds<=0){passPriority();if(G&&G.online&&G.online.legacySync)onlineLegacyMaybePush()}},1000);
+ if(!isHotseatMode()&&onlineLegacyOwnsBattlePriority())battleTick=setInterval(()=>{if(!battle)return;battle.seconds--;renderBattle();if(battle.seconds<=0){passPriority();if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow()}},1000);
  showBattle();renderBattle();
  if(!isHotseatMode()&&onlineLegacyOwnsBattlePriority())prepareCurrentBattleReaction();
 }
@@ -2832,7 +2832,7 @@ function startReactionWindow(){
     if(!battle)return;
     battle.seconds--;
     renderBattle();
-    if(battle.seconds<=0){passPriority();if(G&&G.online&&G.online.legacySync)onlineLegacyMaybePush()}
+    if(battle.seconds<=0){passPriority();if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow()}
   },1000);
   showBattle();
   renderBattle();
@@ -3038,7 +3038,7 @@ function renderBattle(){
     const participant=priority===battle.attacker||priority===battle.defender;
     if(!isBot(priority)){
       const pass=document.createElement('button');
-      pass.id='battlePass';pass.textContent='Passer';pass.onclick=passPriority;buttons.appendChild(pass);
+      pass.id='battlePass';pass.textContent='Passer';pass.onclick=()=>{passPriority();if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow()};buttons.appendChild(pass);
       if(!participant){const info=document.createElement('div');info.className='note';info.textContent='Vous pouvez intervenir depuis votre main ou passer immédiatement.';buttons.appendChild(info)}
     }else{
       const info=document.createElement('div');info.className='note';info.textContent='Le bot réfléchit à sa réaction…';buttons.appendChild(info);queueBotReaction();
@@ -4735,6 +4735,13 @@ function onlineLegacyPushLiveBot(){
    onlineLegacyBotCommitBusy=false;
    if(onlineLegacyBotCommitQueued){onlineLegacyBotCommitQueued=false;onlineLegacyPushLiveBot()}
  });
+}
+function onlineLegacyPushNow(){
+ if(!onlineLegacyCanPublish())return;
+ const now=onlineLegacyDigest();if(!now||now===onlineLegacyLastDigest)return;
+ const snapshot=onlineLegacySnapshot(),actorIndex=G.online.myPlayerIndex,baseRevision=onlineLegacyRevision;
+ onlineLegacyLastDigest=now;
+ onlineAck('legacyCommit',{baseRevision,actorIndex,snapshot}).then(res=>{onlineLegacyRevision=res.revision;G.online.revision=res.revision}).catch(err=>{onlineLegacyLastDigest='';if(err&&err.current)onlineLegacyApply(err.current);else onlineError(err)});
 }
 function onlineLegacyMaybePush(){
  if(!onlineLegacyCanPublish())return;
