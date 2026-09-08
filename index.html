@@ -4605,7 +4605,7 @@ function onlineLegacyRuleState(){
    paidDrawState,goldReaction,shadowState,battleStack,egnoState,returnState,dragonRichState,dragonCurseState,
    dragonPublicState,agentModalState,caravanState,oraclePassArmed,oracleState,seaStormState,oracleClimateVisual,
    oraclePendingNormalMap,turnEpoch,divinationState,recruitSnapshot,gameOverState,commerceDeals,commerceSeq,
-   onlineLegacyBotDriverOwner:Number.isInteger(onlineLegacyBotDriverOwner)?onlineLegacyBotDriverOwner:null
+   onlineLegacyBotDriverOwner:(G&&G.online&&Number.isInteger(G.online.botDriverOwner))?G.online.botDriverOwner:(Number.isInteger(onlineLegacyBotDriverOwner)?onlineLegacyBotDriverOwner:null)
  };
 }
 function onlineLegacySnapshot(){
