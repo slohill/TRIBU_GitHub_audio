@@ -4705,7 +4705,9 @@ function onlineLegacyCanPublish(){
 }
 let onlineLegacyBotCommitBusy=false,onlineLegacyBotCommitQueued=false;
 function onlineLegacyCanPublishLiveBot(){
- return !!(G&&G.online&&G.online.legacySync&&!onlineLegacyApplying&&onlineSocket&&G.players[G.active]&&G.players[G.active].bot&&onlineLegacyCanExecuteBot());
+ if(!(G&&G.online&&G.online.legacySync&&!onlineLegacyApplying&&onlineSocket&&G.players[G.active]&&G.players[G.active].bot&&onlineLegacyCanExecuteBot()))return false;
+ if(battle){const priority=currentPriorityPlayer();if(Number.isInteger(priority)&&!G.players[priority].bot&&priority!==G.online.myPlayerIndex)return false;}
+ return true;
 }
 function onlineLegacyPushLiveBot(){
  if(!onlineLegacyCanPublishLiveBot())return;
