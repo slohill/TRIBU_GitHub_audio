@@ -1,0 +1,54 @@
+name: Patch sync SFX gold battle givre 20260908
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - '.github/workflows/patch-sync-sfx-gold-battle-givre-20260908.yml'
+      - 'scripts/patch_sync_sfx_gold_battle_givre_20260908.py'
+permissions:
+  contents: write
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Guard expected main
+        run: test "$(git rev-parse HEAD)" = "a3ea05226a5cc40d863fe8a51f034f943b7ce45b"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Load patch
+        run: curl -fsSL https://raw.githubusercontent.com/slohill/TRIBU_GitHub_audio/clean-online-sync-from-4034-20260907/scripts/patch_sync_sfx_gold_battle_givre_20260908.py -o /tmp/patch.py
+      - name: Apply patch
+        run: python /tmp/patch.py
+      - name: Syntax and guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text()
+          js=s.split('<script>')[-1].rsplit('</script>',1)[0]
+          Path('/tmp/index.js').write_text(js)
+          checks=[
+            "onlineSfxSeq,onlineSfxEvents",
+            "En pause — gain d’Or",
+            "pausedBattle:!!r.pausedBattle",
+            "Gain d’Or résolu : la bataille reprend avec 15 secondes.",
+            "if(!onlineLegacyGoldTickRender)onlineLegacyMaybePush();",
+            "if(prev==='Canicule'){log('Givre mortel est sans effet après Canicule.')",
+          ]
+          for c in checks:
+              assert c in s,c
+          assert s.index("if(prev==='Canicule'){log('Givre mortel est sans effet après Canicule.')") < s.index("destroySeaUnits('U','Givre mortel')")
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          PY
+          node --check /tmp/index.js
+      - name: Commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m "Synchronise les sons et priorise le gain d or en bataille"
+          git push origin HEAD:main
