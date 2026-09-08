@@ -42,7 +42,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 .playerPeek{position:absolute;left:calc(100% + 8px);top:0;width:300px;background:#111b18;border:3px solid #777;border-radius:10px;padding:10px;text-align:left;font-weight:400;z-index:90;display:none;box-shadow:0 8px 24px #000a}
 .playerCard:hover .playerPeek,.playerCard.pinned .playerPeek{display:block}
 .peekCards{display:grid;gap:4px;margin-top:6px}.peekCard{background:#26302b;padding:5px;border-radius:5px}
-.battleBanner{position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:40;width:min(760px,88%);background:#111e;border:2px solid #d8d8d8;border-radius:10px;padding:8px 12px;text-align:center;line-height:1.25;font-size:14px;box-shadow:0 5px 18px #0009}
+.battleBanner{position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:180;width:min(760px,88%);background:#111e;border:2px solid #d8d8d8;border-radius:10px;padding:8px 12px;text-align:center;line-height:1.25;font-size:14px;box-shadow:0 5px 18px #0009}
 .battleBanner h3{margin:0 0 4px;font-size:19px}.battleScore{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;font-weight:900}.battleDetail{font-size:11px;font-weight:500;margin-top:3px}
 .assassinMapMessage{position:absolute;left:50%;top:72px;transform:translateX(-50%);z-index:95;width:min(720px,86%);background:#171318ee;border:2px solid #d8b0b7;border-radius:10px;padding:10px 14px;text-align:center;font-size:14px;font-weight:800;line-height:1.3;box-shadow:0 6px 20px #000a;cursor:pointer}.assassinMapMessage.hidden{display:none}.assassinMapMessage small{display:block;margin-top:5px;opacity:.72;font-weight:600}
 .bottomZone{display:grid;grid-template-columns:1fr;gap:10px;margin-top:10px}
@@ -205,8 +205,9 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 }
 
 .oracleCorner{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);z-index:58;display:flex;gap:6px;height:8.33%;max-height:46px;min-height:29px}
-.oracleMini{height:100%;width:82px;min-width:82px;padding:3px 4px;border:2px solid #727d77;border-radius:7px;background:#18201d;color:#d4d8d6;display:flex;flex-direction:column;align-items:center;justify-content:space-between;text-align:center;box-sizing:border-box}
+.oracleMini{height:100%;width:82px;min-width:82px;padding:3px 4px;border:2px solid #8799a3;border-radius:7px;background:#bcc8ce;color:#1d2930;display:flex;flex-direction:column;align-items:center;justify-content:space-between;text-align:center;box-sizing:border-box}
 .oracleMini small{font-size:7px;line-height:1;opacity:.85}.oracleMini b{font-size:9px;line-height:1.05;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+#oracleNoticeText{background:#bcc8ce;color:#1d2930;border:1px solid #8799a3;border-radius:8px;padding:10px}
 
 
 .divinationPanel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:210;width:min(420px,72%);background:#111e;border:2px solid #d8d8d8;border-radius:10px;padding:12px;text-align:center;box-shadow:0 8px 28px #000b}
@@ -1048,6 +1049,8 @@ function resumeGoldReactionAfterCard(){if(!goldReaction||!goldReaction.pausedByC
 function startGoldReactionTimer(){
  clearGoldReactionTimer();
  if(!goldReaction)return;
+ if(G&&G.online&&G.online.legacySync&&!onlineLegacyOwnsGoldTimer()){onlineLegacyStartGoldViewTimer();return}
+ if(G&&G.online&&G.online.legacySync)onlineLegacyGoldViewSeconds=null;
  if(isHotseatMode()){
    goldReaction.hotseatFreeReaction=true;
    render();
@@ -1231,7 +1234,7 @@ function playAmbush(playerIndex){
  log(isHotseatMode()?'Nouvelle fenêtre de réaction hot-seat, sans chrono.':'Nouvelle fenêtre de réaction : 10 secondes.');
  startGoldReactionTimer();
  render();
- if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();
+ if(G&&G.online&&G.online.legacySync)onlineLegacyPushGoldReactionNow();
  maybeBotAmbush();
 }
 function maybeBotAmbush(){
@@ -4342,7 +4345,8 @@ function render(){
  const gr=$('goldReactionBox');
  gr.classList.toggle('hidden',!goldReaction);
  if(goldReaction){
-   let gh='<b>⚠️ Gain d’Or en attente — '+goldReaction.seconds+' s</b><br>'+p(goldReaction.receiver).name+' doit recevoir <b>'+goldReaction.amount+' Or</b> ('+goldReaction.source+').';
+   const goldSeconds=(G&&G.online&&G.online.legacySync&&!onlineLegacyOwnsGoldTimer()&&onlineLegacyGoldViewSeconds!==null)?onlineLegacyGoldViewSeconds:goldReaction.seconds;
+   let gh='<b>⚠️ Gain d’Or en attente — '+goldSeconds+' s</b><br>'+p(goldReaction.receiver).name+' doit recevoir <b>'+goldReaction.amount+' Or</b> ('+goldReaction.source+').';
    const viewer=localViewer();
    if(viewer!==goldReaction.receiver&&embuscadeIndex(viewer)>=0&&!G.players[viewer].bot){
      gh+='<br><button id="playAmbushNow">Jouer Embuscade</button>';
@@ -4367,6 +4371,7 @@ function render(){
  $('recruitBox').classList.toggle('hidden',G.phase!=='recruit');
  $('playBox').classList.toggle('hidden',G.phase!=='play');
  $('oracleBox').classList.toggle('hidden',!['oracleMove','oracleRoll'].includes(G.phase));
+ if(goldReaction){['startTurn','recruitBox','playBox','oracleBox'].forEach(id=>{const el=$(id);if(el)el.classList.add('hidden')})}
  if(G.phase==='setup'){
    $('startTurn').classList.add('hidden');
    ['draw','harvest','recruit','toOracle','roll'].forEach(id=>$(id).disabled=true);
@@ -4611,7 +4616,7 @@ function onlineApplyStateToDisplay(state){
 // The original TRIBU engine remains the only gameplay engine. Online only stores
 // and relays complete committed engine snapshots. UI drafts such as dest/picks are
 // deliberately not synchronized.
-let onlineLegacyRevision=0,onlineLegacyApplying=false,onlineLegacyLastDigest='',onlineLegacyPushTimer=null,onlineLegacyBotDriverIndex=null,onlineLegacyBattleViewSeconds=null;
+let onlineLegacyRevision=0,onlineLegacyApplying=false,onlineLegacyLastDigest='',onlineLegacyPushTimer=null,onlineLegacyBotDriverIndex=null,onlineLegacyBattleViewSeconds=null,onlineLegacyGoldViewSeconds=null;
 function onlineLegacyDriverIndex(){
  if(!G)return -1;
  return G.players.findIndex(pl=>!pl.bot);
@@ -4619,6 +4624,31 @@ function onlineLegacyDriverIndex(){
 function onlineLegacyIsDriver(){return !!(G&&G.online&&G.online.legacySync&&G.online.myPlayerIndex===onlineLegacyDriverIndex())}
 function onlineLegacyCanExecuteBot(){
  return !!(G&&G.online&&G.online.legacySync&&Number.isInteger(G.online.myPlayerIndex)&&G.players[G.online.myPlayerIndex]&&!G.players[G.online.myPlayerIndex].bot&&onlineLegacyBotDriverIndex===G.online.myPlayerIndex);
+}
+function onlineLegacyOwnsGoldTimer(){
+ if(!G||!G.online||!G.online.legacySync||!goldReaction)return true;
+ const me=G.online.myPlayerIndex;
+ if(!Number.isInteger(me)||!G.players[me]||G.players[me].bot)return false;
+ if(G.players[G.active]&&G.players[G.active].bot)return onlineLegacyCanExecuteBot();
+ return G.active===me;
+}
+function onlineLegacyStartGoldViewTimer(){
+ clearGoldReactionTimer();
+ if(!goldReaction){onlineLegacyGoldViewSeconds=null;return}
+ onlineLegacyGoldViewSeconds=Math.max(0,Number(goldReaction.seconds)||0);
+ goldReactionTick=setInterval(()=>{
+   if(!goldReaction){clearGoldReactionTimer();onlineLegacyGoldViewSeconds=null;return}
+   if(goldReaction.pausedByCard)return;
+   onlineLegacyGoldViewSeconds=Math.max(0,onlineLegacyGoldViewSeconds-1);
+   render();
+   if(onlineLegacyGoldViewSeconds<=0)clearGoldReactionTimer();
+ },1000);
+}
+function onlineLegacyResumeGoldView(){
+ clearGoldReactionTimer();
+ if(!goldReaction){onlineLegacyGoldViewSeconds=null;return}
+ if(onlineLegacyOwnsGoldTimer()){onlineLegacyGoldViewSeconds=null;startGoldReactionTimer()}
+ else onlineLegacyStartGoldViewTimer();
 }
 function onlineLegacyOwnsBattlePriority(){
  if(!G||!G.online||!G.online.legacySync||!battle)return true;
@@ -4706,6 +4736,7 @@ function onlineLegacyApply(packet){
  (G.players||[]).forEach((_,i)=>agentDefaults(i));
  onlineLegacyLastDigest=onlineLegacyDigest();render();onlineLegacyLastDigest=onlineLegacyDigest();onlineLegacyApplying=false;onlineLegacyLockControls();
  onlineLegacyResumeBattleView();
+ onlineLegacyResumeGoldView();
 }
 function onlineLegacyResumeBattleView(){
  clearInterval(battleTick);clearTimeout(botReactionTimer);
@@ -4768,6 +4799,28 @@ function onlineLegacyPushNow(){
  });
  send(onlineLegacyRevision,true);
 }
+function onlineLegacyPushGoldReactionNow(){
+ if(!G||!G.online||!G.online.legacySync||onlineLegacyApplying||!onlineSocket||!goldReaction)return;
+ const actorIndex=G.online.myPlayerIndex;if(!Number.isInteger(actorIndex)||!G.players[actorIndex]||G.players[actorIndex].bot)return;
+ clearTimeout(onlineLegacyPushTimer);
+ const snapshot=onlineLegacySnapshot(),digest=onlineLegacyDigest();
+ const localGold=onlineLegacyDecode(snapshot.rule&&snapshot.rule.goldReaction||null);
+ const send=(baseRevision,retries)=>onlineAck('legacyCommit',{baseRevision,actorIndex,snapshot}).then(res=>{
+   onlineLegacyRevision=Math.max(onlineLegacyRevision,res.revision||0);G.online.revision=onlineLegacyRevision;onlineLegacyLastDigest=digest;
+ }).catch(err=>{
+   if(err&&err.current&&retries>0&&err.current.snapshot){
+     const remote=onlineLegacyDecode(err.current.snapshot),remoteGold=remote&&remote.rule&&remote.rule.goldReaction;
+     const sameWindow=remoteGold&&localGold&&remoteGold.amount===localGold.amount&&remoteGold.turnEpoch===localGold.turnEpoch&&remoteGold.turnOwner===localGold.turnOwner;
+     if(sameWindow&&Number.isInteger(err.current.revision)){
+       onlineLegacyRevision=Math.max(onlineLegacyRevision,err.current.revision);G.online.revision=onlineLegacyRevision;
+       return send(onlineLegacyRevision,retries-1);
+     }
+     onlineLegacyLastDigest='';onlineLegacyApply(err.current);return;
+   }
+   onlineLegacyLastDigest='';if(err&&err.current)onlineLegacyApply(err.current);else onlineError(err);
+ });
+ send(onlineLegacyRevision,2);
+}
 function onlineLegacyPushBotHandoff(previousActive,previousDriver){
  if(!G||!G.online||!G.online.legacySync||onlineLegacyApplying||!onlineSocket)return;
  const me=G.online.myPlayerIndex;
@@ -4821,7 +4874,8 @@ function onlineLegacyLockControls(){
  const me=G.online.myPlayerIndex,mine=me===G.active&&!G.players[me].bot;
  const start=mine&&G.phase==='start'&&!paidDrawState&&!goldReaction,recruiting=mine&&G.phase==='recruit',playing=mine&&G.phase==='play',oracleRoll=mine&&G.phase==='oracleRoll';
  const s=$('startTurn');if(s)s.classList.toggle('hidden',!start);
- if(!mine){['recruitBox','playBox','oracleBox'].forEach(id=>{const el=$(id);if(el)el.classList.add('hidden')})}
+ if(!mine||goldReaction){['recruitBox','playBox','oracleBox'].forEach(id=>{const el=$(id);if(el)el.classList.add('hidden')})}
+ if(goldReaction&&s)s.classList.add('hidden')
  if($('draw'))$('draw').disabled=!start;if($('harvest'))$('harvest').disabled=!start;if($('recruit'))$('recruit').disabled=!start;
  if($('endRecruit'))$('endRecruit').disabled=!recruiting;if($('resetRecruit'))$('resetRecruit').disabled=!recruiting;
  if($('toOracle'))$('toOracle').disabled=!playing;if($('roll'))$('roll').disabled=!oracleRoll;
