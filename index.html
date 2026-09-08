@@ -4669,7 +4669,16 @@ function onlineLegacyApply(packet){
  (G.players||[]).forEach((_,i)=>agentDefaults(i));
  onlineLegacyLastDigest=onlineLegacyDigest();render();onlineLegacyLastDigest=onlineLegacyDigest();onlineLegacyApplying=false;onlineLegacyLockControls();
  // Une synchro distante ne relance pas un bot partiellement exécuté.
- if(battle)resumeBattleTimer();
+ // Le conducteur conserve le vrai timer/règles. Les autres écrans ne font
+ // qu'animer le décompte reçu, sans appeler passPriority().
+ clearInterval(battleTick);
+ if(battle){
+   if(onlineLegacyOwnsBattlePriority())resumeBattleTimer();
+   else{
+     showBattle();renderBattle();
+     battleTick=setInterval(()=>{if(!battle){clearInterval(battleTick);return}if(battle.seconds>0)battle.seconds--;renderBattle()},1000);
+   }
+ }
 }
 function onlineLegacyStart(state){
  onlineGameState=state;
