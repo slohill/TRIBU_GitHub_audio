@@ -1,0 +1,45 @@
+name: Fix Online right column and bot handoff
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - scripts/fix_online_right_column_and_bot_handoff.py
+      - .github/workflows/fix-online-right-column-and-bot-handoff.yml
+permissions:
+  contents: write
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Guard expected main
+        run: test "$(git rev-parse HEAD)" = "c3cc538370d97a62bfcff37c8a2f093743aefb91"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Load patch
+        run: |
+          git fetch origin clean-online-sync-from-4034-20260907 --depth=1
+          git show FETCH_HEAD:scripts/fix_online_right_column_and_bot_handoff.py > /tmp/fix.py
+      - name: Apply fix
+        run: python /tmp/fix.py
+      - name: Syntax and guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text();Path('/tmp/tribu.js').write_text(s.rsplit('<script>',1)[1].split('</script>',1)[0])
+          PY
+          node --check /tmp/tribu.js
+          grep -q 'function onlineLegacyResumeBattleView' index.html
+          grep -q 'function onlineLegacyPushBotHandoff' index.html
+          grep -q "priority===localViewer()" index.html
+          grep -q "\['recruitBox','playBox','oracleBox'\]" index.html
+      - name: Commit production fix
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m 'Corrige la colonne droite et le retour après les bots'
+          git push origin HEAD:main
