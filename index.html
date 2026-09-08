@@ -2587,7 +2587,7 @@ function advanceTurn(reason='nouveau tour'){
    onlineLegacyBotDriverOwner=previousActive;
    if(G.online.myPlayerIndex===previousActive)G.online.botDriverOwner=previousActive;
  }
- if(G.online&&G.online.legacySync&&G.players[G.active]&&!G.players[G.active].bot)onlineLegacyBotDriverOwner=null;
+ if(G.online&&G.online.legacySync&&G.players[G.active]&&!G.players[G.active].bot){onlineLegacyBotDriverOwner=null;delete G.online.botDriverOwner;}
  resetAgentUses(G.active);botActionsThisTurn=0;
  G.phase='start';resetMove();
  log('▶ Tour de '+p().name+'.');
