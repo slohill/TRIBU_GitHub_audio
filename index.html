@@ -1726,7 +1726,7 @@ function chooseShadowTarget(r){
 }
 function resumeBattleTimer(){
  clearInterval(battleTick);if(!battle)return;
- if(!isHotseatMode()&&onlineLegacyOwnsBattlePriority())battleTick=setInterval(()=>{if(!battle)return;battle.seconds--;renderBattle();if(battle.seconds<=0)passPriority()},1000);
+ if(!isHotseatMode()&&onlineLegacyOwnsBattlePriority())battleTick=setInterval(()=>{if(!battle)return;battle.seconds--;renderBattle();if(battle.seconds<=0){passPriority();if(G&&G.online&&G.online.legacySync)onlineLegacyMaybePush()}},1000);
  showBattle();renderBattle();
  if(!isHotseatMode()&&onlineLegacyOwnsBattlePriority())prepareCurrentBattleReaction();
 }
@@ -2832,7 +2832,7 @@ function startReactionWindow(){
     if(!battle)return;
     battle.seconds--;
     renderBattle();
-    if(battle.seconds<=0) passPriority();
+    if(battle.seconds<=0){passPriority();if(G&&G.online&&G.online.legacySync)onlineLegacyMaybePush()}
   },1000);
   showBattle();
   renderBattle();
