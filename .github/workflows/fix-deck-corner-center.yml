@@ -1,0 +1,36 @@
+name: Fix deck corner center
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths: [scripts/fix_deck_corner_center.py, .github/workflows/fix-deck-corner-center.yml]
+permissions: {contents: write}
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Guard expected main
+        run: test "$(git rev-parse HEAD)" = "b2e210497c905bc21b6f54906ed722f9efa1f9e9"
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.x'}
+      - name: Load patch
+        run: curl -fsSL "https://raw.githubusercontent.com/slohill/TRIBU_GitHub_audio/clean-online-sync-from-4034-20260907/scripts/fix_deck_corner_center.py" -o /tmp/patch.py
+      - run: python /tmp/patch.py
+      - name: Check
+        run: |
+          grep -Fq '.deckCorner{position:absolute;left:50%;right:auto;top:8px;transform:translateX(-50%)' index.html
+          ! grep -Fq '#map .deckZone,#map .deckArea' index.html
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text();Path('/tmp/a.js').write_text(s.rsplit('<script>',1)[1].split('</script>',1)[0])
+          PY
+          node --check /tmp/a.js
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m 'Recentre réellement Pioche et Défausse'
+          git push origin HEAD:main
