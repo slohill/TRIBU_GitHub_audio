@@ -3299,8 +3299,8 @@ function resolveBattle(){
  render();queueBot('après bataille');
 }
 function beginPlay(){if(G&&G.online&&!G.online.legacySync){if(onlineGameState&&onlineGameState.phase==='recruit')return onlineGameAction('END_RECRUIT');return}if(paidDrawState)return;recruitSnapshot=null;G.phase='play';setMovable();render()}
-function doDraw(){if(G&&G.online&&!G.online.legacySync)return onlineGameAction('DRAW_START');if(paidDrawState)return;draw(G.active,2);log(p().name+' pioche 2 cartes.');beginPlay()}
-function doHarvest(){if(G&&G.online&&!G.online.legacySync)return onlineGameAction('HARVEST_START');if(paidDrawState||goldReaction)return;
+function doDraw(){if(G&&G.online&&!G.online.legacySync)return onlineGameAction('DRAW_START');if(paidDrawState||goldReaction||G.phase!=='start')return;draw(G.active,2);log(p().name+' pioche 2 cartes.');beginPlay()}
+function doHarvest(){if(G&&G.online&&!G.online.legacySync)return onlineGameAction('HARVEST_START');if(paidDrawState||goldReaction||G.phase!=='start')return;
  const receiver=G.active;
  let gain=ownRegs(receiver)*2,cityBonus=0;
  Object.keys(G.b).forEach(r=>{const b=cityAt(r);if(b&&b.owner===receiver)cityBonus+=5});
@@ -3310,7 +3310,7 @@ function doHarvest(){if(G&&G.online&&!G.online.legacySync)return onlineGameActio
 }
 function doRecruit(){
  if(G&&G.online&&!G.online.legacySync)return onlineGameAction('RECRUIT_START');
- if(paidDrawState)return;
+ if(paidDrawState||goldReaction||G.phase!=='start')return;
  recruitSnapshot={player:G.active,gold:p().gold,units:{}};
  Object.keys(G.b).forEach(r=>recruitSnapshot.units[r]=G.b[r].units);
  G.phase='recruit';render();
@@ -4673,6 +4673,21 @@ function onlineLegacyCanPublish(){
  if(G.players[G.active]&&G.players[G.active].bot)return onlineLegacyCanExecuteBot();
  return true;
 }
+function onlineLegacyCanPublishLiveBot(){
+ return !!(G&&G.online&&G.online.legacySync&&!onlineLegacyApplying&&onlineSocket&&G.players[G.active]&&G.players[G.active].bot&&onlineLegacyCanExecuteBot());
+}
+function onlineLegacyPushLiveBot(){
+ if(!onlineLegacyCanPublishLiveBot())return;
+ const now=onlineLegacyDigest();if(!now||now===onlineLegacyLastDigest)return;
+ const snapshot=onlineLegacySnapshot(),actorIndex=G.online.myPlayerIndex,baseRevision=onlineLegacyRevision;
+ onlineLegacyLastDigest=now;
+ onlineAck('legacyCommit',{baseRevision,actorIndex,snapshot}).then(res=>{
+   onlineLegacyRevision=res.revision;G.online.revision=res.revision;
+ }).catch(err=>{
+   onlineLegacyLastDigest='';
+   if(err&&err.current)onlineLegacyApply(err.current);else onlineError(err);
+ });
+}
 function onlineLegacyMaybePush(){
  if(!onlineLegacyCanPublish())return;
  const digest=onlineLegacyDigest();if(!digest||digest===onlineLegacyLastDigest)return;
@@ -4702,7 +4717,7 @@ function onlineLegacyLockControls(){
  if(!G||!G.online||!G.online.legacySync)return;
  const me=G.online.myPlayerIndex,mine=me===G.active&&!G.players[me].bot,botDriver=G.players[G.active]&&G.players[G.active].bot&&onlineLegacyIsDriver();
  const canTurn=mine||botDriver;
- const start=canTurn&&G.phase==='start',recruiting=canTurn&&G.phase==='recruit',playing=canTurn&&G.phase==='play',oracleRoll=canTurn&&G.phase==='oracleRoll';
+ const start=canTurn&&G.phase==='start'&&!goldReaction&&!paidDrawState&&!dragonRichState&&!dragonCurseState,recruiting=canTurn&&G.phase==='recruit',playing=canTurn&&G.phase==='play',oracleRoll=canTurn&&G.phase==='oracleRoll';
  const s=$('startTurn');if(s)s.classList.toggle('hidden',!start);
  if($('draw'))$('draw').disabled=!start;if($('harvest'))$('harvest').disabled=!start;if($('recruit'))$('recruit').disabled=!start;
  if($('endRecruit'))$('endRecruit').disabled=!recruiting;if($('resetRecruit'))$('resetRecruit').disabled=!recruiting;
@@ -4716,7 +4731,8 @@ render=function(){
  if(G&&G.online&&G.online.legacySync){
    onlineLegacyLockControls();
    const activePlayer=G.players&&G.players[G.active];
-   if(!activePlayer||!activePlayer.bot)onlineLegacyMaybePush();
+   if(activePlayer&&activePlayer.bot)onlineLegacyPushLiveBot();
+   else onlineLegacyMaybePush();
  }
 };
 const onlineLegacyBaseQueueBot=queueBot;
