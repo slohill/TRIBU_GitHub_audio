@@ -1,0 +1,41 @@
+name: Patch gold ambush UI 20260908
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths: [scripts/patch_gold_ambush_ui_20260908.py, .github/workflows/patch-gold-ambush-ui-20260908.yml]
+permissions: {contents: write}
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+      - name: Guard expected main
+        run: test "$(git rev-parse HEAD)" = "f228ba29ca401242b387f7059f1d0fe5888dfc95"
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.x'}
+      - name: Load patch
+        run: curl -fsSL https://raw.githubusercontent.com/slohill/TRIBU_GitHub_audio/clean-online-sync-from-4034-20260907/scripts/patch_gold_ambush_ui_20260908.py -o /tmp/patch.py
+      - run: python /tmp/patch.py
+      - name: Syntax and guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text()
+          Path('/tmp/a.js').write_text(s.rsplit('<script>',1)[1].split('</script>',1)[0])
+          assert 'z-index:180;width:min(760px,88%)' in s
+          assert 'background:#bcc8ce;color:#1d2930' in s
+          assert 'onlineLegacyPushGoldReactionNow()' in s
+          assert 'function onlineLegacyOwnsGoldTimer()' in s
+          assert "if(goldReaction){['startTurn','recruitBox','playBox','oracleBox']" in s
+          PY
+          node --check /tmp/a.js
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m "Corrige Embuscade et l interface pendant le gain d or"
+          git push origin HEAD:main
