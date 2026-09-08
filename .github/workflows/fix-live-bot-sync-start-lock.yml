@@ -1,0 +1,38 @@
+name: Fix live bot sync and start action lock
+on:
+  push:
+    branches: [fix-live-bot-sync-start-action-lock-20260908]
+    paths: ['tools/fix_live_bot_sync_start_lock.py']
+permissions:
+  contents: write
+jobs:
+  patch-and-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: fix-live-bot-sync-start-action-lock-20260908}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.x'}
+      - name: Apply fix
+        run: python tools/fix_live_bot_sync_start_lock.py
+      - name: Check browser script syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text()
+          js=s.rsplit('<script>',1)[1].split('</script>',1)[0]
+          Path('/tmp/tribu.js').write_text(js)
+          PY
+          node --check /tmp/tribu.js
+      - name: Guard fixes
+        run: |
+          grep -F "if(G.phase!=='start'||paidDrawState||goldReaction)return;draw" index.html
+          grep -F "onlineLegacyBotDriverIndex===G.online.myPlayerIndex" index.html
+          grep -F "onlineLegacyMaybePush();" index.html
+      - name: Commit production fix
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m "Synchronise les tours bots en direct et verrouille la phase de départ"
+          git push
