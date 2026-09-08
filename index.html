@@ -2585,7 +2585,7 @@ function advanceTurn(reason='nouveau tour'){
  G.active=(G.active+1)%G.players.length;if(G.active===0)G.turn++;
  if(G.online&&G.online.legacySync&&G.players[G.active]&&G.players[G.active].bot&&G.players[previousActive]&&!G.players[previousActive].bot){
    onlineLegacyBotDriverOwner=previousActive;
-   if(G.online.myPlayerIndex===previousActive)G.online.botDriverOwner=previousActive;
+   G.online.botDriverOwner=previousActive;
  }
  if(G.online&&G.online.legacySync&&G.players[G.active]&&!G.players[G.active].bot){onlineLegacyBotDriverOwner=null;delete G.online.botDriverOwner;}
  resetAgentUses(G.active);botActionsThisTurn=0;
