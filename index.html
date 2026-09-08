@@ -2583,7 +2583,10 @@ function advanceTurn(reason='nouveau tour'){
  G.players.forEach(pl=>{pl.attackTurnBonus=0;pl.defenseTurnBonus=0});
  const previousActive=G.active;
  G.active=(G.active+1)%G.players.length;if(G.active===0)G.turn++;
- if(G.online&&G.online.legacySync&&G.players[G.active]&&G.players[G.active].bot&&G.players[previousActive]&&!G.players[previousActive].bot)onlineLegacyBotDriverOwner=previousActive;
+ if(G.online&&G.online.legacySync&&G.players[G.active]&&G.players[G.active].bot&&G.players[previousActive]&&!G.players[previousActive].bot){
+   onlineLegacyBotDriverOwner=previousActive;
+   if(G.online.myPlayerIndex===previousActive)G.online.botDriverOwner=previousActive;
+ }
  if(G.online&&G.online.legacySync&&G.players[G.active]&&!G.players[G.active].bot)onlineLegacyBotDriverOwner=null;
  resetAgentUses(G.active);botActionsThisTurn=0;
  G.phase='start';resetMove();
@@ -4569,7 +4572,8 @@ let onlineLegacyRevision=0,onlineLegacyApplying=false,onlineLegacyLastDigest='',
 let onlineLegacyBotDriverOwner=null;
 function onlineLegacyDriverIndex(){
  if(!G)return -1;
- if(Number.isInteger(onlineLegacyBotDriverOwner)&&G.players[onlineLegacyBotDriverOwner]&&!G.players[onlineLegacyBotDriverOwner].bot)return onlineLegacyBotDriverOwner;
+ const synced=G.online&&Number.isInteger(G.online.botDriverOwner)?G.online.botDriverOwner:onlineLegacyBotDriverOwner;
+ if(Number.isInteger(synced)&&G.players[synced]&&!G.players[synced].bot)return synced;
  return G.players.findIndex(pl=>!pl.bot);
 }
 function onlineLegacyIsDriver(){return !!(G&&G.online&&G.online.legacySync&&G.online.myPlayerIndex===onlineLegacyDriverIndex())}
@@ -4657,7 +4661,7 @@ function onlineLegacyApply(packet){
  recruitSnapshot=r.recruitSnapshot||null;gameOverState=r.gameOverState||null;commerceDeals=r.commerceDeals||[];commerceSeq=r.commerceSeq||1;
  onlineLegacyBotDriverOwner=Number.isInteger(r.onlineLegacyBotDriverOwner)?r.onlineLegacyBotDriverOwner:null;
  onlineLegacyRevision=packet.revision||0;dest=null;picks={};
- if(G.players[G.active]&&!G.players[G.active].bot)onlineLegacyBotDriverOwner=null;
+ if(G.players[G.active]&&!G.players[G.active].bot){onlineLegacyBotDriverOwner=null;if(G.online)delete G.online.botDriverOwner;}
  (G.players||[]).forEach((_,i)=>agentDefaults(i));
  onlineLegacyLastDigest=onlineLegacyDigest();render();onlineLegacyLastDigest=onlineLegacyDigest();onlineLegacyApplying=false;onlineLegacyLockControls();
  // Une synchro distante ne relance pas un bot partiellement exécuté.
