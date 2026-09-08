@@ -20,7 +20,9 @@ jobs:
         with:
           python-version: '3.x'
       - name: Download patch script
-        run: git show origin/clean-online-sync-from-4034-20260907:scripts/fix_online_human_turn_handoff.py > /tmp/fix.py
+        run: |
+          git fetch origin clean-online-sync-from-4034-20260907 --depth=1
+          git show FETCH_HEAD:scripts/fix_online_human_turn_handoff.py > /tmp/fix.py
       - name: Apply fix
         run: python /tmp/fix.py
       - name: Syntax and guards
