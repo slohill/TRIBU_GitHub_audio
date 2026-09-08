@@ -2561,6 +2561,7 @@ function beginReturnChoice(){
 }
 function advanceTurn(reason='nouveau tour'){
  if(gameOverState)return;
+ const previousActive=G.active;
  // Aucun changement de joueur n'est autorisé tant qu'un gain d'Or est encore
  // en cours de résolution (Récolte / Taxe / Embuscade). Une ancienne callback
  // Oracle ou un timer ne doit jamais pouvoir sauter la phase Oracle du joueur actif.
@@ -2585,8 +2586,14 @@ function advanceTurn(reason='nouveau tour'){
  resetAgentUses(G.active);botActionsThisTurn=0;
  G.phase='start';resetMove();
  log('▶ Tour de '+p().name+'.');
- if(isDecimated(G.active)){beginReturnChoice();return}
- render();queueBot(reason);
+ if(isDecimated(G.active)){
+   beginReturnChoice();
+   if(G&&G.online&&G.online.legacySync&&G.players[G.active]&&!G.players[G.active].bot)onlineLegacyPushHumanHandoff(previousActive);
+   return
+ }
+ render();
+ if(G&&G.online&&G.online.legacySync&&G.players[G.active]&&!G.players[G.active].bot)onlineLegacyPushHumanHandoff(previousActive);
+ queueBot(reason);
 }
 function passReturn(){
  if(!returnState)return;
@@ -4676,6 +4683,23 @@ function onlineLegacyCanPublish(){
    return onlineLegacyCanExecuteBot()||priority===me;
  }
  return G.active===me;
+}
+function onlineLegacyPushHumanHandoff(previousActive){
+ if(!G||!G.online||!G.online.legacySync||onlineLegacyApplying||!onlineSocket)return;
+ const me=G.online.myPlayerIndex;
+ if(previousActive!==me||G.active===me||!G.players[G.active]||G.players[G.active].bot)return;
+ clearTimeout(onlineLegacyPushTimer);
+ const snapshot=onlineLegacySnapshot(),digest=onlineLegacyDigest(),actorIndex=me;
+ const send=(baseRevision,retry)=>onlineAck('legacyCommit',{baseRevision,actorIndex,snapshot}).then(res=>{
+   onlineLegacyRevision=Math.max(onlineLegacyRevision,res.revision||0);G.online.revision=onlineLegacyRevision;onlineLegacyLastDigest=digest;
+ }).catch(err=>{
+   if(retry&&err&&err.current&&Number.isInteger(err.current.revision)){
+     onlineLegacyRevision=Math.max(onlineLegacyRevision,err.current.revision);G.online.revision=onlineLegacyRevision;
+     return send(onlineLegacyRevision,false);
+   }
+   onlineLegacyLastDigest='';onlineError(err);
+ });
+ send(onlineLegacyRevision,true);
 }
 function onlineLegacyMaybePush(){
  if(!onlineLegacyCanPublish())return;
