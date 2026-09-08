@@ -4673,19 +4673,24 @@ function onlineLegacyCanPublish(){
  if(G.players[G.active]&&G.players[G.active].bot)return onlineLegacyCanExecuteBot();
  return true;
 }
+let onlineLegacyBotCommitBusy=false,onlineLegacyBotCommitQueued=false;
 function onlineLegacyCanPublishLiveBot(){
  return !!(G&&G.online&&G.online.legacySync&&!onlineLegacyApplying&&onlineSocket&&G.players[G.active]&&G.players[G.active].bot&&onlineLegacyCanExecuteBot());
 }
 function onlineLegacyPushLiveBot(){
  if(!onlineLegacyCanPublishLiveBot())return;
+ if(onlineLegacyBotCommitBusy){onlineLegacyBotCommitQueued=true;return}
  const now=onlineLegacyDigest();if(!now||now===onlineLegacyLastDigest)return;
  const snapshot=onlineLegacySnapshot(),actorIndex=G.online.myPlayerIndex,baseRevision=onlineLegacyRevision;
- onlineLegacyLastDigest=now;
+ onlineLegacyLastDigest=now;onlineLegacyBotCommitBusy=true;
  onlineAck('legacyCommit',{baseRevision,actorIndex,snapshot}).then(res=>{
    onlineLegacyRevision=res.revision;G.online.revision=res.revision;
  }).catch(err=>{
    onlineLegacyLastDigest='';
    if(err&&err.current)onlineLegacyApply(err.current);else onlineError(err);
+ }).finally(()=>{
+   onlineLegacyBotCommitBusy=false;
+   if(onlineLegacyBotCommitQueued){onlineLegacyBotCommitQueued=false;onlineLegacyPushLiveBot()}
  });
 }
 function onlineLegacyMaybePush(){
