@@ -4662,6 +4662,8 @@ function onlineLegacyApply(packet){
  seaStormState=r.seaStormState||null;oracleClimateVisual=r.oracleClimateVisual||null;oraclePendingNormalMap=!!r.oraclePendingNormalMap;turnEpoch=r.turnEpoch||0;divinationState=r.divinationState||null;
  recruitSnapshot=r.recruitSnapshot||null;gameOverState=r.gameOverState||null;commerceDeals=r.commerceDeals||[];commerceSeq=r.commerceSeq||1;
  onlineLegacyBotDriverOwner=Number.isInteger(r.onlineLegacyBotDriverOwner)?r.onlineLegacyBotDriverOwner:null;
+ if(Number.isInteger(onlineLegacyBotDriverOwner))G.online.botDriverOwner=onlineLegacyBotDriverOwner;
+ else delete G.online.botDriverOwner;
  onlineLegacyRevision=packet.revision||0;dest=null;picks={};
  if(G.players[G.active]&&!G.players[G.active].bot){onlineLegacyBotDriverOwner=null;if(G.online)delete G.online.botDriverOwner;}
  (G.players||[]).forEach((_,i)=>agentDefaults(i));
