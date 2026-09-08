@@ -903,10 +903,25 @@ function audioSafePlay(a,seek=null){
  if(a.readyState>=1)go(); else a.addEventListener('loadedmetadata',go,{once:true});
 }
 function audioStopTrack(a,reset=false){if(!a)return;a.pause();if(reset){try{a.currentTime=0}catch(e){}}}
+let onlineSfxSeq=0,onlineSfxEvents=[],onlineSfxSeenSeq=0;
 function audioPlaySfx(name,vol=.8){
  if(!audioSfxEnabled||!AUDIO_SRC[name])return;
+ if(G&&G.online&&G.online.legacySync&&!onlineLegacyApplying){
+   const ev={seq:++onlineSfxSeq,name,vol};
+   onlineSfxEvents.push(ev);if(onlineSfxEvents.length>24)onlineSfxEvents=onlineSfxEvents.slice(-24);
+   onlineSfxSeenSeq=ev.seq;
+ }
  const a=new Audio(AUDIO_SRC[name]);a.volume=vol;const p=a.play();if(p&&p.catch)p.catch(()=>{});
 }
+function onlinePlaySyncedSfx(events,seq){
+ if(!Array.isArray(events)){onlineSfxSeenSeq=Math.max(onlineSfxSeenSeq,Number(seq)||0);return}
+ events.filter(e=>e&&Number(e.seq)>onlineSfxSeenSeq).sort((a,b)=>a.seq-b.seq).forEach(e=>{
+   onlineSfxSeenSeq=Math.max(onlineSfxSeenSeq,Number(e.seq)||0);
+   audioPlaySfx(e.name,Number.isFinite(Number(e.vol))?Number(e.vol):.8);
+ });
+ onlineSfxSeenSeq=Math.max(onlineSfxSeenSeq,Number(seq)||0);
+}
+
 function audioCardMove(){audioPlaySfx('cardMove',.72)}
 function audioConstruction(){audioPlaySfx('construction',.72)}
 function audioBattleCue(){audioPlaySfx('drums',.72);audioPlaySfx('horn',.92)}
@@ -1062,7 +1077,9 @@ function startGoldReactionTimer(){
    if(goldReaction.pausedByCard)return;
    goldReaction.seconds--;
    if(goldReaction.seconds<=0){resolveGoldGain();return}
+   onlineLegacyGoldTickRender=!!(G&&G.online&&G.online.legacySync);
    render();
+   onlineLegacyGoldTickRender=false;
  },1000);
 }
 function currentGoldHotseatPlayer(){return null}
@@ -1209,7 +1226,12 @@ function resolveGoldGain(){
  G.players[r.receiver].gold+=r.amount;
  audioPlaySfx('gold',.78);
  log(p(r.receiver).name+' reçoit finalement '+r.amount+' Or'+(r.source?' ('+r.source+')':'')+'.');
+ if(r.pausedBattle&&battle)battle.seconds=15;
  if(triggerRichDragon(r.receiver,r.after))return;
+ if(r.pausedBattle&&battle){
+   resumeBattleTimer();
+   log('Gain d’Or résolu : la bataille reprend avec 15 secondes.');
+ }
  if(r.after==='beginPlay')beginPlay();else render();
  queueBot('après gain or');
 }
@@ -1227,7 +1249,8 @@ function playAmbush(playerIndex){
    after:r.after,
    seconds:10,
    turnOwner:r.turnOwner!==undefined?r.turnOwner:G.active,
-   turnEpoch:r.turnEpoch!==undefined?r.turnEpoch:turnEpoch
+   turnEpoch:r.turnEpoch!==undefined?r.turnEpoch:turnEpoch,
+   pausedBattle:!!r.pausedBattle
  };
  log(p(playerIndex).name+' joue Embuscade sur '+p(previous).name+' : '+r.amount+' Or sont maintenant destinés à '+p(playerIndex).name+'.');
 
@@ -1253,8 +1276,10 @@ function offerGoldGain(receiver,amount,source,after){
    if(after==='beginPlay')beginPlay();else render();
    return;
  }
- goldReaction={receiver,amount,source,after,seconds:10,turnOwner:G.active,turnEpoch};
- log(p(receiver).name+' doit recevoir '+amount+' Or : '+(isHotseatMode()?'réactions hot-seat sans chrono.':'fenêtre de réaction de 10 secondes.'));
+ const pausedBattle=!!battle;
+ if(pausedBattle){clearInterval(battleTick);clearTimeout(botReactionTimer)}
+ goldReaction={receiver,amount,source,after,seconds:10,turnOwner:G.active,turnEpoch,pausedBattle};
+ log(p(receiver).name+' doit recevoir '+amount+' Or : '+(isHotseatMode()?'réactions hot-seat sans chrono.':'fenêtre de réaction de 10 secondes.')+(pausedBattle?' La bataille est mise en pause.':''));
  startGoldReactionTimer();
  render();
  maybeBotAmbush();
@@ -3537,8 +3562,8 @@ function activateOracle(afterResolution=null,activator=G.active){
  showOracleNotice(o.name,()=>{
    if(o.name==='Canicule'||o.name==='Vague de froid'){oracleClimateVisual=o.name;oraclePendingNormalMap=false;applyOracleMapVisual();render();completeOracleResolution();return}
    if(o.name==='Givre mortel'){
-     destroySeaUnits('U','Givre mortel');
      if(prev==='Canicule'){log('Givre mortel est sans effet après Canicule.');finishOracleResolution();render();completeOracleResolution();return}
+     destroySeaUnits('U','Givre mortel');
      beginOracleSacrifices('e','Givre mortel','Icenia, la cité blanche');return;
    }
    if(o.name==='Tempête de sable'){
@@ -4616,7 +4641,7 @@ function onlineApplyStateToDisplay(state){
 // The original TRIBU engine remains the only gameplay engine. Online only stores
 // and relays complete committed engine snapshots. UI drafts such as dest/picks are
 // deliberately not synchronized.
-let onlineLegacyRevision=0,onlineLegacyApplying=false,onlineLegacyLastDigest='',onlineLegacyPushTimer=null,onlineLegacyBotDriverIndex=null,onlineLegacyBattleViewSeconds=null,onlineLegacyGoldViewSeconds=null;
+let onlineLegacyRevision=0,onlineLegacyApplying=false,onlineLegacyLastDigest='',onlineLegacyPushTimer=null,onlineLegacyBotDriverIndex=null,onlineLegacyBattleViewSeconds=null,onlineLegacyGoldViewSeconds=null,onlineLegacyGoldTickRender=false;
 function onlineLegacyDriverIndex(){
  if(!G)return -1;
  return G.players.findIndex(pl=>!pl.bot);
@@ -4679,6 +4704,7 @@ function onlineLegacyRuleState(){
    paidDrawState,goldReaction,shadowState,battleStack,egnoState,returnState,dragonRichState,dragonCurseState,
    dragonPublicState,agentModalState,caravanState,oraclePassArmed,oracleState,seaStormState,oracleClimateVisual,
    oraclePendingNormalMap,turnEpoch,divinationState,recruitSnapshot,gameOverState,commerceDeals,commerceSeq,
+   onlineSfxSeq,onlineSfxEvents,
    onlineBotDriverIndex:onlineLegacyBotDriverIndex
  };
 }
@@ -4710,6 +4736,7 @@ function onlineLegacyBootstrap(full,state){
  paidDrawState=null;goldReaction=null;shadowState=null;battleStack=[];egnoState=null;returnState=null;dragonRichState=null;dragonCurseState=null;dragonPublicState=null;
  agentModalState=null;caravanState=null;oraclePassArmed=false;oracleState=null;seaStormState=null;oracleClimateVisual=null;oraclePendingNormalMap=false;turnEpoch=0;
  divinationState=null;recruitSnapshot=null;gameOverState=null;commerceDeals=[];commerceSeq=1;onlineLegacyBotDriverIndex=null;
+ onlineSfxSeq=0;onlineSfxEvents=[];onlineSfxSeenSeq=0;
  if(G.phase==='play')setMovable();else resetMove();
  onlineLegacyRevision=full.legacyRevision||0;
  onlineLegacyLastDigest=onlineLegacyDigest();
@@ -4732,9 +4759,12 @@ function onlineLegacyApply(packet){
  dragonPublicState=r.dragonPublicState||null;agentModalState=r.agentModalState||null;caravanState=r.caravanState||null;oraclePassArmed=!!r.oraclePassArmed;oracleState=r.oracleState||null;
  seaStormState=r.seaStormState||null;oracleClimateVisual=r.oracleClimateVisual||null;oraclePendingNormalMap=!!r.oraclePendingNormalMap;turnEpoch=r.turnEpoch||0;divinationState=r.divinationState||null;
  recruitSnapshot=r.recruitSnapshot||null;gameOverState=r.gameOverState||null;commerceDeals=r.commerceDeals||[];commerceSeq=r.commerceSeq||1;onlineLegacyBotDriverIndex=Number.isInteger(r.onlineBotDriverIndex)?r.onlineBotDriverIndex:null;
+ onlineSfxSeq=Number(r.onlineSfxSeq)||0;onlineSfxEvents=Array.isArray(r.onlineSfxEvents)?r.onlineSfxEvents:[];
  onlineLegacyRevision=packet.revision||0;dest=null;picks={};
  (G.players||[]).forEach((_,i)=>agentDefaults(i));
+ const incomingSfx=onlineSfxEvents.slice(),incomingSfxSeq=onlineSfxSeq;
  onlineLegacyLastDigest=onlineLegacyDigest();render();onlineLegacyLastDigest=onlineLegacyDigest();onlineLegacyApplying=false;onlineLegacyLockControls();
+ onlineLegacyApplying=true;onlinePlaySyncedSfx(incomingSfx,incomingSfxSeq);onlineLegacyApplying=false;
  onlineLegacyResumeBattleView();
  onlineLegacyResumeGoldView();
 }
@@ -4742,6 +4772,11 @@ function onlineLegacyResumeBattleView(){
  clearInterval(battleTick);clearTimeout(botReactionTimer);
  if(!battle){onlineLegacyBattleViewSeconds=null;hideBattle();return;}
  showBattle();renderBattle();
+ if(goldReaction&&goldReaction.pausedBattle){
+   onlineLegacyBattleViewSeconds=null;
+   const pt=$('priorityTimer');if(pt)pt.textContent='En pause — gain d’Or';
+   return;
+ }
  const priority=currentPriorityPlayer(),me=G.online&&G.online.myPlayerIndex;
  const myHumanPriority=Number.isInteger(priority)&&priority===me&&G.players[priority]&&!G.players[priority].bot;
  if(myHumanPriority){
@@ -4902,7 +4937,7 @@ render=function(){
  if(G&&G.online&&G.online.legacySync){
    onlineLegacyLockControls();
    if(G.players&&G.players[G.active]&&!G.players[G.active].bot)onlineLegacyBotDriverIndex=null;
-   onlineLegacyMaybePush();
+   if(!onlineLegacyGoldTickRender)onlineLegacyMaybePush();
  }
 };
 const onlineLegacyBaseQueueBot=queueBot;
