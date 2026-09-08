@@ -4679,7 +4679,10 @@ function onlineLegacyApply(packet){
  if(battle){
    const priority=currentPriorityPlayer();
    const myHumanPriority=Number.isInteger(priority)&&priority===G.online.myPlayerIndex&&!G.players[priority].bot;
-   if(myHumanPriority||onlineLegacyOwnsBattlePriority())resumeBattleTimer();
+   if(myHumanPriority){
+     showBattle();renderBattle();
+     battleTick=setInterval(()=>{if(!battle)return;battle.seconds--;renderBattle();if(battle.seconds<=0){passPriority();onlineLegacyPushNow()}},1000);
+   }else if(onlineLegacyOwnsBattlePriority())resumeBattleTimer();
    else{
      showBattle();renderBattle();
      battleTick=setInterval(()=>{if(!battle){clearInterval(battleTick);return}if(battle.seconds>0)battle.seconds--;renderBattle()},1000);
