@@ -4652,7 +4652,6 @@ function onlineLegacyApply(packet){
  onlineLegacyApplying=true;
  const localOnline={code:G.online.code,seed:G.online.seed,mySocketId:onlineSocket&&onlineSocket.id,myPlayerIndex:me,hostId:onlineRoom&&onlineRoom.hostId,legacySync:true,revision:packet.revision};
  const decoded=onlineLegacyDecode(packet.snapshot),next=decoded.g||{};
- if(next.online&&Number.isInteger(next.online.botDriverOwner))localOnline.botDriverOwner=next.online.botDriverOwner;
  next.online=localOnline;G=next;
  const r=decoded.rule||{};
  movable=r.movable||{};usedDest=r.usedDest instanceof Set?r.usedDest:new Set(r.usedDest||[]);destinationUseCount=r.destinationUseCount||{};attacked=r.attacked instanceof Set?r.attacked:new Set(r.attacked||[]);cycle=r.cycle||1;
