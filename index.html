@@ -394,6 +394,10 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 @media(max-width:760px){.onlineGameWelcomeCard{font-size:20px;padding:20px}}
 .onlineMoveAvailable{outline:4px solid #46e37a!important;background:#46e37a30!important}.onlineMovePickBadge{position:absolute;left:50%;bottom:-18px;transform:translateX(-50%);z-index:45;background:#111e;color:#fff;border:1px solid #eee;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:900;line-height:1.2;pointer-events:none}.onlineOracleTarget{outline:5px solid #bb5cff!important;background:#bb5cff55!important}
 
+
+/* vOnline UI: pioche/défausse recentrées pour libérer la zone U */
+#map .deckZone,#map .deckArea,#map .drawDiscard,#map .piles,#map .cardPiles{left:50%!important;right:auto!important;transform:translateX(-50%)!important;top:1.5%!important;display:flex!important;gap:8px!important;flex-direction:row!important}
+.oracleCardClickable{cursor:pointer}
 </style></head>
 <body>
 <section id="start"><div class="onlineStartBox">
@@ -1040,6 +1044,8 @@ function eligibleAmbushers(receiver){
 function clearGoldReactionTimer(){
  if(goldReactionTick){clearInterval(goldReactionTick);goldReactionTick=null}
 }
+function pauseGoldReactionForCard(){if(!goldReaction)return false;clearGoldReactionTimer();goldReaction.pausedByCard=true;render();return true}
+function resumeGoldReactionAfterCard(){if(!goldReaction||!goldReaction.pausedByCard)return;delete goldReaction.pausedByCard;startGoldReactionTimer();render();if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow()}
 function startGoldReactionTimer(){
  clearGoldReactionTimer();
  if(!goldReaction)return;
@@ -1051,6 +1057,7 @@ function startGoldReactionTimer(){
  }
  goldReactionTick=setInterval(()=>{
    if(!goldReaction){clearGoldReactionTimer();return}
+   if(goldReaction.pausedByCard)return;
    goldReaction.seconds--;
    if(goldReaction.seconds<=0){resolveGoldGain();return}
    render();
@@ -1415,6 +1422,7 @@ function resetRecruitmentForPriorityCard(actor,label){
 }
 function resetRecruitmentForDivination(s){return !!s&&resetRecruitmentForPriorityCard(s.actor,'Divination de l’Oracle')}
 function openDivination(handIndex){
+ if(goldReaction)pauseGoldReactionForCard();
  const actor=localViewer(),id=G.players[actor].hand[handIndex];
  if(id===undefined||CARDS[id].name!=='Divination de l’Oracle'||isDecimated(actor)||divinationState)return;
  divinationState={actor,cardId:id,parentBattle:battle||null,parentSeconds:battle?battle.seconds:null};
@@ -1603,6 +1611,7 @@ function shadowSourceMax(r){
  const c=G.b[r];return c&&c.owner===shadowState.player?c.units:0;
 }
 function startShadow(handIndex){
+ if(goldReaction)pauseGoldReactionForCard();
  if(shadowState||choiceState||paidDrawState)return;
  const actor=localViewer(),id=G.players[actor].hand[handIndex];
  if(id===undefined||CARDS[id].name!=='Section de l’ombre')return;
@@ -1792,16 +1801,17 @@ function playTax(handIndex){
 }
 function closeChoice(){choiceState=null;$('choiceOverlay').classList.add('hidden');$('choiceCards').innerHTML=''}
 function playCouncil(handIndex){
- if(choiceState||goldReaction)return;
+ if(choiceState)return;
  const found=cardFromViewerHand(handIndex,'Conseil de guerre');if(!found)return;
  const actor=found.viewer;
+ const pausedGold=!!goldReaction;if(pausedGold)pauseGoldReactionForCard();
  const battleCouncil=!!battle;
  if(battleCouncil){
    if(currentPriorityPlayer()!==actor)return;
    clearInterval(battleTick);clearTimeout(botReactionTimer);
  }
  G.players[actor].hand.splice(handIndex,1);G.discard.push(found.id);draw(actor,2);
- choiceState={kind:'council',selected:[],player:actor,battleCouncil,battleRef:battle,battleSeconds:battle?battle.seconds:null};
+ choiceState={kind:'council',selected:[],player:actor,battleCouncil,battleRef:battle,battleSeconds:battle?battle.seconds:null,pausedGold};
  $('choiceTitle').textContent='Conseil de guerre';
  $('choiceText').textContent='Vous avez pioché 2 cartes. Choisissez exactement 2 cartes de votre main à défausser.';
  $('choiceOverlay').classList.remove('hidden');renderCouncilChoices();
@@ -1827,7 +1837,7 @@ function confirmCouncil(){
    names.push(CARDS[id].name);G.discard.push(id);
  });
  const wasBattle=choiceState.battleCouncil&&choiceState.battleRef===battle;
- const savedSeconds=choiceState.battleSeconds;
+ const savedSeconds=choiceState.battleSeconds,pausedGold=!!choiceState.pausedGold;
  closeChoice();log(p(actor).name+' termine Conseil de guerre et défausse '+names.join(' et ')+'.');
  if(wasBattle&&battle){
    // Conseil de guerre compte comme une réaction jouée : les passes sont remises à zéro,
@@ -1836,7 +1846,7 @@ function confirmCouncil(){
    battle.seconds=15;
    resumeBattleTimer();render();return;
  }
- render();
+ render();if(pausedGold)resumeGoldReactionAfterCard();
 }
 function cardIndexByName(name){return CARDS.findIndex(c=>c.name===name)}
 function agentDefaults(i){
@@ -3399,6 +3409,8 @@ function toOracle(){
 }
 
 function oracleName(){return G.oracleActive===null?'Aucun':ORACLES[G.oracleActive].name}
+const ORACLE_CARD_ART={'Canicule':'assets/images/cards/oracle/canicule.png','Vague de froid':'assets/images/cards/oracle/vague_de_froid.png','Givre mortel':'assets/images/cards/oracle/givre_mortel.png','Tempête de sable':'assets/images/cards/oracle/tempete_de_sable.png','Tempête en mer':'assets/images/cards/oracle/tempete_en_mer.png','En quête de destruction':'assets/images/cards/oracle/en_quete_de_destruction.png'};
+function openOracleCardById(id){if(id===null||id===undefined||!ORACLES[id])return;const src=ORACLE_CARD_ART[ORACLES[id].name];if(!src)return;const ov=$('cardZoomOverlay'),img=$('cardZoomImage');if(!ov||!img)return;img.src=src;img.alt=ORACLES[id].name;ov.classList.remove('hidden')}
 function refillOracleDeck(){
  if(G.oracleDeck.length)return;
  G.oracleDeck=shuffleArray(G.oracleDiscard.splice(0));
@@ -4454,6 +4466,7 @@ function render(){
      if(G.phase==='recruit'&&recruitSnapshot&&recruitSnapshot.player===G.active){
        resetRecruitmentForPriorityCard(handPlayer,c.name);
      }
+     if(goldReaction&&c.name!=='Embuscade')pauseGoldReactionForCard();
      return cardAction.call(d,ev);
    };
  }
@@ -4811,9 +4824,20 @@ function onlineLegacyLockControls(){
  const map=$('map');if(map)map.style.pointerEvents='';
  const n=$('status');if(n&&!n.querySelector('.onlineLegacyNotice'))n.insertAdjacentHTML('beforeend','<div class="botNotice onlineLegacyNotice">🌐 Online — moteur original TRIBU synchronisé.</div>');
 }
+function wireOracleCardPreviews(){
+ const activeId=G&&G.oracleActive!==null?G.oracleActive:null,nextId=G?nextOracle():null;
+ const candidates=[
+   [$('oracleActive'),activeId],[$('oracleActiveName'),activeId],[$('oracleNext'),nextId],[$('oracleNextName'),nextId]
+ ];
+ candidates.forEach(([el,id])=>{if(!el||id===null||id===undefined)return;el.style.cursor='pointer';el.onclick=e=>{e.stopPropagation();openOracleCardById(id)}});
+ document.querySelectorAll('[data-oracle-active]').forEach(el=>{el.style.cursor='pointer';el.onclick=e=>{e.stopPropagation();openOracleCardById(activeId)}});
+ document.querySelectorAll('[data-oracle-next]').forEach(el=>{el.style.cursor='pointer';el.onclick=e=>{e.stopPropagation();openOracleCardById(nextId)}});
+}
 const onlineLegacyBaseRender=render;
 render=function(){
  onlineLegacyBaseRender();
+ wireOracleCardPreviews();
+ if(goldReaction&&goldReaction.pausedByCard&&!choiceState&&!divinationState&&!caravanState&&!egnoState&&!shadowState&&!agentModalState&&!portalMode&&!buildingMode&&!battle)resumeGoldReactionAfterCard();
  if(G&&G.online&&G.online.legacySync){
    onlineLegacyLockControls();
    if(G.players&&G.players[G.active]&&!G.players[G.active].bot)onlineLegacyBotDriverIndex=null;
@@ -4954,6 +4978,13 @@ document.addEventListener('pointerdown',e=>{
 
 const cardZoomCloseBtn=$('cardZoomClose');if(cardZoomCloseBtn)cardZoomCloseBtn.onclick=closeOfficialCard;const cardZoomOv=$('cardZoomOverlay');if(cardZoomOv)cardZoomOv.onclick=e=>{if(e.target===cardZoomOv)closeOfficialCard()};
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeOfficialCard()});
+document.addEventListener('click',e=>{
+ const el=e.target.closest('[id*=oracle],[class*=oracle]');if(!el||!G)return;
+ const t=(el.textContent||'').toLowerCase();
+ if(t.includes('oracle actif')&&G.oracleActive!==null){e.stopPropagation();openOracleCardById(G.oracleActive)}
+ else if(t.includes('oracle prochain')){const id=nextOracle();if(id!==null){e.stopPropagation();openOracleCardById(id)}}
+});
+
 $('commerceClose').onclick=commerceClose;$('commerceNewOffer').onclick=()=>commerceStart('offer');$('commerceNewAsk').onclick=()=>commerceStart('ask');$('commerceShowCard').onclick=()=>commerceStart('show');
 $('hotseatReveal').onclick=revealHotseatHand;$('oracleNoticePass').onclick=finishOracleNotice;$('dragonSixPass').onclick=finishDragonSixNotice;$('dragonPublicPass').onclick=passDragonPublic;$('dragonCurseContinue').onclick=continueDragonCurse;$('discardPile').onclick=openDiscard;$('deckPile').onclick=()=>{};$('discardClose').onclick=closeDiscard;$('restart').onclick=init;$('victoryRestart').onclick=init;$('agentClose').onclick=closeAgentModal;$('draw').onclick=doDraw;$('harvest').onclick=doHarvest;$('recruit').onclick=doRecruit;$('resetRecruit').onclick=resetRecruitment;$('endRecruit').onclick=beginPlay;$('toOracle').onclick=toOracle;$('choiceConfirm').onclick=confirmCouncil;$('roll').onclick=roll;
 </script></body></html>
