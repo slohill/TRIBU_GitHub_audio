@@ -1,0 +1,47 @@
+name: Fix Online special reactions and conflicts
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - scripts/fix_online_special_reactions_and_conflicts.py
+      - .github/workflows/fix-online-special-reactions-and-conflicts.yml
+permissions:
+  contents: write
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Guard expected main
+        run: test "$(git rev-parse HEAD)" = "881830050b571c0d880af28cffc97c33849df096"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Load patch
+        run: |
+          git fetch origin clean-online-sync-from-4034-20260907 --depth=1
+          git show FETCH_HEAD:scripts/fix_online_special_reactions_and_conflicts.py > /tmp/fix.py
+      - name: Apply fix
+        run: python /tmp/fix.py
+      - name: Syntax and guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text();Path('/tmp/tribu.js').write_text(s.rsplit('<script>',1)[1].split('</script>',1)[0])
+          assert "if(res&&res.current)err.current=res.current" in s
+          assert "onlineLegacyCanExecuteBot()||activeHumanOwns" in s
+          assert "if(choiceState||goldReaction)return;" in s
+          assert "if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();" in s
+          PY
+          node --check /tmp/tribu.js
+          grep -q "État de partie plus récent disponible" server/server.js
+          grep -q "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" index.html
+      - name: Commit production fix
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m 'Fiabilise les réactions spéciales et conflits Online'
+          git push origin HEAD:main
