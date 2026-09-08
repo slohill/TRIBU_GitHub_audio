@@ -1,0 +1,41 @@
+name: Fix Online human turn handoff
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - scripts/fix_online_human_turn_handoff.py
+      - .github/workflows/fix-online-human-turn-handoff.yml
+permissions:
+  contents: write
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Guard expected main
+        run: test "$(git rev-parse HEAD)" = "65ce9468d196e89b163d8a121ea11be7f04edc5a"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Download patch script
+        run: git show origin/clean-online-sync-from-4034-20260907:scripts/fix_online_human_turn_handoff.py > /tmp/fix.py
+      - name: Apply fix
+        run: python /tmp/fix.py
+      - name: Syntax and guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text();Path('/tmp/tribu.js').write_text(s.rsplit('<script>',1)[1].split('</script>',1)[0])
+          PY
+          node --check /tmp/tribu.js
+          grep -q 'onlineLegacyPushHumanHandoff(previousActive)' index.html
+          grep -q 'previousActive!==me' index.html
+      - name: Commit production fix
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m 'Synchronise le passage de tour entre joueurs humains'
+          git push origin HEAD:main
