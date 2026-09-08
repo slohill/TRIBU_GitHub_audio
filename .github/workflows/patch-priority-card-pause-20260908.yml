@@ -22,6 +22,18 @@ jobs:
           python-version: '3.x'
       - name: Load patch
         run: curl -fsSL https://raw.githubusercontent.com/slohill/TRIBU_GitHub_audio/clean-online-sync-from-4034-20260907/scripts/patch_priority_card_pause_20260908.py -o /tmp/patch.py
+      - name: Fix remote-pause selector
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/patch.py')
+          s=p.read_text(encoding='utf-8')
+          old='''rep(""" (G.players||[]).forEach((_,i)=>agentDefaults(i));\n onlineLegacyLastDigest=onlineLegacyDigest();render();""",""" (G.players||[]).forEach((_,i)=>agentDefaults(i));\n if(priorityCardResolutionActive()){clearTimeout(botTimer);botTimer=null;botToken++}\n onlineLegacyLastDigest=onlineLegacyDigest();render();""","remote pause bot")'''
+          new='''rep(""" onlineLegacyRevision=packet.revision||0;dest=null;picks={};\n (G.players||[]).forEach((_,i)=>agentDefaults(i));\n onlineLegacyLastDigest=onlineLegacyDigest();render();""",""" onlineLegacyRevision=packet.revision||0;dest=null;picks={};\n (G.players||[]).forEach((_,i)=>agentDefaults(i));\n if(priorityCardResolutionActive()){clearTimeout(botTimer);botTimer=null;botToken++}\n onlineLegacyLastDigest=onlineLegacyDigest();render();""","remote pause bot")'''
+          if old not in s:
+            raise SystemExit('selector patch not found')
+          p.write_text(s.replace(old,new,1),encoding='utf-8')
+          PY
       - name: Apply patch
         run: python /tmp/patch.py
       - name: Syntax and guards
