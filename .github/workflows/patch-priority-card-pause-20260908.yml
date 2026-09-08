@@ -1,0 +1,59 @@
+name: Patch priority card pause 20260908
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - 'scripts/patch_priority_card_pause_20260908.py'
+      - '.github/workflows/patch-priority-card-pause-20260908.yml'
+permissions:
+  contents: write
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Guard expected main
+        run: test "$(git rev-parse HEAD)" = "2f3a21031a93a39bade9db723adba854df997c39"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Load patch
+        run: curl -fsSL https://raw.githubusercontent.com/slohill/TRIBU_GitHub_audio/clean-online-sync-from-4034-20260907/scripts/patch_priority_card_pause_20260908.py -o /tmp/patch.py
+      - name: Apply patch
+        run: python /tmp/patch.py
+      - name: Syntax and guards
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          a=s.index('<script>')+len('<script>'); b=s.rindex('</script>')
+          Path('/tmp/tribu.js').write_text(s[a:b],encoding='utf-8')
+          guards=[
+            'function priorityCardResolutionActive()',
+            "if(priorityCardResolutionActor()===me)return true;",
+            "s.stage='resolvingOracle';",
+            "activateOracle(null,s.actor);",
+            "if(divinationResume){",
+            "onlineLegacyPushPriorityCardNow()",
+            "G.phase!=='start'||isDecimated(G.active)||cardPause",
+            "G.phase!=='play'||cardPause",
+            "priorityCardResolutionActive())return;"
+          ]
+          for g in guards:
+            assert g in s,g
+          assert "activateOracle(()=>resumeAfterDivination(s),s.actor);" not in s
+          PY
+          node --check /tmp/tribu.js
+          git diff --check
+          test "$(git status --short | awk '{print $2}' | tr '\n' ' ')" = "index.html "
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m "Met en pause le jeu pendant les cartes jouables à tout moment"
+          git push origin HEAD:main
