@@ -2923,6 +2923,7 @@ function playBattleCardForOwner(owner,handIndex){
     advancePriority(true);
     renderBattle();render();
     prepareCurrentBattleReaction();
+    if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();
   }
 }
 function finishBattleCards(){
