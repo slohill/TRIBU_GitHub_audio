@@ -2581,7 +2581,10 @@ function advanceTurn(reason='nouveau tour'){
  hotseatViewerOverride=null;
  clearTimeout(botTimer);botToken++;dest=null;picks={};returnState=null;
  G.players.forEach(pl=>{pl.attackTurnBonus=0;pl.defenseTurnBonus=0});
+ const previousActive=G.active;
  G.active=(G.active+1)%G.players.length;if(G.active===0)G.turn++;
+ if(G.online&&G.online.legacySync&&G.players[G.active]&&G.players[G.active].bot&&G.players[previousActive]&&!G.players[previousActive].bot)onlineLegacyBotDriverOwner=previousActive;
+ if(G.online&&G.online.legacySync&&G.players[G.active]&&!G.players[G.active].bot)onlineLegacyBotDriverOwner=null;
  resetAgentUses(G.active);botActionsThisTurn=0;
  G.phase='start';resetMove();
  log('▶ Tour de '+p().name+'.');
@@ -4563,13 +4566,15 @@ function onlineApplyStateToDisplay(state){
 // and relays complete committed engine snapshots. UI drafts such as dest/picks are
 // deliberately not synchronized.
 let onlineLegacyRevision=0,onlineLegacyApplying=false,onlineLegacyLastDigest='',onlineLegacyPushTimer=null;
+let onlineLegacyBotDriverOwner=null;
 function onlineLegacyDriverIndex(){
  if(!G)return -1;
+ if(Number.isInteger(onlineLegacyBotDriverOwner)&&G.players[onlineLegacyBotDriverOwner]&&!G.players[onlineLegacyBotDriverOwner].bot)return onlineLegacyBotDriverOwner;
  return G.players.findIndex(pl=>!pl.bot);
 }
 function onlineLegacyIsDriver(){return !!(G&&G.online&&G.online.legacySync&&G.online.myPlayerIndex===onlineLegacyDriverIndex())}
 function onlineLegacyCanExecuteBot(){
- return !!(G&&G.online&&G.online.legacySync&&Number.isInteger(G.online.myPlayerIndex)&&G.players[G.online.myPlayerIndex]&&!G.players[G.online.myPlayerIndex].bot);
+ return !!(G&&G.online&&G.online.legacySync&&G.online.myPlayerIndex===onlineLegacyDriverIndex());
 }
 function onlineLegacyOwnsBattlePriority(){
  if(!G||!G.online||!G.online.legacySync||!battle)return true;
@@ -4649,6 +4654,7 @@ function onlineLegacyApply(packet){
  seaStormState=r.seaStormState||null;oracleClimateVisual=r.oracleClimateVisual||null;oraclePendingNormalMap=!!r.oraclePendingNormalMap;turnEpoch=r.turnEpoch||0;divinationState=r.divinationState||null;
  recruitSnapshot=r.recruitSnapshot||null;gameOverState=r.gameOverState||null;commerceDeals=r.commerceDeals||[];commerceSeq=r.commerceSeq||1;
  onlineLegacyRevision=packet.revision||0;dest=null;picks={};
+ if(G.players[G.active]&&!G.players[G.active].bot)onlineLegacyBotDriverOwner=null;
  (G.players||[]).forEach((_,i)=>agentDefaults(i));
  onlineLegacyLastDigest=onlineLegacyDigest();render();onlineLegacyLastDigest=onlineLegacyDigest();onlineLegacyApplying=false;onlineLegacyLockControls();
  // Une synchro distante ne relance pas un bot partiellement exécuté.
