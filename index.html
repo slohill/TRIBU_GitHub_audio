@@ -4701,7 +4701,13 @@ function onlineLegacyPushLiveBot(){
    // écrans le reçoivent, mais le conducteur garde sa chaîne locale intacte.
    if(!(G&&G.players[G.active]&&G.players[G.active].bot)){
      if(err&&err.current)onlineLegacyApply(err.current);else onlineError(err);
-   }else if(!(err&&err.current))onlineError(err);
+   }else if(err&&err.current){
+     if(Number.isInteger(err.current.revision)){
+       onlineLegacyRevision=err.current.revision;
+       if(G.online)G.online.revision=err.current.revision;
+     }
+     onlineLegacyLastDigest='';onlineLegacyBotCommitQueued=true;
+   }else onlineError(err);
  }).finally(()=>{
    onlineLegacyBotCommitBusy=false;
    if(onlineLegacyBotCommitQueued){onlineLegacyBotCommitQueued=false;onlineLegacyPushLiveBot()}
