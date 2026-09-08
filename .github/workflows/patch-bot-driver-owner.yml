@@ -1,0 +1,28 @@
+name: Patch bot driver owner
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths: [scripts/patch_bot_driver_owner.py, .github/workflows/patch-bot-driver-owner.yml]
+permissions: {contents: write}
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: clean-online-sync-from-4034-20260907}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.x'}
+      - run: python scripts/patch_bot_driver_owner.py
+      - run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text();Path('/tmp/a.js').write_text(s.rsplit('<script>',1)[1].split('</script>',1)[0])
+          PY
+          node --check /tmp/a.js
+          grep -q 'onlineLegacyBotDriverOwner=previousActive' index.html
+      - run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m 'Confie les bots au joueur qui termine son tour'
+          git push origin HEAD:clean-online-sync-from-4034-20260907
