@@ -146,7 +146,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 .dragonCurseText{font-size:15px;line-height:1.55;text-align:left;white-space:pre-line}
 #dragonCurseContinue{margin-top:16px;padding:9px 22px;font-size:15px;font-weight:900}
 
-.deckCorner{position:absolute;left:8px;top:8px;z-index:58;display:flex;gap:5px;height:8.33%;max-height:46px;min-height:29px}
+.deckCorner{position:absolute;left:50%;right:auto;top:8px;transform:translateX(-50%);z-index:58;display:flex;gap:5px;height:8.33%;max-height:46px;min-height:29px}
 .pileIcon{height:100%;width:58px;min-width:58px;padding:2px!important;border:2px solid #727d77!important;border-radius:7px!important;background:#18201d!important;display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:1px}
 .pileIcon .pileGlyph{font-size:14px;line-height:1}.pileIcon b{font-size:12px}.pileIcon small{font-size:7px}
 .discardCards{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0;max-height:55vh;overflow:auto}
@@ -395,8 +395,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 .onlineMoveAvailable{outline:4px solid #46e37a!important;background:#46e37a30!important}.onlineMovePickBadge{position:absolute;left:50%;bottom:-18px;transform:translateX(-50%);z-index:45;background:#111e;color:#fff;border:1px solid #eee;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:900;line-height:1.2;pointer-events:none}.onlineOracleTarget{outline:5px solid #bb5cff!important;background:#bb5cff55!important}
 
 
-/* vOnline UI: pioche/défausse recentrées pour libérer la zone U */
-#map .deckZone,#map .deckArea,#map .drawDiscard,#map .piles,#map .cardPiles{left:50%!important;right:auto!important;transform:translateX(-50%)!important;top:1.5%!important;display:flex!important;gap:8px!important;flex-direction:row!important}
+/* vOnline UI: Pioche / Défausse utilisent directement .deckCorner, centrée en haut. */
 .oracleCardClickable{cursor:pointer}
 </style></head>
 <body>
