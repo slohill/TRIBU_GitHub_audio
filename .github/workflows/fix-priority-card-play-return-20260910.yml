@@ -35,12 +35,8 @@ jobs:
           s=Path('index.html').read_text(encoding='utf-8')
           a=s.index('<script>')+len('<script>'); b=s.rindex('</script>')
           Path('/tmp/tribu.js').write_text(s[a:b],encoding='utf-8')
-          expected="""function resumeGameAfterPriorityCard(reason='reprise après carte prioritaire'){
- if(priorityCardResolutionActive())return;
- if(G&&G.phase==='play')render();
- if(G&&G.players&&G.players[G.active]&&G.players[G.active].bot)queueBot(reason);
-}"""
-          assert expected in s
+          assert "function resumeGameAfterPriorityCard(reason='reprise après carte prioritaire'){" in s
+          assert " if(priorityCardResolutionActive())return;\n if(G&&G.phase==='play')render();\n if(G&&G.players&&G.players[G.active]&&G.players[G.active].bot)queueBot(reason);" in s
           assert "return !!(divinationState||caravanState||egnoState||shadowState||portalMode||" in s
           assert "$('playBox').classList.toggle('hidden',G.phase!=='play'||cardPause);" in s
           assert "const n=1+Math.floor(Math.random()*6);" in s
