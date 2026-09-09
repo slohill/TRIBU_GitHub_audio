@@ -4903,6 +4903,7 @@ function onlineLegacyApply(packet){
  if(!packet||!packet.snapshot)return;
  if(!G||!G.online||!G.online.legacySync)return;
  const me=packet.youIndex;
+ const hadCaravan=!!caravanState;
  onlineLegacyApplying=true;
  const localOnline={code:G.online.code,seed:G.online.seed,mySocketId:onlineSocket&&onlineSocket.id,myPlayerIndex:me,hostId:onlineRoom&&onlineRoom.hostId,legacySync:true,revision:packet.revision};
  const decoded=onlineLegacyDecode(packet.snapshot),next=decoded.g||{};next.online=localOnline;G=next;
@@ -4920,6 +4921,7 @@ function onlineLegacyApply(packet){
  const incomingSfx=onlineSfxEvents.slice(),incomingSfxSeq=onlineSfxSeq;
  onlineLegacyLastDigest=onlineLegacyDigest();render();
  if(caravanState)showCaravanChoice();
+ else if(hadCaravan)closeAgentModal(true);
  onlineApplyPrivatePresentations(me);
  onlineLegacyLastDigest=onlineLegacyDigest();onlineLegacyApplying=false;onlineLegacyLockControls();
  onlineLegacyApplying=true;onlinePlaySyncedSfx(incomingSfx,incomingSfxSeq);onlineLegacyApplying=false;
