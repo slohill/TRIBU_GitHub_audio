@@ -216,6 +216,12 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 .divinationChoices{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin-top:10px}
 .divinationChoices button{min-width:150px;flex:1;padding:7px 8px}
 .divinationChoices .oraclePick{min-width:125px;font-size:11px}
+.divinationPanel{max-height:min(78vh,560px);overflow:auto;line-height:1.35}
+.divinationPanel h3{line-height:1.25;margin-bottom:10px}
+#divinationText{display:block;line-height:1.4;margin:0 0 10px;padding:8px}
+.divinationChoices{align-items:stretch;margin-top:8px}
+.divinationChoices button{white-space:normal;line-height:1.25;min-height:38px;height:auto}
+@media(max-width:760px){.divinationPanel{width:min(460px,90%);padding:10px}.divinationChoices{display:grid;grid-template-columns:1fr}.divinationChoices button,.divinationChoices .oraclePick{min-width:0;width:100%}}
 
 .cityTerrainOverlay{position:absolute;left:50%;top:50%;z-index:0;pointer-events:none;transform:translate(-50%,-50%);width:42px;height:42px;border-radius:50%;box-sizing:border-box}
 .cityTerrainOverlay.snow{background:radial-gradient(circle,rgba(245,252,255,.86) 0 36%,rgba(211,235,246,.7) 58%,rgba(175,213,230,.2) 76%,transparent 83%);border:2px solid rgba(235,250,255,.9);box-shadow:0 0 8px rgba(220,244,255,.75)}
@@ -903,7 +909,7 @@ function audioSafePlay(a,seek=null){
  if(a.readyState>=1)go(); else a.addEventListener('loadedmetadata',go,{once:true});
 }
 function audioStopTrack(a,reset=false){if(!a)return;a.pause();if(reset){try{a.currentTime=0}catch(e){}}}
-let onlineSfxSeq=0,onlineSfxEvents=[],onlineSfxSeenSeq=0;
+let onlineSfxSeq=0,onlineSfxEvents=[],onlineSfxSeenSeq=0,onlineOraclePresentationSeenSeq=0,onlineAssassinNoticeSeenSeq=0,onlineOracleRemoteTick=null;
 function audioPlaySfx(name,vol=.8){
  if(!audioSfxEnabled||!AUDIO_SRC[name])return;
  if(G&&G.online&&G.online.legacySync&&!onlineLegacyApplying){
@@ -1354,7 +1360,8 @@ function resolveAssassin(target){
  closeAgentModal();
  audioPlaySfx(killed?'assassin':'fail',killed?.9:.75);
  log(p(actor).name+' joue Assassin sur '+p(target.owner).name+' — '+target.name+' : dé '+roll+'. '+(killed?'Agent éliminé.':'Échec.'));
- showAssassinMapMessage(target.owner,target.name,actor,killed);
+ G.assassinNotice={seq:Number(G.assassinNotice&&G.assassinNotice.seq||0)+1,targetOwner:target.owner,targetName:target.name,actor,killed};
+ if(!G.online||!G.online.legacySync||localViewer()===target.owner)showAssassinMapMessage(target.owner,target.name,actor,killed);
  render();
 }
 function caravanRevealCount(){return G.players.length}
@@ -1384,27 +1391,35 @@ function showCaravanChoice(){
  if(!caravanState)return;
  if(!caravanState.revealed.length||caravanState.pick>=caravanState.order.length){finishCaravan();return}
  const chooser=caravanState.order[caravanState.pick];
- if(G.players[chooser].bot){const j=Math.floor(Math.random()*caravanState.revealed.length);setTimeout(()=>chooseCaravanCard(j),300);return}
+ const online=!!(G.online&&G.online.legacySync),me=localViewer();
  agentModalState={kind:'caravan',chooser};
  openAgentModal('Caravane de commerce',p(chooser).name+' choisit une carte.');
  const close=$('agentClose');if(close){close.disabled=true;close.textContent='Choix obligatoire'}
  const box=$('agentChoices');
+ const mayChoose=!online||(!G.players[chooser].bot&&me===chooser);
  caravanState.revealed.forEach((id,j)=>{
    const c=CARDS[id],b=document.createElement('button');
    b.innerHTML='<b>'+c.name+'</b><br><small>'+c.effect+'</small>';
-   b.onclick=()=>chooseCaravanCard(j);
+   b.disabled=!mayChoose;
+   b.onclick=mayChoose?()=>chooseCaravanCard(j):null;
    box.appendChild(b);
  });
- // En mode test local, même les choix des bots restent sous le contrôle du testeur.
+ if(online&&G.players[chooser].bot){
+   const info=document.createElement('div');info.className='note';info.textContent='Le bot choisit sa carte…';box.appendChild(info);
+   if(onlineLegacyCanExecuteBot()){const j=Math.floor(Math.random()*caravanState.revealed.length);setTimeout(()=>{if(caravanState&&caravanState.order[caravanState.pick]===chooser)chooseCaravanCard(j)},300)}
+ }
 }
 function chooseCaravanCard(j){
  if(!caravanState||j<0||j>=caravanState.revealed.length)return;
  const chooser=caravanState.order[caravanState.pick];
+ if(G.online&&G.online.legacySync&&!G.players[chooser].bot&&localViewer()!==chooser)return;
+ if(G.online&&G.online.legacySync&&G.players[chooser].bot&&!onlineLegacyCanExecuteBot())return;
  const id=caravanState.revealed.splice(j,1)[0];
  G.players[chooser].hand.push(id);audioCardMove();
  log(p(chooser).name+' choisit '+CARDS[id].name+' dans la Caravane.');
  caravanState.pick++;
  showCaravanChoice();
+ if(G&&G.online&&G.online.legacySync){if(G.players[chooser].bot)onlineLegacyPushNow();else onlineLegacyPushPriorityCardNow()}
 }
 function finishCaravan(){
  if(!caravanState)return;
@@ -3182,6 +3197,11 @@ function visibleUnitsForSource(id,owner,physical){
  return Math.max(0,physical-(picks[id]||0));
 }
 function selected(){return Object.values(picks).reduce((a,b)=>a+b,0)}
+function previewDestinationUnits(id){
+ const moving=selected();if(!moving)return 0;
+ if(isSea(id))return (G.sea[id].fleets[G.active]||0)+moving;
+ const c=G.b[id];return c&&c.owner===G.active?c.units+moving:moving;
+}
 function takeMovers(s,n){
  const arr=movable[s]||[],taken=[];
  for(let k=0;k<n;k++){
@@ -3610,6 +3630,7 @@ function activateOracle(afterResolution=null,activator=G.active){
  const prev=beginOracleReplacement(nextName);
  if(G.oracleActive!==null)G.oracleDiscard.push(G.oracleActive);
  G.oracleActive=id;const o=ORACLES[id];
+ G.oraclePresentation={seq:Number(G.oraclePresentation&&G.oraclePresentation.seq||0)+1,name:o.name};
  log('🔮 Oracle activé : '+o.name+'.');
  audioPlaySfx('oracle',.82);
  showOracleNotice(o.name,()=>{
@@ -3928,7 +3949,7 @@ function renderMap(){
    ci.className='buildingIcon cityIcon'+((G.b[id].units||0)>0?' withUnits':'')+(isPvpBattle?' battleWithDice':'');ci.src='assets/images/tokens/cite.png';ci.title=cityAt(id).type+' : +10 Défense';
    b.appendChild(ci);
  }
- if(dest===id&&selected()>0&&!isPvpPreview){const g=document.createElement('span');g.className='ghost';g.textContent=selected();b.appendChild(g)}
+ if(dest===id&&selected()>0&&!isPvpPreview){const g=document.createElement('span');g.className='ghost';g.textContent=previewDestinationUnits(id);b.appendChild(g)}
  if(G.phase==='play'&&dest&&legalSources(dest).includes(id)){
    b.classList.add('srcHold');
    const q=picks[id]||0;
@@ -4790,7 +4811,7 @@ function onlineLegacyBootstrap(full,state){
  paidDrawState=null;goldReaction=null;shadowState=null;battleStack=[];egnoState=null;returnState=null;dragonRichState=null;dragonCurseState=null;dragonPublicState=null;
  agentModalState=null;caravanState=null;oraclePassArmed=false;oracleState=null;seaStormState=null;oracleClimateVisual=null;oraclePendingNormalMap=false;turnEpoch=0;
  divinationState=null;recruitSnapshot=null;gameOverState=null;commerceDeals=[];commerceSeq=1;onlineLegacyBotDriverIndex=null;
- onlineSfxSeq=0;onlineSfxEvents=[];onlineSfxSeenSeq=0;
+ onlineSfxSeq=0;onlineSfxEvents=[];onlineSfxSeenSeq=0;onlineOraclePresentationSeenSeq=Number(G.oraclePresentation&&G.oraclePresentation.seq||0);onlineAssassinNoticeSeenSeq=Number(G.assassinNotice&&G.assassinNotice.seq||0);
  if(G.phase==='play')setMovable();else resetMove();
  onlineLegacyRevision=full.legacyRevision||0;
  onlineLegacyLastDigest=onlineLegacyDigest();
@@ -4798,6 +4819,19 @@ function onlineLegacyBootstrap(full,state){
  render();onlineLegacyLastDigest=onlineLegacyDigest();onlineLegacyLockControls();
  // Les bots ne sont pas démarrés depuis un bootstrap distant.
  if(onlineWelcomeShownKey!==String(state.seed||'game'))onlineShowGameWelcome(state);
+}
+function showOracleRemoteNotice(name){
+ clearInterval(onlineOracleRemoteTick);
+ $('oracleNoticeTitle').textContent='ORACLE ACTIVÉ — '+name.toUpperCase();
+ $('oracleNoticeText').textContent=oracleEffectText(name);
+ let seconds=5;$('oracleNoticeTimer').textContent='5 s';$('oracleNoticeOverlay').classList.remove('hidden');
+ onlineOracleRemoteTick=setInterval(()=>{seconds--;$('oracleNoticeTimer').textContent=Math.max(0,seconds)+' s';if(seconds<=0){clearInterval(onlineOracleRemoteTick);$('oracleNoticeOverlay').classList.add('hidden')}},1000);
+}
+function onlineApplyPrivatePresentations(me){
+ const op=G&&G.oraclePresentation;
+ if(op&&Number(op.seq)>onlineOraclePresentationSeenSeq){onlineOraclePresentationSeenSeq=Number(op.seq);showOracleRemoteNotice(op.name)}
+ const an=G&&G.assassinNotice;
+ if(an&&Number(an.seq)>onlineAssassinNoticeSeenSeq){onlineAssassinNoticeSeenSeq=Number(an.seq);if(an.targetOwner===me)showAssassinMapMessage(an.targetOwner,an.targetName,an.actor,!!an.killed)}
 }
 function onlineLegacyApply(packet){
  if(!packet||!packet.snapshot)return;
@@ -4818,7 +4852,10 @@ function onlineLegacyApply(packet){
  (G.players||[]).forEach((_,i)=>agentDefaults(i));
  if(priorityCardResolutionActive()){clearTimeout(botTimer);botTimer=null;botToken++}
  const incomingSfx=onlineSfxEvents.slice(),incomingSfxSeq=onlineSfxSeq;
- onlineLegacyLastDigest=onlineLegacyDigest();render();onlineLegacyLastDigest=onlineLegacyDigest();onlineLegacyApplying=false;onlineLegacyLockControls();
+ onlineLegacyLastDigest=onlineLegacyDigest();render();
+ if(caravanState)showCaravanChoice();
+ onlineApplyPrivatePresentations(me);
+ onlineLegacyLastDigest=onlineLegacyDigest();onlineLegacyApplying=false;onlineLegacyLockControls();
  onlineLegacyApplying=true;onlinePlaySyncedSfx(incomingSfx,incomingSfxSeq);onlineLegacyApplying=false;
  onlineLegacyResumeBattleView();
  onlineLegacyResumeGoldView();
