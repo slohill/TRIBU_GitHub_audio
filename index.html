@@ -4919,9 +4919,10 @@ function onlineLegacyApply(packet){
  (G.players||[]).forEach((_,i)=>agentDefaults(i));
  if(priorityCardResolutionActive()){clearTimeout(botTimer);botTimer=null;botToken++}
  const incomingSfx=onlineSfxEvents.slice(),incomingSfxSeq=onlineSfxSeq;
- onlineLegacyLastDigest=onlineLegacyDigest();render();
+ onlineLegacyLastDigest=onlineLegacyDigest();
+ if(!caravanState&&hadCaravan)closeAgentModal(true);
+ render();
  if(caravanState)showCaravanChoice();
- else if(hadCaravan)closeAgentModal(true);
  onlineApplyPrivatePresentations(me);
  onlineLegacyLastDigest=onlineLegacyDigest();onlineLegacyApplying=false;onlineLegacyLockControls();
  onlineLegacyApplying=true;onlinePlaySyncedSfx(incomingSfx,incomingSfxSeq);onlineLegacyApplying=false;
