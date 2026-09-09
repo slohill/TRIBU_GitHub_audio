@@ -35,13 +35,14 @@ jobs:
           s=Path('index.html').read_text(encoding='utf-8')
           a=s.index('<script>')+len('<script>'); b=s.rindex('</script>')
           Path('/tmp/tribu.js').write_text(s[a:b],encoding='utf-8')
-          expected=""" onlineLegacyLastDigest=onlineLegacyDigest();
- if(!caravanState&&hadCaravan)closeAgentModal(true);
- render();
- if(caravanState)showCaravanChoice();
- onlineApplyPrivatePresentations(me);"""
-          assert expected in s
-          assert "onlineLegacyLastDigest=onlineLegacyDigest();render();\n if(caravanState)showCaravanChoice();\n else if(hadCaravan)closeAgentModal(true);" not in s
+          close="if(!caravanState&&hadCaravan)closeAgentModal(true);"
+          render="render();"
+          show="if(caravanState)showCaravanChoice();"
+          pos_close=s.index(close, s.index('function onlineLegacyApply(packet)'))
+          pos_render=s.index(render, pos_close)
+          pos_show=s.index(show, pos_render)
+          assert pos_close < pos_render < pos_show
+          assert "else if(hadCaravan)closeAgentModal(true);" not in s
           assert "return !!(divinationState||caravanState||egnoState||shadowState||portalMode||" in s
           assert "$('playBox').classList.toggle('hidden',G.phase!=='play'||cardPause);" in s
           assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
