@@ -36,6 +36,7 @@ jobs:
             'function previewDestinationUnits(id)',
             'g.textContent=previewDestinationUnits(id)',
             'G.assassinNotice={seq:',
+            "localViewer()===target.owner)showAssassinMapMessage",
             'function showOracleRemoteNotice(name)',
             'G.oraclePresentation={seq:',
             'if(caravanState)showCaravanChoice()',
@@ -44,7 +45,6 @@ jobs:
             '#divinationText{display:block;line-height:1.4'
           ]
           for g in guards: assert g in s,g
-          assert "showAssassinMapMessage(target.owner,target.name,actor,killed);\n render();" not in s
           assert "g.textContent=selected();b.appendChild(g)" not in s
           assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
           PY
