@@ -2322,6 +2322,7 @@ function pauseGameForPriorityCard(){
 }
 function resumeGameAfterPriorityCard(reason='reprise après carte prioritaire'){
  if(priorityCardResolutionActive())return;
+ if(G&&G.phase==='play')render();
  if(G&&G.players&&G.players[G.active]&&G.players[G.active].bot)queueBot(reason);
 }
 function queueBot(reason){
