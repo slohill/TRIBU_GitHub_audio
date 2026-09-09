@@ -1,0 +1,58 @@
+name: Fix caravan restore play controls 20260910
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - 'scripts/fix_caravan_restore_play_controls_20260910.py'
+      - '.github/workflows/fix-caravan-restore-play-controls-20260910.yml'
+permissions:
+  contents: write
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Guard expected main and historical backup
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "610b8f5892bc590bd918d4fb87c91ef432e0fc16"
+          test "$(git ls-remote origin refs/heads/backup-before-full-rule-transposition-2026-09-07 | awk '{print $1}')" = "4034c26c69c575095146d4a51588aa82db8d746a"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Load patch from staging
+        run: curl -fsSL https://raw.githubusercontent.com/slohill/TRIBU_GitHub_audio/clean-online-sync-from-4034-20260907/scripts/fix_caravan_restore_play_controls_20260910.py -o /tmp/patch.py
+      - name: Apply patch
+        run: python /tmp/patch.py
+      - name: Syntax and invariants
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          a=s.index('<script>')+len('<script>'); b=s.rindex('</script>')
+          Path('/tmp/tribu.js').write_text(s[a:b],encoding='utf-8')
+          expected=""" onlineLegacyLastDigest=onlineLegacyDigest();
+ if(!caravanState&&hadCaravan)closeAgentModal(true);
+ render();
+ if(caravanState)showCaravanChoice();
+ onlineApplyPrivatePresentations(me);"""
+          assert expected in s
+          assert "onlineLegacyLastDigest=onlineLegacyDigest();render();\n if(caravanState)showCaravanChoice();\n else if(hadCaravan)closeAgentModal(true);" not in s
+          assert "return !!(divinationState||caravanState||egnoState||shadowState||portalMode||" in s
+          assert "$('playBox').classList.toggle('hidden',G.phase!=='play'||cardPause);" in s
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          PY
+          node --check /tmp/tribu.js
+          git diff --check
+          test "$(git status --short | awk '{print $2}' | tr '\n' ' ')" = "index.html "
+      - name: Commit production file only
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m "Restaure les contrôles après Caravane Online"
+          git push origin HEAD:main
