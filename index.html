@@ -909,24 +909,54 @@ function audioSafePlay(a,seek=null){
  if(a.readyState>=1)go(); else a.addEventListener('loadedmetadata',go,{once:true});
 }
 function audioStopTrack(a,reset=false){if(!a)return;a.pause();if(reset){try{a.currentTime=0}catch(e){}}}
-let onlineSfxSeq=0,onlineSfxEvents=[],onlineSfxSeenSeq=0,onlineOraclePresentationSeenSeq=0,onlineAssassinNoticeSeenSeq=0,onlineOracleRemoteTick=null;
-function audioPlaySfx(name,vol=.8){
+let onlineSfxSeq=0,onlineSfxEvents=[],onlineSfxSeenSeq=0,onlineOraclePresentationSeenSeq=0,onlineAssassinNoticeSeenSeq=0,onlineDragonSixPresentationSeenSeq=0,onlineOracleRemoteTick=null,onlineDragonSixRemoteTick=null;
+const audioSfxPools={};let audioSfxPoolCursor=0,audioSfxPrimed=false;
+function audioSfxPool(name){
+ if(!AUDIO_SRC[name])return [];
+ if(!audioSfxPools[name])audioSfxPools[name]=Array.from({length:3},()=>{const a=new Audio(AUDIO_SRC[name]);a.preload='auto';return a});
+ return audioSfxPools[name];
+}
+function audioPrimeSfx(){
+ if(audioSfxPrimed)return;
+ audioSfxPrimed=true;
+ ['gold','oracle','dragon','assassin','thief','fail','drums','horn','cardMove','construction'].forEach(name=>{
+   audioSfxPool(name).forEach(a=>{
+     const v=a.volume;a.volume=0;
+     try{const p=a.play();if(p&&p.then)p.then(()=>{a.pause();try{a.currentTime=0}catch(e){}a.volume=v}).catch(()=>{a.volume=v})}catch(e){a.volume=v}
+   });
+ });
+}
+function audioPlaySfxLocal(name,vol=.8){
  if(!audioSfxEnabled||!AUDIO_SRC[name])return;
+ const pool=audioSfxPool(name);if(!pool.length)return;
+ let a=pool.find(x=>x.paused||x.ended);
+ if(!a){a=pool[(audioSfxPoolCursor++)%pool.length];a.pause()}
+ try{a.currentTime=0}catch(e){}a.volume=Math.max(0,Math.min(1,Number(vol)||.8));
+ try{const p=a.play();if(p&&p.catch)p.catch(()=>{})}catch(e){}
+}
+function audioPlaySfx(name,vol=.8){
+ if(!AUDIO_SRC[name])return;
  if(G&&G.online&&G.online.legacySync&&!onlineLegacyApplying){
    const ev={seq:++onlineSfxSeq,name,vol};
    onlineSfxEvents.push(ev);if(onlineSfxEvents.length>24)onlineSfxEvents=onlineSfxEvents.slice(-24);
    onlineSfxSeenSeq=ev.seq;
+   if(onlineSocket&&onlineSocket.connected)onlineSocket.emit('legacySfx',ev);
  }
- const a=new Audio(AUDIO_SRC[name]);a.volume=vol;const p=a.play();if(p&&p.catch)p.catch(()=>{});
+ audioPlaySfxLocal(name,vol);
+}
+function onlineReceiveSfx(ev){
+ if(!ev||!AUDIO_SRC[ev.name])return;
+ const seq=Number(ev.seq)||0;if(seq&&seq<=onlineSfxSeenSeq)return;
+ if(seq)onlineSfxSeenSeq=Math.max(onlineSfxSeenSeq,seq);
+ audioPlaySfxLocal(ev.name,Number.isFinite(Number(ev.vol))?Number(ev.vol):.8);
 }
 function onlinePlaySyncedSfx(events,seq){
  if(!Array.isArray(events)){onlineSfxSeenSeq=Math.max(onlineSfxSeenSeq,Number(seq)||0);return}
- events.filter(e=>e&&Number(e.seq)>onlineSfxSeenSeq).sort((a,b)=>a.seq-b.seq).forEach(e=>{
-   onlineSfxSeenSeq=Math.max(onlineSfxSeenSeq,Number(e.seq)||0);
-   audioPlaySfx(e.name,Number.isFinite(Number(e.vol))?Number(e.vol):.8);
- });
+ events.filter(e=>e&&Number(e.seq)>onlineSfxSeenSeq).sort((a,b)=>a.seq-b.seq).forEach(e=>onlineReceiveSfx(e));
  onlineSfxSeenSeq=Math.max(onlineSfxSeenSeq,Number(seq)||0);
 }
+document.addEventListener('pointerdown',audioPrimeSfx,{capture:true,passive:true});
+document.addEventListener('touchend',audioPrimeSfx,{capture:true,passive:true});
 
 function audioCardMove(){audioPlaySfx('cardMove',.72)}
 function audioConstruction(){audioPlaySfx('construction',.72)}
@@ -1419,7 +1449,7 @@ function chooseCaravanCard(j){
  log(p(chooser).name+' choisit '+CARDS[id].name+' dans la Caravane.');
  caravanState.pick++;
  showCaravanChoice();
- if(G&&G.online&&G.online.legacySync){if(G.players[chooser].bot)onlineLegacyPushNow();else onlineLegacyPushPriorityCardNow()}
+ if(G&&G.online&&G.online.legacySync)onlineLegacyPushCaravanNow();
 }
 function finishCaravan(){
  if(!caravanState)return;
@@ -3631,6 +3661,7 @@ function activateOracle(afterResolution=null,activator=G.active){
  if(G.oracleActive!==null)G.oracleDiscard.push(G.oracleActive);
  G.oracleActive=id;const o=ORACLES[id];
  G.oraclePresentation={seq:Number(G.oraclePresentation&&G.oraclePresentation.seq||0)+1,name:o.name};
+ onlineOraclePresentationSeenSeq=Number(G.oraclePresentation.seq);
  log('🔮 Oracle activé : '+o.name+'.');
  audioPlaySfx('oracle',.82);
  showOracleNotice(o.name,()=>{
@@ -3771,6 +3802,7 @@ function clickSpot(id){
  if(caravanState||dragonSixState||dragonPublicState||dragonCurseState)return;if(inPlaySelected)hideInPlayPreview();if(dragonRichState){if(dragonRichState.targets.includes(id))return destroyRichDragonTarget(id);return;}if(returnState){if(returnRegions(returnState.player).includes(id))return reformAt(id);return;}if(egnoState){if(egnoTargetLegal(id))return resolveEgnobombe(id);return;}if(shadowState){if(shadowState.stage==='gather'&&!isSea(id)&&G.b[id].owner===shadowState.player)return adjustShadow(id,1);if(shadowState.stage==='target'&&shadowTargetLegal(id))return chooseShadowTarget(id);return;}if(portalMode){if(canPortalRegion(id))return choosePortalRegion(id);return;}if(isBot()||paidDrawState||goldReaction)return;if(buildingMode){if(canPlaceBuilding(id))return placeBuilding(id);return;}if(G.phase==='recruit'&&!isSea(id))return recruitAt(id);if(G.phase==='play'){if(dest&&legalSources(dest).includes(id))return adjust(id,1);return chooseDest(id)}if(G.phase==='oracleMove'&&dragonTargets().includes(id)){G.dragon=id;G.phase='oracleRoll';log(p().name+' place le Dragon sur '+id+'.');render()}}
 function showDragonSixNotice(victim,next){
  clearInterval(dragonSixTick);
+ const pass=$('dragonSixPass');if(pass)pass.onclick=finishDragonSixNotice;
  const viewer=localViewer();
  dragonSixState={victim,seconds:5,next};
  $('dragonSixTitle').textContent='LE DRAGON SÈME LA DESTRUCTION';
@@ -3801,7 +3833,11 @@ function destroyDragonRegionAndEnd(){
    removeInPlayCard(c.building.owner,c.building.cardId);G.discard.push(c.building.cardId);c.building=null;
  }
  c.owner=null;c.units=0;c.hostile=c.originalHostile;
- if(had){audioPlaySfx('dragon',.9);checkDecimations();showDragonSixNotice(victim,()=>advanceTurn('nouveau tour'));render();return}
+ if(had){
+   G.dragonSixPresentation={seq:Number(G.dragonSixPresentation&&G.dragonSixPresentation.seq||0)+1,victim};
+   onlineDragonSixPresentationSeenSeq=Number(G.dragonSixPresentation.seq);
+   audioPlaySfx('dragon',.9);checkDecimations();showDragonSixNotice(victim,()=>advanceTurn('nouveau tour'));render();return
+ }
  log('Le Dragon souffle sur '+G.dragon+', mais il n’y avait rien à détruire.');
  checkDecimations();advanceTurn('nouveau tour');
 }
@@ -4811,7 +4847,7 @@ function onlineLegacyBootstrap(full,state){
  paidDrawState=null;goldReaction=null;shadowState=null;battleStack=[];egnoState=null;returnState=null;dragonRichState=null;dragonCurseState=null;dragonPublicState=null;
  agentModalState=null;caravanState=null;oraclePassArmed=false;oracleState=null;seaStormState=null;oracleClimateVisual=null;oraclePendingNormalMap=false;turnEpoch=0;
  divinationState=null;recruitSnapshot=null;gameOverState=null;commerceDeals=[];commerceSeq=1;onlineLegacyBotDriverIndex=null;
- onlineSfxSeq=0;onlineSfxEvents=[];onlineSfxSeenSeq=0;onlineOraclePresentationSeenSeq=Number(G.oraclePresentation&&G.oraclePresentation.seq||0);onlineAssassinNoticeSeenSeq=Number(G.assassinNotice&&G.assassinNotice.seq||0);
+ onlineSfxSeq=0;onlineSfxEvents=[];onlineSfxSeenSeq=0;onlineOraclePresentationSeenSeq=Number(G.oraclePresentation&&G.oraclePresentation.seq||0);onlineAssassinNoticeSeenSeq=Number(G.assassinNotice&&G.assassinNotice.seq||0);onlineDragonSixPresentationSeenSeq=Number(G.dragonSixPresentation&&G.dragonSixPresentation.seq||0);
  if(G.phase==='play')setMovable();else resetMove();
  onlineLegacyRevision=full.legacyRevision||0;
  onlineLegacyLastDigest=onlineLegacyDigest();
@@ -4820,16 +4856,32 @@ function onlineLegacyBootstrap(full,state){
  // Les bots ne sont pas démarrés depuis un bootstrap distant.
  if(onlineWelcomeShownKey!==String(state.seed||'game'))onlineShowGameWelcome(state);
 }
+function showDragonSixRemoteNotice(victim){
+ clearInterval(onlineDragonSixRemoteTick);
+ const viewer=localViewer();
+ $('dragonSixTitle').textContent='LE DRAGON SÈME LA DESTRUCTION';
+ $('dragonSixText').textContent=victim!==null&&viewer===victim
+   ? 'Le dragon sème la destruction dans votre empire !\nUne de vos régions a été dévastée par le feu…'
+   : (victim!==null?'Le dragon a détruit une région de '+p(victim).name+'.':'Le dragon a dévasté une région.');
+ let seconds=5;$('dragonSixTimer').textContent='5 s';$('dragonSixOverlay').classList.remove('hidden');
+ const close=()=>{clearInterval(onlineDragonSixRemoteTick);$('dragonSixOverlay').classList.add('hidden')};
+ const pass=$('dragonSixPass');if(pass)pass.onclick=close;
+ onlineDragonSixRemoteTick=setInterval(()=>{seconds--;$('dragonSixTimer').textContent=Math.max(0,seconds)+' s';if(seconds<=0)close()},1000);
+}
 function showOracleRemoteNotice(name){
  clearInterval(onlineOracleRemoteTick);
  $('oracleNoticeTitle').textContent='ORACLE ACTIVÉ — '+name.toUpperCase();
  $('oracleNoticeText').textContent=oracleEffectText(name);
  let seconds=5;$('oracleNoticeTimer').textContent='5 s';$('oracleNoticeOverlay').classList.remove('hidden');
- onlineOracleRemoteTick=setInterval(()=>{seconds--;$('oracleNoticeTimer').textContent=Math.max(0,seconds)+' s';if(seconds<=0){clearInterval(onlineOracleRemoteTick);$('oracleNoticeOverlay').classList.add('hidden')}},1000);
+ const close=()=>{clearInterval(onlineOracleRemoteTick);$('oracleNoticeOverlay').classList.add('hidden')};
+ const pass=$('oracleNoticePass');if(pass)pass.onclick=close;
+ onlineOracleRemoteTick=setInterval(()=>{seconds--;$('oracleNoticeTimer').textContent=Math.max(0,seconds)+' s';if(seconds<=0)close()},1000);
 }
 function onlineApplyPrivatePresentations(me){
  const op=G&&G.oraclePresentation;
  if(op&&Number(op.seq)>onlineOraclePresentationSeenSeq){onlineOraclePresentationSeenSeq=Number(op.seq);showOracleRemoteNotice(op.name)}
+ const dp=G&&G.dragonSixPresentation;
+ if(dp&&Number(dp.seq)>onlineDragonSixPresentationSeenSeq){onlineDragonSixPresentationSeenSeq=Number(dp.seq);showDragonSixRemoteNotice(dp.victim)}
  const an=G&&G.assassinNotice;
  if(an&&Number(an.seq)>onlineAssassinNoticeSeenSeq){onlineAssassinNoticeSeenSeq=Number(an.seq);if(an.targetOwner===me)showAssassinMapMessage(an.targetOwner,an.targetName,an.actor,!!an.killed)}
 }
@@ -4930,6 +4982,22 @@ function onlineLegacyPushNow(){
 function onlineLegacyPushPriorityCardNow(){
  if(!G||!G.online||!G.online.legacySync||onlineLegacyApplying||!onlineSocket||!priorityCardResolutionActive())return;
  const actorIndex=G.online.myPlayerIndex;if(!Number.isInteger(actorIndex)||priorityCardResolutionActor()!==actorIndex)return;
+ clearTimeout(onlineLegacyPushTimer);
+ const snapshot=onlineLegacySnapshot(),digest=onlineLegacyDigest();
+ const send=(baseRevision,retries)=>onlineAck('legacyCommit',{baseRevision,actorIndex,snapshot}).then(res=>{
+   onlineLegacyRevision=Math.max(onlineLegacyRevision,res.revision||0);G.online.revision=onlineLegacyRevision;onlineLegacyLastDigest=digest;
+ }).catch(err=>{
+   if(err&&err.current&&retries>0&&Number.isInteger(err.current.revision)){
+     onlineLegacyRevision=Math.max(onlineLegacyRevision,err.current.revision);G.online.revision=onlineLegacyRevision;
+     return send(onlineLegacyRevision,retries-1);
+   }
+   onlineLegacyLastDigest='';if(err&&err.current)onlineLegacyApply(err.current);else onlineError(err);
+ });
+ send(onlineLegacyRevision,2);
+}
+function onlineLegacyPushCaravanNow(){
+ if(!G||!G.online||!G.online.legacySync||onlineLegacyApplying||!onlineSocket)return;
+ const actorIndex=G.online.myPlayerIndex;if(!Number.isInteger(actorIndex)||!G.players[actorIndex]||G.players[actorIndex].bot)return;
  clearTimeout(onlineLegacyPushTimer);
  const snapshot=onlineLegacySnapshot(),digest=onlineLegacyDigest();
  const send=(baseRevision,retries)=>onlineAck('legacyCommit',{baseRevision,actorIndex,snapshot}).then(res=>{
@@ -5154,6 +5222,7 @@ function connectOnline(){
   socket.on('gameLaunched',room=>{onlineRoom=room;$('onlineLaunch').disabled=true;$('onlineReady').disabled=true;launchOnlineRoom(room)});
   socket.on('gameState',applyOnlineGameState);
   socket.on('legacyState',packet=>onlineLegacyApply(packet));
+  socket.on('legacySfx',onlineReceiveSfx);
  });
 }
 function onlineAck(action,payload){return connectOnline().then(socket=>new Promise((resolve,reject)=>socket.emit(action,payload,res=>{if(res&&res.ok){resolve(res);return}const err=new Error(res&&res.error||'Erreur serveur.');if(res&&res.current)err.current=res.current;reject(err)})))}

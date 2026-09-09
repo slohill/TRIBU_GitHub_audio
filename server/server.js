@@ -587,6 +587,17 @@ io.on('connection', socket => {
     ack({ok:true,revision:room.legacyRevision||0,youIndex,bootstrap:legacyBootstrapView(room,socket.id),snapshot:room.legacySnapshot||null});
   });
 
+  socket.on('legacySfx', (payload = {}) => {
+    const room=roomForSocket(socket);
+    if(!room||!room.game||room.game.status!=='playing'||!room.legacyMode)return;
+    const index=humanGameIndex(room,socket.id);if(index<0)return;
+    const allowed=new Set(['gold','oracle','dragon','assassin','thief','fail','drums','horn','cardMove','construction']);
+    const name=String(payload.name||'');if(!allowed.has(name))return;
+    const seq=Math.max(0,Math.floor(Number(payload.seq)||0));
+    const vol=Math.max(0,Math.min(1,Number(payload.vol)||.8));
+    socket.to(room.code).emit('legacySfx',{seq,name,vol});
+  });
+
   socket.on('legacyCommit', (payload = {}, ack = () => {}) => {
     const room=roomForSocket(socket);
     if(!room||!room.game||room.game.status!=='playing'||!room.legacyMode)return rejectGameAction(ack,'Synchronisation complète indisponible.');
