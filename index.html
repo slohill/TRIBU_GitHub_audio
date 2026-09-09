@@ -909,7 +909,7 @@ function audioSafePlay(a,seek=null){
  if(a.readyState>=1)go(); else a.addEventListener('loadedmetadata',go,{once:true});
 }
 function audioStopTrack(a,reset=false){if(!a)return;a.pause();if(reset){try{a.currentTime=0}catch(e){}}}
-let onlineSfxSeq=0,onlineSfxEvents=[],onlineSfxSeenSeq=0,onlineOraclePresentationSeenSeq=0,onlineAssassinNoticeSeenSeq=0,onlineDragonSixPresentationSeenSeq=0,onlineOracleRemoteTick=null,onlineDragonSixRemoteTick=null;
+let onlineSfxSeq=0,onlineSfxEvents=[],onlineSfxSeenSeq=0,onlineDirectSfxSeenSeq=0,onlineOraclePresentationSeenSeq=0,onlineAssassinNoticeSeenSeq=0,onlineDragonSixPresentationSeenSeq=0,onlineOracleRemoteTick=null,onlineDragonSixRemoteTick=null;
 const audioSfxPools={};let audioSfxPoolCursor=0,audioSfxPrimed=false;
 function audioSfxPool(name){
  if(!AUDIO_SRC[name])return [];
@@ -919,11 +919,10 @@ function audioSfxPool(name){
 function audioPrimeSfx(){
  if(audioSfxPrimed)return;
  audioSfxPrimed=true;
+ // Sur tablette/iOS, lancer toutes les pistes même à volume 0 peut les rendre audibles.
+ // On prépare donc seulement les objets Audio au premier geste utilisateur.
  ['gold','oracle','dragon','assassin','thief','fail','drums','horn','cardMove','construction'].forEach(name=>{
-   audioSfxPool(name).forEach(a=>{
-     const v=a.volume;a.volume=0;
-     try{const p=a.play();if(p&&p.then)p.then(()=>{a.pause();try{a.currentTime=0}catch(e){}a.volume=v}).catch(()=>{a.volume=v})}catch(e){a.volume=v}
-   });
+   audioSfxPool(name).forEach(a=>{try{a.load()}catch(e){}});
  });
 }
 function audioPlaySfxLocal(name,vol=.8){
@@ -946,13 +945,14 @@ function audioPlaySfx(name,vol=.8){
 }
 function onlineReceiveSfx(ev){
  if(!ev||!AUDIO_SRC[ev.name])return;
- const seq=Number(ev.seq)||0;if(seq&&seq<=onlineSfxSeenSeq)return;
- if(seq)onlineSfxSeenSeq=Math.max(onlineSfxSeenSeq,seq);
+ const serverSeq=Number(ev.serverSeq)||0;
+ if(serverSeq&&serverSeq<=onlineDirectSfxSeenSeq)return;
+ if(serverSeq)onlineDirectSfxSeenSeq=serverSeq;
  audioPlaySfxLocal(ev.name,Number.isFinite(Number(ev.vol))?Number(ev.vol):.8);
 }
 function onlinePlaySyncedSfx(events,seq){
- if(!Array.isArray(events)){onlineSfxSeenSeq=Math.max(onlineSfxSeenSeq,Number(seq)||0);return}
- events.filter(e=>e&&Number(e.seq)>onlineSfxSeenSeq).sort((a,b)=>a.seq-b.seq).forEach(e=>onlineReceiveSfx(e));
+ // Les snapshots conservent les événements pour compatibilité/reconnexion,
+ // mais ne doivent jamais rejouer un historique sonore à l'arrivée d'un joueur.
  onlineSfxSeenSeq=Math.max(onlineSfxSeenSeq,Number(seq)||0);
 }
 document.addEventListener('pointerdown',audioPrimeSfx,{capture:true,passive:true});
@@ -1417,6 +1417,12 @@ function startCaravan(handIndex){
  render();
  if(G&&G.online&&G.online.legacySync)onlineLegacyPushPriorityCardNow();
 }
+function onlineLegacyCanDriveCaravanBot(){
+ if(!caravanState||!G||!G.online||!G.online.legacySync)return true;
+ const me=localViewer(),actor=caravanState.actor;
+ if(Number.isInteger(actor)&&G.players[actor]&&!G.players[actor].bot)return me===actor;
+ return onlineLegacyCanExecuteBot();
+}
 function showCaravanChoice(){
  if(!caravanState)return;
  if(!caravanState.revealed.length||caravanState.pick>=caravanState.order.length){finishCaravan();return}
@@ -1436,14 +1442,14 @@ function showCaravanChoice(){
  });
  if(online&&G.players[chooser].bot){
    const info=document.createElement('div');info.className='note';info.textContent='Le bot choisit sa carte…';box.appendChild(info);
-   if(onlineLegacyCanExecuteBot()){const j=Math.floor(Math.random()*caravanState.revealed.length);setTimeout(()=>{if(caravanState&&caravanState.order[caravanState.pick]===chooser)chooseCaravanCard(j)},300)}
+   if(onlineLegacyCanDriveCaravanBot()){const j=Math.floor(Math.random()*caravanState.revealed.length);setTimeout(()=>{if(caravanState&&caravanState.order[caravanState.pick]===chooser&&onlineLegacyCanDriveCaravanBot())chooseCaravanCard(j)},300)}
  }
 }
 function chooseCaravanCard(j){
  if(!caravanState||j<0||j>=caravanState.revealed.length)return;
  const chooser=caravanState.order[caravanState.pick];
  if(G.online&&G.online.legacySync&&!G.players[chooser].bot&&localViewer()!==chooser)return;
- if(G.online&&G.online.legacySync&&G.players[chooser].bot&&!onlineLegacyCanExecuteBot())return;
+ if(G.online&&G.online.legacySync&&G.players[chooser].bot&&!onlineLegacyCanDriveCaravanBot())return;
  const id=caravanState.revealed.splice(j,1)[0];
  G.players[chooser].hand.push(id);audioCardMove();
  log(p(chooser).name+' choisit '+CARDS[id].name+' dans la Caravane.');
@@ -4847,7 +4853,7 @@ function onlineLegacyBootstrap(full,state){
  paidDrawState=null;goldReaction=null;shadowState=null;battleStack=[];egnoState=null;returnState=null;dragonRichState=null;dragonCurseState=null;dragonPublicState=null;
  agentModalState=null;caravanState=null;oraclePassArmed=false;oracleState=null;seaStormState=null;oracleClimateVisual=null;oraclePendingNormalMap=false;turnEpoch=0;
  divinationState=null;recruitSnapshot=null;gameOverState=null;commerceDeals=[];commerceSeq=1;onlineLegacyBotDriverIndex=null;
- onlineSfxSeq=0;onlineSfxEvents=[];onlineSfxSeenSeq=0;onlineOraclePresentationSeenSeq=Number(G.oraclePresentation&&G.oraclePresentation.seq||0);onlineAssassinNoticeSeenSeq=Number(G.assassinNotice&&G.assassinNotice.seq||0);onlineDragonSixPresentationSeenSeq=Number(G.dragonSixPresentation&&G.dragonSixPresentation.seq||0);
+ onlineSfxSeq=0;onlineSfxEvents=[];onlineSfxSeenSeq=0;onlineDirectSfxSeenSeq=0;onlineOraclePresentationSeenSeq=Number(G.oraclePresentation&&G.oraclePresentation.seq||0);onlineAssassinNoticeSeenSeq=Number(G.assassinNotice&&G.assassinNotice.seq||0);onlineDragonSixPresentationSeenSeq=Number(G.dragonSixPresentation&&G.dragonSixPresentation.seq||0);
  if(G.phase==='play')setMovable();else resetMove();
  onlineLegacyRevision=full.legacyRevision||0;
  onlineLegacyLastDigest=onlineLegacyDigest();

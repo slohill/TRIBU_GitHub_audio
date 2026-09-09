@@ -593,9 +593,10 @@ io.on('connection', socket => {
     const index=humanGameIndex(room,socket.id);if(index<0)return;
     const allowed=new Set(['gold','oracle','dragon','assassin','thief','fail','drums','horn','cardMove','construction']);
     const name=String(payload.name||'');if(!allowed.has(name))return;
-    const seq=Math.max(0,Math.floor(Number(payload.seq)||0));
+    const clientSeq=Math.max(0,Math.floor(Number(payload.seq)||0));
     const vol=Math.max(0,Math.min(1,Number(payload.vol)||.8));
-    socket.to(room.code).emit('legacySfx',{seq,name,vol});
+    room.legacySfxSeq=(room.legacySfxSeq||0)+1;
+    socket.to(room.code).emit('legacySfx',{serverSeq:room.legacySfxSeq,clientSeq,name,vol});
   });
 
   socket.on('legacyCommit', (payload = {}, ack = () => {}) => {
