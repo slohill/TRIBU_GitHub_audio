@@ -1,0 +1,63 @@
+name: Fix audio public dragon caravan 20260909
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - 'scripts/fix_audio_public_dragon_caravan_20260909.py'
+      - '.github/workflows/fix-audio-public-dragon-caravan-20260909.yml'
+permissions:
+  contents: write
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Guard expected main
+        run: test "$(git rev-parse HEAD)" = "0b6d73cb118eec426d8cad66e8d9774bfd57b7e7"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Load patch
+        run: curl -fsSL https://raw.githubusercontent.com/slohill/TRIBU_GitHub_audio/clean-online-sync-from-4034-20260907/scripts/fix_audio_public_dragon_caravan_20260909.py -o /tmp/patch.py
+      - name: Apply patch
+        run: python /tmp/patch.py
+      - name: Syntax and guards
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          server=Path('server/server.js').read_text(encoding='utf-8')
+          a=s.index('<script>')+len('<script>'); b=s.rindex('</script>')
+          Path('/tmp/tribu.js').write_text(s[a:b],encoding='utf-8')
+          guards=[
+            "socket.on('legacySfx',onlineReceiveSfx)",
+            "onlineSocket.emit('legacySfx',ev)",
+            'function audioPrimeSfx()',
+            'function audioPlaySfxLocal(name,vol=.8)',
+            'function onlineLegacyPushCaravanNow()',
+            'onlineLegacyPushCaravanNow();',
+            'G.dragonSixPresentation={seq:',
+            'function showDragonSixRemoteNotice(victim)',
+            'onlineDragonSixPresentationSeenSeq'
+          ]
+          for g in guards: assert g in s,g
+          assert "socket.on('legacySfx', (payload = {}) =>" in server
+          assert "socket.to(room.code).emit('legacySfx'" in server
+          assert "if(G.players[chooser].bot)onlineLegacyPushNow();else onlineLegacyPushPriorityCardNow()" not in s
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          PY
+          node --check /tmp/tribu.js
+          node --check server/server.js
+          git diff --check
+          test "$(git status --short | awk '{print $2}' | tr '\n' ' ')" = "index.html server/server.js "
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html server/server.js
+          git commit -m "Fiabilise les sons publics et débloque Caravane Online"
+          git push origin HEAD:main
