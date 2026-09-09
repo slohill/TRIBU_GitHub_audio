@@ -1,5 +1,6 @@
 from pathlib import Path
 
+# Patch ciblé : fermer l'état modal Caravane distant avant le render final.
 p=Path('index.html')
 s=p.read_text(encoding='utf-8')
 old=""" onlineLegacyLastDigest=onlineLegacyDigest();render();
