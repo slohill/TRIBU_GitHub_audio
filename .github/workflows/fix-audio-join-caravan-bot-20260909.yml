@@ -1,0 +1,62 @@
+name: Fix audio join and caravan bot 20260909
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - 'scripts/fix_audio_join_and_caravan_bot_20260909.py'
+      - '.github/workflows/fix-audio-join-caravan-bot-20260909.yml'
+permissions:
+  contents: write
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Guard expected main
+        run: test "$(git rev-parse HEAD)" = "3f0d69ea16f7c4369b3716a049e3e5049e2f16e1"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Load patch
+        run: curl -fsSL https://raw.githubusercontent.com/slohill/TRIBU_GitHub_audio/clean-online-sync-from-4034-20260907/scripts/fix_audio_join_and_caravan_bot_20260909.py -o /tmp/patch.py
+      - name: Apply patch
+        run: python /tmp/patch.py
+      - name: Syntax and guards
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          server=Path('server/server.js').read_text(encoding='utf-8')
+          a=s.index('<script>')+len('<script>'); b=s.rindex('</script>')
+          Path('/tmp/tribu.js').write_text(s[a:b],encoding='utf-8')
+          guards=[
+            'function onlineLegacyCanDriveCaravanBot()',
+            'onlineLegacyCanDriveCaravanBot()){const j=',
+            'serverSeq&&serverSeq<=onlineDirectSfxSeenSeq',
+            'onlineDirectSfxSeenSeq=0',
+            'Les snapshots conservent les événements pour compatibilité/reconnexion',
+            "audioSfxPool(name).forEach(a=>{try{a.load()}catch(e){}})"
+          ]
+          for g in guards: assert g in s,g
+          assert "room.legacySfxSeq=(room.legacySfxSeq||0)+1" in server
+          assert "serverSeq:room.legacySfxSeq" in server
+          assert "a.volume=0;" not in s[s.index('function audioPrimeSfx()'):s.index('function audioPlaySfxLocal')]
+          assert "events.filter(e=>e&&Number(e.seq)>onlineSfxSeenSeq)" not in s
+          assert "if(G.online&&G.online.legacySync&&G.players[chooser].bot&&!onlineLegacyCanExecuteBot())return;" not in s
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          PY
+          node --check /tmp/tribu.js
+          node --check server/server.js
+          git diff --check
+          test "$(git status --short | awk '{print $2}' | tr '\n' ' ')" = "index.html server/server.js "
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html server/server.js
+          git commit -m "Corrige l audio à la connexion et les choix bots de Caravane"
+          git push origin HEAD:main
