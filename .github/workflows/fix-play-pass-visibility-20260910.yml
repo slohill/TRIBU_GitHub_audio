@@ -1,0 +1,75 @@
+name: Fix play pass visibility 20260910
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - '.github/workflows/fix-play-pass-visibility-20260910.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Guard expected main and historical backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "230c28c3559468a5c5a1898e6830155ba6057cbe"
+          git fetch origin backup-before-full-rule-transposition-2026-09-07 clean-online-sync-from-4034-20260907
+          test "$(git rev-parse origin/backup-before-full-rule-transposition-2026-09-07)" = "4034c26c69c575095146d4a51588aa82db8d746a"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Load patch from staging
+        run: git show origin/clean-online-sync-from-4034-20260907:scripts/fix_play_pass_visibility_20260910.py > /tmp/fix.py
+      - name: Apply patch
+        run: python /tmp/fix.py
+      - name: Syntax and functional regression
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('index.html').read_text(encoding='utf-8')
+          scripts='\n'.join(re.findall(r'<script[^>]*>(.*?)</script>',s,re.S))
+          Path('/tmp/app.js').write_text(scripts,encoding='utf-8')
+          assert "if(pb)pb.classList.toggle('hidden',!playing||!!goldReaction);" in s
+          assert "if($('toOracle'))$('toOracle').disabled=!playing;" in s
+          assert "if(agentModalState.kind==='spy')useSpy(agentModalState.agentIndex);" in s
+          assert "else if(agentModalState.kind==='thief')useThief(agentModalState.agentIndex);" in s
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          assert "peaceful.textContent='Naviguer'" in s
+          PY
+          node --check /tmp/app.js
+          node <<'NODE'
+          const fs=require('fs'),vm=require('vm'),assert=require('assert');
+          const s=fs.readFileSync('index.html','utf8');
+          const m=s.match(/function onlineLegacyLockControls\(\)\{[\s\S]*?\n\}/);
+          if(!m)throw new Error('onlineLegacyLockControls introuvable');
+          const mk=()=>({hidden:true,classList:{toggle(_c,v){this.owner.hidden=v},add(){this.owner.hidden=true}},owner:null});
+          const start=mk(),recruit=mk(),play=mk(),oracle=mk();[start,recruit,play,oracle].forEach(x=>x.classList.owner=x);
+          const elems={startTurn:start,recruitBox:recruit,playBox:play,oracleBox:oracle,draw:{},harvest:{},recruit:{},endRecruit:{},resetRecruit:{},toOracle:{},roll:{},map:{style:{}},status:{querySelector:()=>true}};
+          const ctx={G:{online:{legacySync:true,myPlayerIndex:0},active:0,phase:'play',players:[{bot:false}]},paidDrawState:null,goldReaction:null,priorityCardResolutionActive:()=>false,$:(id)=>elems[id]||null};
+          vm.createContext(ctx);vm.runInContext(m[0],ctx);ctx.onlineLegacyLockControls();
+          assert.strictEqual(play.hidden,false,'playBox doit être visible en phase play libre');
+          assert.strictEqual(elems.toOracle.disabled,false,'Passer à Oracle doit être actif en phase play libre');
+          ctx.priorityCardResolutionActive=()=>true;ctx.onlineLegacyLockControls();
+          assert.strictEqual(play.hidden,true,'playBox doit rester masqué pendant une vraie résolution de carte');
+          console.log('Play pass visibility regression OK');
+          NODE
+          git diff --check
+          test "$(git diff --name-only)" = "index.html"
+      - name: Commit production file only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m "Restaure systématiquement Passer à l Oracle"
+          git push origin HEAD:main
