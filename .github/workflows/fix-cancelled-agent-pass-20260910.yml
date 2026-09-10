@@ -1,0 +1,65 @@
+name: Fix cancelled agent pass 20260910
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - '.github/workflows/fix-cancelled-agent-pass-20260910.yml'
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Guard expected main and historical backup
+        run: |
+          test "$(git rev-parse HEAD)" = "0f5b7b3a9b14a82d655e12a5acbc3fe3ce68ff66"
+          git fetch origin backup-before-full-rule-transposition-2026-09-07
+          test "$(git rev-parse origin/backup-before-full-rule-transposition-2026-09-07)" = "4034c26c69c575095146d4a51588aa82db8d746a"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Load patch from staging
+        run: |
+          git show origin/clean-online-sync-from-4034-20260907:scripts/fix_cancelled_agent_pass_20260910.py > /tmp/patch.py
+      - name: Apply patch
+        run: python /tmp/patch.py
+      - name: Syntax and functional regression
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text()
+          assert "if(!force)resumeGameAfterPriorityCard('reprise après fermeture Agent');" in s
+          assert "agentModalState={kind:'assassin'" in s
+          assert "pauseGameForPriorityCard();" in s
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          a=s.index("function closeAgentModal(force=false)")
+          b=s.index("function addAgentChoice", a)
+          block=s[a:b]
+          # Functional invariant: every user close, including Assassin cancel and stale Online modal,
+          # clears the modal then asks the generic priority-resume helper to rerender Play if no card remains.
+          assert "agentModalState=null" in block
+          assert "if(!force)resumeGameAfterPriorityCard" in block
+          assert "if(!force&&caravanState" in block
+          assert "showCaravanChoice();return;" in block
+          PY
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text()
+          js=s.split('<script src="https://tribu-online.onrender.com/socket.io/socket.io.js"></script>')[1]
+          js=js[js.index('<script>')+8:js.rindex('</script>')]
+          Path('/tmp/app.js').write_text(js)
+          PY
+          node --check /tmp/app.js
+          git diff --check
+          test "$(git diff --name-only)" = "index.html"
+      - name: Commit production file only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m "Restaure Passer après annulation d'une carte Agent"
+          git push origin HEAD:main
