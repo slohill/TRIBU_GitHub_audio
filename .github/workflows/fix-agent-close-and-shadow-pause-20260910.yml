@@ -1,0 +1,56 @@
+name: Fix agent close and shadow pause 20260910
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - 'scripts/fix_agent_close_and_shadow_pause_20260910.py'
+      - '.github/workflows/fix-agent-close-and-shadow-pause-20260910.yml'
+  workflow_dispatch:
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Guard expected main and historical backup
+        run: |
+          test "$(git rev-parse HEAD)" = "c7eb244aef1f9d9d7ad53fef7b833f0d63aee246"
+          git fetch origin backup-before-full-rule-transposition-2026-09-07 clean-online-sync-from-4034-20260907
+          test "$(git rev-parse origin/backup-before-full-rule-transposition-2026-09-07)" = "4034c26c69c575095146d4a51588aa82db8d746a"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Load patch from staging
+        run: git show origin/clean-online-sync-from-4034-20260907:scripts/fix_agent_close_and_shadow_pause_20260910.py > /tmp/patch.py
+      - name: Apply patch
+        run: python /tmp/patch.py
+      - name: Syntax and invariants
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          a=s.index('<script>')+len('<script>')
+          b=s.rindex('</script>')
+          Path('/tmp/tribu.js').write_text(s[a:b],encoding='utf-8')
+          assert "function closeAgentModal(force=false){\n force=force===true;" in s
+          assert "if(!force&&['spy','thief'].includes(closedAgentKind))resumeGameAfterPriorityCard('reprise après capacité Agent');" in s
+          assert "if(shadowState&&shadowState.parentBattle){" in s
+          assert "En pause — Section de l’ombre" in s
+          assert "peaceful.textContent='Naviguer'" in s
+          assert "onlineSendMove(null)" in s
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          PY
+          node --check /tmp/tribu.js
+          git diff --check
+          test "$(git diff --name-only)" = "index.html"
+      - name: Commit production file only
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m "Fiabilise la fermeture Agents et pause Section"
+          git push origin HEAD:main
