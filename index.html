@@ -1990,6 +1990,7 @@ function openAgentModal(title,text){
  $('agentOverlay').classList.remove('hidden');
 }
 function closeAgentModal(force=false){
+ force=force===true;
  if(!force&&caravanState&&agentModalState&&agentModalState.kind==='caravan'){
    log('Caravane de commerce : chaque joueur doit choisir une carte avant de continuer.');
    showCaravanChoice();return;
@@ -4937,6 +4938,11 @@ function onlineLegacyResumeBattleView(){
  clearInterval(battleTick);clearTimeout(botReactionTimer);
  if(!battle){onlineLegacyBattleViewSeconds=null;hideBattle();return;}
  showBattle();renderBattle();
+ if(shadowState&&shadowState.parentBattle){
+   onlineLegacyBattleViewSeconds=null;
+   const pt=$('priorityTimer');if(pt)pt.textContent='En pause — Section de l’ombre';
+   return;
+ }
  if(goldReaction&&goldReaction.pausedBattle){
    onlineLegacyBattleViewSeconds=null;
    const pt=$('priorityTimer');if(pt)pt.textContent='En pause — gain d’Or';
