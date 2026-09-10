@@ -1,0 +1,77 @@
+name: Fix council gold pause 20260910
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - '.github/workflows/fix-council-gold-pause-20260910.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Guard expected main and historical backup
+        run: |
+          test "$(git rev-parse HEAD)" = "4b7f8b8f0205c60c3c3365004c5775b17ff65909"
+          test "$(git rev-parse origin/backup-before-full-rule-transposition-2026-09-07)" = "4034c26c69c575095146d4a51588aa82db8d746a"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Load patch from staging
+        run: git show origin/clean-online-sync-from-4034-20260907:scripts/fix_council_gold_pause_20260910.py > /tmp/patch.py
+      - name: Apply patch
+        run: python /tmp/patch.py
+      - name: Syntax and functional regression
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('index.html').read_text(encoding='utf-8')
+          scripts='\n'.join(re.findall(r'<script[^>]*>(.*?)</script>',s,re.S))
+          Path('/tmp/app.js').write_text(scripts,encoding='utf-8')
+          assert "function pauseGoldReactionForCard(){if(!goldReaction)return false;clearGoldReactionTimer();goldReaction.pausedByCard=true;return true}" in s
+          assert "function restoreCouncilChoiceOverlay()" in s
+          assert "restoreCouncilChoiceOverlay();\n   onlineLegacyLockControls();" in s
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          assert "peaceful.textContent='Naviguer'" in s
+          PY
+          node --check /tmp/app.js
+          node <<'NODE'
+          const fs=require('fs'),vm=require('vm'),assert=require('assert');
+          const s=fs.readFileSync('index.html','utf8');
+          const pause=s.match(/function pauseGoldReactionForCard\(\)\{[^\n]+\}/)[0];
+          let ctx={goldReaction:{seconds:4},clears:0,clearGoldReactionTimer(){this.clears++}};
+          vm.createContext(ctx);vm.runInContext(pause,ctx);
+          assert.strictEqual(ctx.pauseGoldReactionForCard(),true);
+          assert.strictEqual(ctx.goldReaction.pausedByCard,true);
+          assert.strictEqual(ctx.goldReaction.seconds,4);
+
+          const restore=s.match(/function restoreCouncilChoiceOverlay\(\)\{[\s\S]*?\n\}/)[0];
+          const overlay={hidden:true,classList:{toggle(_c,v){overlay.hidden=v}}};
+          const title={textContent:''};
+          let choices=0;
+          ctx={choiceState:{kind:'council',player:1,selected:[]},localViewer:()=>1,renderCouncilChoices:()=>{choices++},$:(id)=>id==='choiceOverlay'?overlay:id==='choiceTitle'?title:{}};
+          vm.createContext(ctx);vm.runInContext(restore,ctx);ctx.restoreCouncilChoiceOverlay();
+          assert.strictEqual(overlay.hidden,false);
+          assert.strictEqual(title.textContent,'Conseil de guerre');
+          assert.strictEqual(choices,1);
+          ctx.localViewer=()=>0;ctx.restoreCouncilChoiceOverlay();
+          assert.strictEqual(overlay.hidden,true);
+          console.log('Council gold interruption regression OK');
+          NODE
+          git diff --check
+          test "$(git diff --name-only)" = "index.html"
+      - name: Commit production file only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m "Répare Conseil de guerre pendant un gain d'or"
+          git push origin HEAD:main
