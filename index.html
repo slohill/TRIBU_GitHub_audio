@@ -1755,9 +1755,11 @@ function validateShadowUnits(){
 function shadowTargetLegal(r){
  if(!shadowState||shadowState.stage!=='target'||isSea(r))return false;
  const s=shadowState,c=G.b[r];
- // Une région actuellement en bataille ne peut jamais être ciblée par Section de l'ombre.
- // En revanche, n'importe quel joueur peut lancer sa Section ailleurs pendant la bataille.
- if(s.parentBattle&&s.parentBattle.target===r)return false;
+ // Pendant une bataille, la région attaquée est une cible légale uniquement pour
+ // son défenseur : Section de l'ombre peut alors y amener jusqu'à 6 unités en défense.
+ if(s.parentBattle&&s.parentBattle.target===r){
+   return s.parentBattle.kind==='land'&&s.parentBattle.defender===s.player&&c.owner===s.player;
+ }
  if(c.owner===s.player)return false;
  return true;
 }
@@ -4542,8 +4544,7 @@ function render(){
  if(G.phase==='play'&&buildingMode){
    $('hint').textContent='Placement de '+buildingMode.type+' : cliquez sur une région verte.';
  }else if(G.phase==='play'&&dest&&!isSea(dest)&&!(battle&&battle.kind==='seaChoice')){
-   $('hint').innerHTML='Destination <b>'+dest+'</b> — cliquez sur plusieurs sources jaunes si besoin.';
-   legalSources(dest).forEach(s=>{const d=document.createElement('div');d.className='source';d.innerHTML='<button title="Clic : +1 / maintenir sur la région : tout">'+s+'</button><button>−</button><span>'+(picks[s]||0)+'/'+movableCount(s)+'</span><button>+</button><button>Tout</button>';const bs=d.querySelectorAll('button');bs[0].onclick=()=>adjust(s,1);bs[1].onclick=()=>adjust(s,-1);bs[2].onclick=()=>adjust(s,1);bs[3].onclick=()=>pickAllFromSource(s);src.appendChild(d)})
+   $('hint').innerHTML='Destination <b>'+dest+'</b> — sélectionnez vos unités directement sur la map.';
  }else if(G.phase==='play'&&dest&&isSea(dest)){
    $('hint').textContent=battle&&battle.kind==='seaChoice'
      ? 'Choisissez : Naviguer ou attaquer un joueur.'
