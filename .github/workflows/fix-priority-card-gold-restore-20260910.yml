@@ -1,0 +1,82 @@
+name: Fix priority card gold restore 20260910
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - '.github/workflows/fix-priority-card-gold-restore-20260910.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Guard expected main and historical backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "6b4f1b021009f6a67a742326bba6fbd00295c342"
+          git fetch origin backup-before-full-rule-transposition-2026-09-07 clean-online-sync-from-4034-20260907
+          test "$(git rev-parse origin/backup-before-full-rule-transposition-2026-09-07)" = "4034c26c69c575095146d4a51588aa82db8d746a"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Load patch from staging
+        run: git show origin/clean-online-sync-from-4034-20260907:scripts/fix_priority_card_gold_restore_20260910.py > /tmp/fix.py
+      - name: Apply patch
+        run: python /tmp/fix.py
+      - name: Syntax and functional regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('index.html').read_text(encoding='utf-8')
+          scripts='\n'.join(re.findall(r'<script[^>]*>(.*?)</script>',s,re.S))
+          Path('/tmp/app.js').write_text(scripts,encoding='utf-8')
+          for fn in ['startCaravan','startEgnobombe','startAssassin']:
+              block=s[s.index('function '+fn):s.index('\n}',s.index('function '+fn))+2]
+              assert 'if(goldReaction)pauseGoldReactionForCard();' in block, fn
+          assert 'function restorePriorityCardOverlays()' in s
+          assert "agentModalState&&agentModalState.kind==='assassin'&&agentModalState.actor===me" in s
+          assert "divinationState&&divinationState.actor===me&&divinationState.stage!=='resolvingOracle'" in s
+          assert 'restoreCouncilChoiceOverlay();\n   restorePriorityCardOverlays();\n   onlineLegacyLockControls();' in s
+          assert "if(caravanState)showCaravanChoice();" in s
+          assert 'if(egnoState)renderEgnobombeBanner()' in s
+          assert 'if(shadowState)renderShadowBanner()' in s
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          assert "peaceful.textContent='Naviguer'" in s
+          PY
+          node --check /tmp/app.js
+          node <<'NODE'
+          const fs=require('fs'),assert=require('assert');
+          const s=fs.readFileSync('index.html','utf8');
+          // Structural regression: all five requested card flows now have either state-driven
+          // rerender restoration (Caravan/Egnobombe/Section) or explicit modal restoration
+          // (Divination/Assassin), and direct starters pause an active gold timer.
+          ['startCaravan','startEgnobombe','startAssassin'].forEach(fn=>{
+            const start=s.indexOf('function '+fn);const end=s.indexOf('\n}',start)+2;
+            assert(s.slice(start,end).includes('if(goldReaction)pauseGoldReactionForCard();'));
+          });
+          assert(s.includes('if(caravanState)showCaravanChoice();'));
+          assert(s.includes('if(egnoState)renderEgnobombeBanner()'));
+          assert(s.includes('if(shadowState)renderShadowBanner()'));
+          assert(s.includes('function restorePriorityCardOverlays()'));
+          console.log('Priority card gold/restore regression OK');
+          NODE
+          git diff --check
+          test "$(git diff --name-only)" = "index.html"
+      - name: Commit production file only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m "Fiabilise les cartes prioritaires pendant les chronos"
+          git push origin HEAD:main
