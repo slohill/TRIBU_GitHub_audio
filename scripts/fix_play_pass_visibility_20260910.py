@@ -36,14 +36,25 @@ new="""function onlineLegacyLockControls(){
 """
 if old not in s: raise SystemExit('onlineLegacyLockControls block not found')
 s=s.replace(old,new,1)
-old2="""   restoreCouncilChoiceOverlay();
-   restorePriorityCardOverlays();
-   onlineLegacyLockControls();
+old2=""" if(agentModalState&&agentModalState.kind==='assassin'&&agentModalState.actor===me){
+   openAgentModal('Assassin','Choisissez l’Agent adverse à assassiner.');
+   const box=$('agentChoices');box.innerHTML='';
+   assassinTargets(me).forEach(t=>{const b=document.createElement('button');b.textContent=p(t.owner).name+' — '+t.name;b.onclick=()=>resolveAssassin(t);box.appendChild(b)});
+ }
+}
 """
-new2="""   restoreCouncilChoiceOverlay();
-   restorePriorityCardOverlays();
-   onlineLegacyLockControls();
+new2=""" if(agentModalState&&agentModalState.kind==='assassin'&&agentModalState.actor===me){
+   openAgentModal('Assassin','Choisissez l’Agent adverse à assassiner.');
+   const box=$('agentChoices');box.innerHTML='';
+   assassinTargets(me).forEach(t=>{const b=document.createElement('button');b.textContent=p(t.owner).name+' — '+t.name;b.onclick=()=>resolveAssassin(t);box.appendChild(b)});
+ }
+ const agentOverlay=$('agentOverlay');
+ if(agentModalState&&agentModalState.actor===me&&agentOverlay&&agentOverlay.classList.contains('hidden')){
+   if(agentModalState.kind==='spy')useSpy(agentModalState.agentIndex);
+   else if(agentModalState.kind==='thief')useThief(agentModalState.agentIndex);
+ }
+}
 """
-if old2 not in s: raise SystemExit('render wrapper anchor not found')
-# no semantic change here: anchor verifies expected current wrapper
+if old2 not in s: raise SystemExit('restorePriorityCardOverlays tail not found')
+s=s.replace(old2,new2,1)
 p.write_text(s,encoding='utf-8')
