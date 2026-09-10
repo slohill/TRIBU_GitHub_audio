@@ -695,7 +695,7 @@ const MAP_HEAT_SRC='assets/images/maps/map_canicule.png';
 
 const FACTION_DICE={"Griffes-Blanches":["assets/images/dice/griffes_blanches_1.png","assets/images/dice/griffes_blanches_2.png","assets/images/dice/griffes_blanches_3.png","assets/images/dice/griffes_blanches_4.png","assets/images/dice/griffes_blanches_5.png"],"Reptones":["assets/images/dice/reptones_1.png","assets/images/dice/reptones_2.png","assets/images/dice/reptones_3.png","assets/images/dice/reptones_4.png","assets/images/dice/reptones_5.png"],"Yonka\u00efs":["assets/images/dice/yonkais_1.png","assets/images/dice/yonkais_2.png","assets/images/dice/yonkais_3.png","assets/images/dice/yonkais_4.png","assets/images/dice/yonkais_5.png"]};
 
-let G=null,dest=null,picks={},movable={},usedDest=new Set(),destinationUseCount={},attacked=new Set(),cycle=1,battle=null,battleTick=null,botTimer=null,botToken=0,botReactionTimer=null,buildingMode=null,portalMode=null,choiceState=null,paidDrawState=null,paidDrawTick=null,goldReaction=null,goldReactionTick=null,shadowState=null,shadowTick=null,battleStack=[],egnoState=null,returnState=null,dragonRichState=null,dragonCurseState=null,dragonPublicState=null,dragonSixState=null,dragonSixTick=null,agentModalState=null,assassinMessageTick=null,caravanState=null,oraclePassArmed=false,oracleState=null,seaStormState=null,oracleNoticeState=null,oracleNoticeTick=null,oracleClimateVisual=null,oraclePendingNormalMap=false,oracleResolutionAfter=null,oracleResolutionTurnEpoch=null,turnEpoch=0,divinationState=null,recruitSnapshot=null,gameOverState=null,botActionsThisTurn=0,setupState=null,hotseatReaction=null,hotseatViewerOverride=null,hotseatHoldTimer=null,hotseatHoldTriggered=false;
+let G=null,dest=null,picks={},movable={},usedDest=new Set(),destinationUseCount={},attacked=new Set(),cycle=1,battle=null,battleTick=null,botTimer=null,botToken=0,botReactionTimer=null,buildingMode=null,portalMode=null,choiceState=null,paidDrawState=null,paidDrawTick=null,goldReaction=null,goldReactionTick=null,goldReactionStack=[],shadowState=null,shadowTick=null,battleStack=[],egnoState=null,returnState=null,dragonRichState=null,dragonCurseState=null,dragonPublicState=null,dragonSixState=null,dragonSixTick=null,agentModalState=null,assassinMessageTick=null,caravanState=null,oraclePassArmed=false,oracleState=null,seaStormState=null,oracleNoticeState=null,oracleNoticeTick=null,oracleClimateVisual=null,oraclePendingNormalMap=false,oracleResolutionAfter=null,oracleResolutionTurnEpoch=null,turnEpoch=0,divinationState=null,recruitSnapshot=null,gameOverState=null,botActionsThisTurn=0,setupState=null,hotseatReaction=null,hotseatViewerOverride=null,hotseatHoldTimer=null,hotseatHoldTriggered=false;
 const $=id=>document.getElementById(id),map=$('map'),isSea=id=>!!SEA[id];
 
 // Tablette/mobile : empêcher la sélection native du navigateur sur la carte.
@@ -1053,7 +1053,7 @@ function init(){audioEnterGame();commerceDeals=[];commerceSeq=1;commerceDraft=nu
  clearInterval(oracleNoticeTick);clearInterval(dragonSixTick);
  paidDrawState=null;caravanState=null;gameOverState=null;divinationState=null;recruitSnapshot=null;oracleResolutionAfter=null;oraclePassArmed=false;oracleState=null;seaStormState=null;oracleNoticeState=null;oracleClimateVisual=null;oraclePendingNormalMap=false;
  dragonSixState=null;dragonPublicState=null;dragonCurseState=null;dragonRichState=null;returnState=null;portalMode=null;
- clearGoldReactionTimer();goldReaction=null;botToken++;
+ clearGoldReactionTimer();goldReaction=null;goldReactionStack=[];botToken++;
  ['hotseatOverlay','setupPanel','victoryOverlay','divinationPanel','oracleNoticeOverlay','dragonSixOverlay','dragonPublicOverlay','dragonCurseOverlay','agentOverlay','choiceOverlay','discardOverlay'].forEach(id=>{const el=$(id);if(el)el.classList.add('hidden')});
  applyOracleMapVisual();
  $('battlePanel').classList.add('hidden');
@@ -1096,7 +1096,19 @@ function clearGoldReactionTimer(){
  if(goldReactionTick){clearInterval(goldReactionTick);goldReactionTick=null}
 }
 function pauseGoldReactionForCard(){if(!goldReaction)return false;clearGoldReactionTimer();goldReaction.pausedByCard=true;render();return true}
-function resumeGoldReactionAfterCard(){if(!goldReaction||!goldReaction.pausedByCard)return;delete goldReaction.pausedByCard;startGoldReactionTimer();render();if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow()}
+function resumeGoldReactionAfterCard(){if(!goldReaction||!goldReaction.pausedByCard)return;goldReaction.seconds=10;delete goldReaction.pausedByCard;startGoldReactionTimer();render();if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow()}
+function resumeGoldReactionStack(){
+ if(!goldReactionStack.length)return false;
+ goldReaction=goldReactionStack.pop();goldReaction.seconds=10;delete goldReaction.pausedByCard;
+ startGoldReactionTimer();render();maybeBotAmbush();
+ if(G&&G.online&&G.online.legacySync)onlineLegacyPushGoldReactionNow();
+ return true;
+}
+function continueAfterGold(after){
+ if(after==='resumeGoldStack'&&resumeGoldReactionStack())return;
+ if(after==='beginPlay')beginPlay();else render();
+}
+
 function startGoldReactionTimer(){
  clearGoldReactionTimer();
  if(!goldReaction)return;
@@ -1149,7 +1161,7 @@ function destroyRichDragonTarget(r){
  log('🐉 Le Dragon ravage '+r+' : toutes les unités et le bâtiment éventuel sont détruits.');
  dragonRichState=null;clearTopBanner();checkDecimations();
  if(s.pausedBattle&&battle){battle.seconds=s.pausedBattleSeconds||15;resumeBattleTimer()}
- if(s.after==='beginPlay')beginPlay();else render();
+ continueAfterGold(s.after);
  queueBot('après Dragon 40 Or');
 }
 function showDragonCurse(i,after){
@@ -1210,7 +1222,7 @@ function continueDragonCurse(){
  if(!s.targets.length){
    log('Aucune région terrestre avec unités : le Dragon ne trouve aucune région à ravager.');
    if(s.pausedBattle&&battle){battle.seconds=s.pausedBattleSeconds||15;resumeBattleTimer()}
-   if(s.after==='beginPlay')beginPlay();else render();
+   continueAfterGold(s.after);
    return;
  }
  dragonRichState={
@@ -1268,7 +1280,7 @@ function resolveGoldGain(){
    resumeBattleTimer();
    log('Gain d’Or résolu : la bataille reprend avec 15 secondes.');
  }
- if(r.after==='beginPlay')beginPlay();else render();
+ continueAfterGold(r.after);
  queueBot('après gain or');
 }
 function playAmbush(playerIndex){
@@ -1306,10 +1318,10 @@ function maybeBotAmbush(){
  return false;
 }
 function offerGoldGain(receiver,amount,source,after){
- if(amount<=0){if(after==='beginPlay')beginPlay();else render();return}
+ if(amount<=0){continueAfterGold(after);return}
  if(G.players[receiver].bot&&source==='Taxe'&&G.players[receiver].gold+amount>=40){
    log(p(receiver).name+' (bot) renonce à Taxe pour ne pas déclencher la Malédiction du Dragon.');
-   if(after==='beginPlay')beginPlay();else render();
+   continueAfterGold(after);
    return;
  }
  const pausedBattle=!!battle;
@@ -1562,10 +1574,11 @@ function divinationChooseNew(){
  }
  $('divinationText').textContent='Divination en résolution — choisissez l’Oracle qui deviendra visible au-dessus de la pile.';
  const box=$('divinationChoices');box.innerHTML='';
- const names=[...new Set(ORACLES.map(o=>o.name))];
- names.forEach(name=>{
+ const choices=[];const seenOracleNames=new Set();
+ ORACLES.forEach((o,id)=>{if(!seenOracleNames.has(o.name)){seenOracleNames.add(o.name);choices.push({id,name:o.name})}});
+ choices.forEach(({id,name})=>{
    const b=document.createElement('button');b.className='oraclePick';b.textContent=name;
-   b.onclick=()=>divinationSetVisible(name);box.appendChild(b);
+   b.onclick=()=>divinationSetVisible(id);box.appendChild(b);
  });
 }
 function openDivinationChoiceMenu(){
@@ -1576,7 +1589,7 @@ function openDivinationChoiceMenu(){
  const b=document.createElement('button');b.textContent='Choisir nouvel Oracle';b.onclick=divinationChooseNew;box.appendChild(b);
  const c=document.createElement('button');c.textContent='Annuler';c.onclick=cancelDivination;box.appendChild(c);
 }
-function divinationSetVisible(name){
+function divinationSetVisible(oracleId){
  if(!divinationState)return;
  const s=divinationState;
  // Filet de sécurité : toute mutation de l'Oracle arrive seulement après paiement de la carte
@@ -1595,9 +1608,10 @@ function divinationSetVisible(name){
  oracleClimateVisual=null;oraclePendingNormalMap=false;oracleResolutionAfter=null;
  applyOracleMapVisual();
 
- const pos=pool.findIndex(id=>ORACLES[id].name===name);
- if(pos<0){$('divinationText').textContent='Oracle introuvable.';return}
- const chosen=pool.splice(pos,1)[0];
+ const chosenId=Number(oracleId);
+ const pos=pool.indexOf(chosenId);
+ if(pos<0||!ORACLES[chosenId]){$('divinationText').textContent='Oracle introuvable.';return}
+ const chosen=pool.splice(pos,1)[0],name=ORACLES[chosen].name;
  shuffleArray(pool);
  G.oracleDeck=pool;
  G.oracleDeck.push(chosen);
@@ -1630,15 +1644,17 @@ function startEgnobombe(handIndex){
  if(G&&G.online&&G.online.legacySync)onlineLegacyPushPriorityCardNow();
 }
 function cancelEgnobombe(){
- if(!egnoState)return;
+ if(!egnoState||localViewer()!==egnoState.player)return;
  const s=egnoState;egnoState=null;
  clearTopBanner();
  log('Egnobombe annulée : la carte reste en main.');
- if(s.parentBattle){battle=s.parentBattle;battle.seconds=s.parentSeconds||15;resumeBattleTimer()}
+ if(s.parentBattle){battle=s.parentBattle;battle.seconds=15;resumeBattleTimer()}
  render();
+ resumeGameAfterPriorityCard('reprise après annulation Egnobombe');
+ if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();
 }
 function egnoTargetLegal(r){
- return !!egnoState&&units(r,egnoState.player)>=5;
+ return !!egnoState&&localViewer()===egnoState.player&&units(r,egnoState.player)>=5;
 }
 function resolveEgnobombe(r){
  if(!egnoTargetLegal(r))return;
@@ -1688,15 +1704,19 @@ function resolveEgnobombe(r){
    parent.defenseBase=(c.hostile?5:(def===null?0:c.units*FACTIONS[p(def).faction].def))+buildingDefense(parent.target);
  }
  if(parent){
-   battle=parent;battle.seconds=s.parentSeconds||15;resumeBattleTimer();
-   render();return;
+   battle=parent;battle.seconds=15;resumeBattleTimer();
+   render();
+   if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();
+   return;
  }
  if(isDecimated(G.active)){
    log(p().name+' est décimé : son tour se termine immédiatement, sans Oracle.');
    advanceTurn('joueur décimé après Egnobombe');
    return;
  }
- render();queueBot('reprise après Egnobombe');
+ render();
+ resumeGameAfterPriorityCard('reprise après Egnobombe');
+ if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();
 }
 function renderEgnobombeBanner(){
  if(!egnoState)return false;
@@ -1897,12 +1917,17 @@ function spendDraw(){
 }
 
 function playTax(handIndex){
- if(choiceState||goldReaction)return;
+ if(choiceState)return;
  const found=cardFromViewerHand(handIndex,'Taxe');if(!found)return;
+ const nestedGold=!!goldReaction;
+ if(nestedGold){
+   clearGoldReactionTimer();goldReaction.seconds=10;goldReaction.pausedByCard=true;
+   goldReactionStack.push(goldReaction);goldReaction=null;
+ }
  const receiver=found.viewer,gain=occupiedCaseCount(receiver);
  G.players[receiver].hand.splice(handIndex,1);G.discard.push(found.id);
  log(p(receiver).name+' joue Taxe : '+gain+' Or sont sur le point d’être gagnés.');
- offerGoldGain(receiver,gain,'Taxe','render');
+ offerGoldGain(receiver,gain,'Taxe',nestedGold?'resumeGoldStack':'render');
  if(G&&G.online&&G.online.legacySync)onlineLegacyPushGoldReactionNow();
 }
 function closeChoice(){choiceState=null;$('choiceOverlay').classList.add('hidden');$('choiceCards').innerHTML=''}
@@ -2328,6 +2353,7 @@ function pauseGameForPriorityCard(){
 }
 function resumeGameAfterPriorityCard(reason='reprise après carte prioritaire'){
  if(priorityCardResolutionActive())return;
+ if(battle&&!goldReaction){battle.seconds=15;resumeBattleTimer()}
  if(G&&G.phase==='play')render();
  if(G&&G.players&&G.players[G.active]&&G.players[G.active].bot)queueBot(reason);
 }
@@ -3812,7 +3838,7 @@ function clickSpot(id){
  if(G&&G.online&&onlineGameState&&!(G.online&&G.online.legacySync)){if(onlineGameState.status==='setup')onlineSetupRegionClick(id);else if(onlineGameState.status==='playing'&&onlineGameState.phase==='recruit'&&onlineGameState.active===onlineGameState.youIndex)recruitAt(id);else if(onlineGameState.status==='playing'&&onlineGameState.phase==='play'&&onlineGameState.active===onlineGameState.youIndex)onlineMoveClick(id);else if(onlineGameState.status==='playing'&&onlineGameState.phase==='oracleMove'&&onlineGameState.active===onlineGameState.youIndex)onlineDragonClick(id);return}
  if(G&&G.online&&G.online.legacySync){
    const me=G.online.myPlayerIndex;
-   const reactionMap=(oracleState&&oracleState.kind==='sacrifice'&&oracleState.queues&&oracleState.queues[oracleState.index]&&oracleState.queues[oracleState.index].player===me)||(oracleState&&oracleState.kind==='dragon5'&&oracleState.player===me)||(dragonRichState&&dragonRichState.player===me);
+   const reactionMap=(oracleState&&oracleState.kind==='sacrifice'&&oracleState.queues&&oracleState.queues[oracleState.index]&&oracleState.queues[oracleState.index].player===me)||(oracleState&&oracleState.kind==='dragon5'&&oracleState.player===me)||(dragonRichState&&dragonRichState.player===me)||(egnoState&&egnoState.player===me)||(shadowState&&shadowState.player===me);
    if(me!==G.active&&!reactionMap)return;
  }
  if(setupState){if(setupState.stage==='regions')setupRegionClick(id);return}
@@ -4832,7 +4858,7 @@ function onlineLegacyDecode(value){
 function onlineLegacyRuleState(){
  return {
    movable,usedDest,destinationUseCount,attacked,cycle,battle,buildingMode,portalMode,choiceState,
-   paidDrawState,goldReaction,shadowState,battleStack,egnoState,returnState,dragonRichState,dragonCurseState,
+   paidDrawState,goldReaction,goldReactionStack,shadowState,battleStack,egnoState,returnState,dragonRichState,dragonCurseState,
    dragonPublicState,agentModalState,caravanState,oraclePassArmed,oracleState,seaStormState,oracleClimateVisual,
    oraclePendingNormalMap,turnEpoch,divinationState,recruitSnapshot,gameOverState,commerceDeals,commerceSeq,
    onlineSfxSeq,onlineSfxEvents,
@@ -4864,7 +4890,7 @@ function onlineLegacyBootstrap(full,state){
    online:{code:full.code||state.code,seed:full.seed||state.seed,mySocketId:onlineSocket&&onlineSocket.id,myPlayerIndex:full.youIndex,hostId:onlineRoom&&onlineRoom.hostId,legacySync:true,revision:full.legacyRevision||0}};
  G.players.forEach((_,i)=>agentDefaults(i));
  movable={};usedDest=new Set();destinationUseCount={};attacked=new Set();cycle=1;dest=null;picks={};battle=null;buildingMode=null;portalMode=null;choiceState=null;
- paidDrawState=null;goldReaction=null;shadowState=null;battleStack=[];egnoState=null;returnState=null;dragonRichState=null;dragonCurseState=null;dragonPublicState=null;
+ paidDrawState=null;goldReaction=null;goldReactionStack=[];shadowState=null;battleStack=[];egnoState=null;returnState=null;dragonRichState=null;dragonCurseState=null;dragonPublicState=null;
  agentModalState=null;caravanState=null;oraclePassArmed=false;oracleState=null;seaStormState=null;oracleClimateVisual=null;oraclePendingNormalMap=false;turnEpoch=0;
  divinationState=null;recruitSnapshot=null;gameOverState=null;commerceDeals=[];commerceSeq=1;onlineLegacyBotDriverIndex=null;
  onlineSfxSeq=0;onlineSfxEvents=[];onlineSfxSeenSeq=0;onlineDirectSfxSeenSeq=0;onlineOraclePresentationSeenSeq=Number(G.oraclePresentation&&G.oraclePresentation.seq||0);onlineAssassinNoticeSeenSeq=Number(G.assassinNotice&&G.assassinNotice.seq||0);onlineDragonSixPresentationSeenSeq=Number(G.dragonSixPresentation&&G.dragonSixPresentation.seq||0);
@@ -4915,7 +4941,7 @@ function onlineLegacyApply(packet){
  const decoded=onlineLegacyDecode(packet.snapshot),next=decoded.g||{};next.online=localOnline;G=next;
  const r=decoded.rule||{};
  movable=r.movable||{};usedDest=r.usedDest instanceof Set?r.usedDest:new Set(r.usedDest||[]);destinationUseCount=r.destinationUseCount||{};attacked=r.attacked instanceof Set?r.attacked:new Set(r.attacked||[]);cycle=r.cycle||1;
- battle=r.battle||null;buildingMode=r.buildingMode||null;portalMode=r.portalMode||null;choiceState=r.choiceState||null;paidDrawState=r.paidDrawState||null;goldReaction=r.goldReaction||null;
+ battle=r.battle||null;buildingMode=r.buildingMode||null;portalMode=r.portalMode||null;choiceState=r.choiceState||null;paidDrawState=r.paidDrawState||null;goldReaction=r.goldReaction||null;goldReactionStack=Array.isArray(r.goldReactionStack)?r.goldReactionStack:[];
  shadowState=r.shadowState||null;battleStack=r.battleStack||[];egnoState=r.egnoState||null;returnState=r.returnState||null;dragonRichState=r.dragonRichState||null;dragonCurseState=r.dragonCurseState||null;
  dragonPublicState=r.dragonPublicState||null;agentModalState=r.agentModalState||null;caravanState=r.caravanState||null;oraclePassArmed=!!r.oraclePassArmed;oracleState=r.oracleState||null;
  seaStormState=r.seaStormState||null;oracleClimateVisual=r.oracleClimateVisual||null;oraclePendingNormalMap=!!r.oraclePendingNormalMap;turnEpoch=r.turnEpoch||0;divinationState=r.divinationState||null;
@@ -4934,6 +4960,7 @@ function onlineLegacyApply(packet){
  onlineLegacyApplying=true;onlinePlaySyncedSfx(incomingSfx,incomingSfxSeq);onlineLegacyApplying=false;
  onlineLegacyResumeBattleView();
  onlineLegacyResumeGoldView();
+ onlineLegacyEnsureBotProgress();
 }
 function onlineLegacyResumeBattleView(){
  clearInterval(battleTick);clearTimeout(botReactionTimer);
@@ -5141,7 +5168,7 @@ const onlineLegacyBaseRender=render;
 render=function(){
  onlineLegacyBaseRender();
  wireOracleCardPreviews();
- if(goldReaction&&goldReaction.pausedByCard&&!choiceState&&!divinationState&&!caravanState&&!egnoState&&!shadowState&&!agentModalState&&!portalMode&&!buildingMode&&!battle)resumeGoldReactionAfterCard();
+ if(goldReaction&&goldReaction.pausedByCard&&!choiceState&&!divinationState&&!caravanState&&!egnoState&&!shadowState&&!agentModalState&&!portalMode&&!buildingMode)resumeGoldReactionAfterCard();
  if(G&&G.online&&G.online.legacySync){
    onlineLegacyLockControls();
    if(G.players&&G.players[G.active]&&!G.players[G.active].bot)onlineLegacyBotDriverIndex=null;
