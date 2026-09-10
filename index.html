@@ -1372,6 +1372,7 @@ function startAssassin(handIndex){
  if(id===undefined||CARDS[id].name!=='Assassin'||isDecimated(actor))return;
  const targets=assassinTargets(actor);
  if(!targets.length){log('Assassin : aucun Agent adverse à cibler.');render();return}
+ if(goldReaction)pauseGoldReactionForCard();
  agentModalState={kind:'assassin',actor,handIndex,cardId:id};
  pauseGameForPriorityCard();
  openAgentModal('Assassin','Choisissez l’Agent adverse à assassiner.');
@@ -1414,6 +1415,7 @@ function drawOneToPool(){
 function startCaravan(handIndex){
  const actor=localViewer(),id=G.players[actor].hand[handIndex];
  if(id===undefined||CARDS[id].name!=='Caravane de commerce'||isDecimated(actor)||caravanState)return;
+ if(goldReaction)pauseGoldReactionForCard();
  pauseGameForPriorityCard();
  const pausedBattle=!!battle;
  if(pausedBattle){clearInterval(battleTick);clearTimeout(botReactionTimer)}
@@ -1637,6 +1639,7 @@ function canPlayEgnobombe(i=localViewer()){
 function startEgnobombe(handIndex){
  const actor=localViewer(),id=G.players[actor].hand[handIndex];
  if(id===undefined||CARDS[id].name!=='Egnobombe'||!canPlayEgnobombe(actor))return;
+ if(goldReaction)pauseGoldReactionForCard();
  egnoState={player:actor,cardId:id,parentBattle:battle||null,parentSeconds:battle?battle.seconds:null};
  pauseGameForPriorityCard();
  log(p(actor).name+' prépare Egnobombe : choisissez une case où vous avez au moins 5 unités, région ou aire maritime.');
@@ -1956,6 +1959,32 @@ function restoreCouncilChoiceOverlay(){
  if(!mine)return;
  $('choiceTitle').textContent='Conseil de guerre';
  renderCouncilChoices();
+}
+function restorePriorityCardOverlays(){
+ const me=localViewer();
+ const div=$('divinationPanel');
+ if(div){
+   const mine=!!(divinationState&&divinationState.actor===me&&divinationState.stage!=='resolvingOracle');
+   div.classList.toggle('hidden',!mine);
+   if(mine){
+     if(divinationState.committed){
+       $('divinationText').textContent='Divination en résolution — choisissez l’Oracle qui deviendra visible au-dessus de la pile.';
+       const box=$('divinationChoices');box.innerHTML='';
+       const seen=new Set();ORACLES.forEach((o,id)=>{if(seen.has(o.name))return;seen.add(o.name);const b=document.createElement('button');b.className='oraclePick';b.textContent=o.name;b.onclick=()=>divinationSetVisible(id);box.appendChild(b)});
+     }else{
+       $('divinationText').textContent='Choisissez : activer l’Oracle visible ou choisir un nouvel Oracle.';
+       const box=$('divinationChoices');box.innerHTML='';
+       const a=document.createElement('button');a.textContent='Activer l’Oracle';a.onclick=divinationActivateVisible;box.appendChild(a);
+       const b=document.createElement('button');b.textContent='Choisir nouvel Oracle';b.onclick=divinationChooseNew;box.appendChild(b);
+       const c=document.createElement('button');c.textContent='Annuler';c.onclick=cancelDivination;box.appendChild(c);
+     }
+   }
+ }
+ if(agentModalState&&agentModalState.kind==='assassin'&&agentModalState.actor===me){
+   openAgentModal('Assassin','Choisissez l’Agent adverse à assassiner.');
+   const box=$('agentChoices');box.innerHTML='';
+   assassinTargets(me).forEach(t=>{const b=document.createElement('button');b.textContent=p(t.owner).name+' — '+t.name;b.onclick=()=>resolveAssassin(t);box.appendChild(b)});
+ }
 }
 function renderCouncilChoices(){
  const actor=choiceState.player,box=$('choiceCards');box.innerHTML='';
@@ -5179,6 +5208,7 @@ render=function(){
  if(goldReaction&&goldReaction.pausedByCard&&!choiceState&&!divinationState&&!caravanState&&!egnoState&&!shadowState&&!agentModalState&&!portalMode&&!buildingMode)resumeGoldReactionAfterCard();
  if(G&&G.online&&G.online.legacySync){
    restoreCouncilChoiceOverlay();
+   restorePriorityCardOverlays();
    onlineLegacyLockControls();
    if(G.players&&G.players[G.active]&&!G.players[G.active].bot)onlineLegacyBotDriverIndex=null;
    if(!onlineLegacyGoldTickRender)onlineLegacyMaybePush();
