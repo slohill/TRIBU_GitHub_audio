@@ -1992,7 +1992,9 @@ function closeAgentModal(force=false){
    log('Caravane de commerce : chaque joueur doit choisir une carte avant de continuer.');
    showCaravanChoice();return;
  }
+ const closedAgentKind=agentModalState&&agentModalState.kind;
  agentModalState=null;$('agentOverlay').classList.add('hidden');$('agentChoices').innerHTML='';
+ if(!force&&['spy','thief'].includes(closedAgentKind))resumeGameAfterPriorityCard('reprise après capacité Agent');
 }
 function addAgentChoice(label,fn,disabled=false){
  const b=document.createElement('button');b.textContent=label;b.disabled=disabled;b.onclick=fn;$('agentChoices').appendChild(b);
