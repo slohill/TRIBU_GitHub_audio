@@ -1,0 +1,68 @@
+name: Fix divination missing oracles 20260910
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - '.github/workflows/fix-divination-missing-oracles-20260910.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Guard expected main and historical backup
+        run: |
+          test "$(git rev-parse HEAD)" = "7a858bce7da2e99163b8bdc40e77b3ae7c3a7234"
+          test "$(git ls-remote origin refs/heads/backup-before-full-rule-transposition-2026-09-07 | cut -f1)" = "4034c26c69c575095146d4a51588aa82db8d746a"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Load patch from staging
+        run: git show origin/clean-online-sync-from-4034-20260907:scripts/fix_divination_missing_oracles_20260910.py > /tmp/patch.py
+      - name: Apply patch
+        run: python /tmp/patch.py
+      - name: Syntax and functional regression
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          assert "let pool=ORACLES.map((_,i)=>i);" in s
+          assert "const names=[...new Set(ORACLES.map(o=>o.name))];" in s
+          for name in ['Canicule','En quête de destruction','Givre mortel','Tempête de sable','Tempête en mer','Vague de froid']:
+              assert name in s
+          # Reproduit la sélection Divination sur le multiensemble canonique de 8 cartes.
+          names=['Canicule','En quête de destruction','Givre mortel','Givre mortel','Tempête de sable','Tempête de sable','Tempête en mer','Vague de froid']
+          for wanted in sorted(set(names)):
+              pool=list(range(len(names)))
+              pos=next((i for i,oid in enumerate(pool) if names[oid]==wanted),-1)
+              assert pos>=0, wanted
+          assert len(names)==8
+          assert names.count('Givre mortel')==2
+          assert names.count('Tempête de sable')==2
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          assert "peaceful.textContent='Naviguer'" in s
+          PY
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          start=s.index('<script src="https://tribu-online.onrender.com/socket.io/socket.io.js"></script>')
+          start=s.index('<script>',start)+len('<script>')
+          end=s.rindex('</script>')
+          Path('/tmp/tribu.js').write_text(s[start:end],encoding='utf-8')
+          PY
+          node --check /tmp/tribu.js
+          git diff --check
+          test "$(git diff --name-only)" = "index.html"
+      - name: Commit production file only
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m "Répare le choix des six Oracles par Divination"
+          git push origin HEAD:main
