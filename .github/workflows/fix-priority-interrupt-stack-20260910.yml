@@ -1,0 +1,156 @@
+name: Fix priority interrupt stack 20260910
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - '.github/workflows/fix-priority-interrupt-stack-20260910.yml'
+      - 'scripts/fix_priority_interrupt_stack_20260910.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Guard expected main and historical backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "3d47f5be2be96dcc61772cfc1bb671f63c8ff30c"
+          git fetch origin backup-before-full-rule-transposition-2026-09-07 clean-online-sync-from-4034-20260907
+          test "$(git rev-parse origin/backup-before-full-rule-transposition-2026-09-07)" = "4034c26c69c575095146d4a51588aa82db8d746a"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Load patch from staging
+        run: git show origin/clean-online-sync-from-4034-20260907:scripts/fix_priority_interrupt_stack_20260910.py > /tmp/fix.py
+      - name: Apply patch
+        run: python /tmp/fix.py
+      - name: Syntax and functional regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          start=s.index('<script src="https://tribu-online.onrender.com/socket.io/socket.io.js"></script>')
+          js=s[s.index('<script>',start)+8:s.rindex('</script>')]
+          Path('/tmp/tribu-inline.js').write_text(js,encoding='utf-8')
+
+          def func(name):
+              marker='function '+name+'('
+              a=s.index(marker)
+              b=s.index('{',a)
+              depth=0
+              quote=None
+              esc=False
+              i=b
+              while i<len(s):
+                  c=s[i]
+                  if quote:
+                      if esc: esc=False
+                      elif c=='\\': esc=True
+                      elif c==quote: quote=None
+                  else:
+                      if c in "'\"`": quote=c
+                      elif c=='{': depth+=1
+                      elif c=='}':
+                          depth-=1
+                          if depth==0:return s[a:i+1]
+                  i+=1
+              raise RuntimeError(name)
+
+          parts=[func('divinationSetVisible'),func('cancelEgnobombe'),func('egnoTargetLegal'),func('playTax'),func('resumeGoldReactionStack'),func('continueAfterGold')]
+          Path('/tmp/regression-functions.js').write_text('\n'.join(parts),encoding='utf-8')
+
+          required=[
+            "b.onclick=()=>divinationSetVisible(id)",
+            "const pos=pool.indexOf(chosenId)",
+            "localViewer()===egnoState.player",
+            "resumeGameAfterPriorityCard('reprise après annulation Egnobombe')",
+            "goldReactionStack.push(goldReaction)",
+            "nestedGold?'resumeGoldStack':'render'",
+            "goldReaction.seconds=10",
+            "onlineLegacyEnsureBotProgress();",
+            "(egnoState&&egnoState.player===me)",
+            "(shadowState&&shadowState.player===me)",
+            "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};",
+            "peaceful.textContent='Naviguer'",
+            "onlineSendMove(null)"
+          ]
+          for x in required:
+              assert x in s,x
+          assert s.count("name:'Vague de froid'")>=1
+          PY
+          node --check /tmp/tribu-inline.js
+          cat >/tmp/regression-prefix.js <<'JS'
+          const fs=require('fs');
+          const fsrc=fs.readFileSync('/tmp/regression-functions.js','utf8');
+          let text='';
+          global.$=()=>({textContent:'',classList:{add(){},remove(){}}});
+          global.ORACLES=[
+            {name:'Canicule'},{name:'En quête de destruction'},{name:'Givre mortel'},{name:'Givre mortel'},
+            {name:'Tempête de sable'},{name:'Tempête de sable'},{name:'Tempête en mer'},{name:'Vague de froid'}
+          ];
+          global.G={oracleDeck:[0,1],oracleDiscard:[2],oracleActive:3,players:[{hand:[99]}],online:null};
+          global.divinationState={actor:0,cardId:99,committed:true};
+          global.oracleClimateVisual=null;global.oraclePendingNormalMap=false;global.oracleResolutionAfter=null;
+          global.applyOracleMapVisual=()=>{};global.shuffleArray=a=>a;global.resumeAfterDivination=()=>{};global.p=i=>({name:'J1'});global.log=()=>{};
+          global.consumeDivination=()=>true;global.resetRecruitmentForDivination=()=>{};
+          global.localViewerValue=0;global.localViewer=()=>localViewerValue;global.units=(r,p)=>r==='A1'&&p===0?5:0;
+          global.egnoState=null;global.clearTopBanner=()=>{};global.battle=null;global.resumeBattleTimer=()=>{};global.render=()=>{};
+          global.resumeCount=0;global.resumeGameAfterPriorityCard=()=>{resumeCount++};global.pushCount=0;global.onlineLegacyPushNow=()=>{pushCount++};
+          global.goldReaction=null;global.goldReactionStack=[];global.goldReactionTick=null;global.clearGoldReactionTimer=()=>{};global.startGoldReactionTimer=()=>{};global.maybeBotAmbush=()=>{};global.onlineLegacyPushGoldReactionNow=()=>{};
+          global.choiceState=null;global.cardFromViewerHand=()=>({viewer:0,id:42});global.occupiedCaseCount=()=>3;global.CARDS=[];global.G.players[0].hand=[42];global.G.discard=[];
+          global.offerGoldGain=(receiver,amount,source,after)=>{goldReaction={receiver,amount,source,after,seconds:10};};
+          eval(fsrc);
+
+          // Divination: the last canonical Oracle id (Vague de froid) must be selectable directly.
+          G.oracleDeck=[0,1];G.oracleDiscard=[2];G.oracleActive=3;divinationState={actor:0,cardId:99,committed:true};
+          divinationSetVisible(7);
+          if(G.oracleDeck[G.oracleDeck.length-1]!==7)throw new Error('Vague de froid not placed on top');
+
+          // Egnobombe: only actor controls target/cancel, and actor cancel resumes/syncs.
+          egnoState={player:0,cardId:5,parentBattle:null};localViewerValue=1;
+          if(egnoTargetLegal('A1'))throw new Error('remote player may target Egnobombe');
+          cancelEgnobombe();if(!egnoState)throw new Error('remote player cancelled Egnobombe');
+          localViewerValue=0;if(!egnoTargetLegal('A1'))throw new Error('actor cannot target Egnobombe');
+          cancelEgnobombe();if(egnoState||resumeCount!==1)throw new Error('actor cancel did not resume');
+
+          // Nested gold: Tax suspends parent, inner resolves first, parent returns at 10 s.
+          G.players[0].hand=[42];G.discard=[];goldReaction={receiver:0,amount:6,source:'Récolte',after:'beginPlay',seconds:4,pausedByCard:true};goldReactionStack=[];
+          playTax(0);
+          if(goldReactionStack.length!==1||goldReaction.after!=='resumeGoldStack')throw new Error('Tax did not nest gold reaction');
+          goldReaction=null;
+          continueAfterGold('resumeGoldStack');
+          if(!goldReaction||goldReaction.source!=='Récolte'||goldReaction.seconds!==10||goldReaction.pausedByCard)throw new Error('parent gold reaction did not restart at 10');
+          console.log('functional regression ok');
+          JS
+          cat /tmp/regression-functions.js >> /tmp/regression-prefix.js
+          # Functions are already evaluated from fsrc inside the harness; remove appended duplicate definitions.
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/regression-prefix.js')
+          s=p.read_text()
+          marker='\nfunction divinationSetVisible('
+          second=s.find(marker,s.find("eval(fsrc);")+1)
+          if second!=-1:s=s[:second]+'\n'
+          p.write_text(s)
+          PY
+          node /tmp/regression-prefix.js
+          git diff --check
+          test "$(git diff --name-only)" = "index.html"
+      - name: Commit production file only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m "Fiabilise les interruptions de cartes et chronos Online"
+          git push origin HEAD:main
