@@ -1525,7 +1525,6 @@ function resetRecruitmentForPriorityCard(actor,label){
  Object.keys(recruitSnapshot.units).forEach(r=>G.b[r].units=recruitSnapshot.units[r]);
  const who=(actor===recruiter?'':(' jouée par '+p(actor).name));
  log(label+who+' interrompt le recrutement de '+p(recruiter).name+' : recrutement remis à zéro (Or et unités restaurés), puis résolution prioritaire.');
- render();
  return true;
 }
 function resetRecruitmentForDivination(s){return !!s&&resetRecruitmentForPriorityCard(s.actor,'Divination de l’Oracle')}
@@ -1879,6 +1878,36 @@ function renderShadowBanner(){
  return true;
 }
 function occupiedCaseCount(i){let n=0;Object.keys(G.b).forEach(r=>{if(G.b[r].owner===i&&G.b[r].units>0)n++});Object.keys(G.sea).forEach(s=>{if((G.sea[s].fleets[i]||0)>0)n++});return n}
+function startPaidDrawTimer(){
+ clearInterval(paidDrawTick);
+ if(!paidDrawState||paidDrawState.pausedByCard)return;
+ if(G&&G.online&&G.online.legacySync&&paidDrawState.player!==localViewer())return;
+ paidDrawTick=setInterval(()=>{
+   if(!paidDrawState){clearInterval(paidDrawTick);return}
+   if(paidDrawState.pausedByCard)return;
+   paidDrawState.seconds--;
+   if(paidDrawState.seconds<=0){
+     clearInterval(paidDrawTick);
+     log('Fin de la fenêtre de 10 secondes après la pioche payante.');
+     paidDrawState=null;
+     render();
+     if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();
+     queueBot('fin fenêtre pioche');
+     return;
+   }
+   render();
+ },1000);
+}
+function pausePaidDrawForCard(){
+ if(!paidDrawState)return false;
+ clearInterval(paidDrawTick);paidDrawState.pausedByCard=true;return true;
+}
+function resumePaidDrawAfterCard(){
+ if(!paidDrawState||!paidDrawState.pausedByCard)return false;
+ paidDrawState.seconds=10;delete paidDrawState.pausedByCard;startPaidDrawTimer();render();
+ if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();
+ return true;
+}
 function spendDraw(){
  if(caravanState||divinationState)return;
  const viewer=localViewer();
@@ -1902,21 +1931,9 @@ function spendDraw(){
 
  paidDrawState={player:viewer,seconds:10,phase:G.phase};
  log(p(viewer).name+' dépense 5 Or, pioche 1 carte et dispose de 10 secondes pour la consulter ou jouer une carte.');
- clearInterval(paidDrawTick);
- paidDrawTick=setInterval(()=>{
-   if(!paidDrawState){clearInterval(paidDrawTick);return}
-   paidDrawState.seconds--;
-   if(paidDrawState.seconds<=0){
-     clearInterval(paidDrawTick);
-     log('Fin de la fenêtre de 10 secondes après la pioche payante.');
-     paidDrawState=null;
-     render();
-     queueBot('fin fenêtre pioche');
-     return;
-   }
-   render();
- },1000);
+ startPaidDrawTimer();
  render();
+ if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();
 }
 
 function playTax(handIndex){
@@ -4696,6 +4713,7 @@ function render(){
  if(d.onclick&&c.name!=='Divination de l’Oracle'&&c.name!=='Section de l’ombre'){
    const cardAction=d.onclick;
    d.onclick=(ev)=>{
+     if(paidDrawState&&paidDrawState.player===handPlayer)pausePaidDrawForCard();
      if(G.phase==='recruit'&&recruitSnapshot&&recruitSnapshot.player===G.active){
        resetRecruitmentForPriorityCard(handPlayer,c.name);
      }
@@ -4996,6 +5014,8 @@ function onlineLegacyApply(packet){
  onlineLegacyLastDigest=onlineLegacyDigest();
  if(!caravanState&&hadCaravan)closeAgentModal(true);
  render();
+ if(paidDrawState&&paidDrawState.player===me&&!paidDrawState.pausedByCard)startPaidDrawTimer();
+ else if(!paidDrawState||paidDrawState.player!==me)clearInterval(paidDrawTick);
  if(caravanState)showCaravanChoice();
  onlineApplyPrivatePresentations(me);
  onlineLegacyLastDigest=onlineLegacyDigest();onlineLegacyApplying=false;onlineLegacyLockControls();
@@ -5213,6 +5233,7 @@ const onlineLegacyBaseRender=render;
 render=function(){
  onlineLegacyBaseRender();
  wireOracleCardPreviews();
+ if(paidDrawState&&paidDrawState.pausedByCard&&!priorityCardResolutionActive()&&!goldReaction)resumePaidDrawAfterCard();
  if(goldReaction&&goldReaction.pausedByCard&&!choiceState&&!divinationState&&!caravanState&&!egnoState&&!shadowState&&!agentModalState&&!portalMode&&!buildingMode)resumeGoldReactionAfterCard();
  if(G&&G.online&&G.online.legacySync){
    restoreCouncilChoiceOverlay();
