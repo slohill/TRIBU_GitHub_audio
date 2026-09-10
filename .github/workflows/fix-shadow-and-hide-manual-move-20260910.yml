@@ -1,0 +1,58 @@
+name: Fix shadow and hide manual move 20260910
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - 'scripts/fix_shadow_and_hide_manual_move_20260910.py'
+      - '.github/workflows/fix-shadow-and-hide-manual-move-20260910.yml'
+permissions:
+  contents: write
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Guard expected main and historical backup
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "ca286bb0b9280fb0d2498829d196824f32f3484c"
+          test "$(git ls-remote origin refs/heads/backup-before-full-rule-transposition-2026-09-07 | awk '{print $1}')" = "4034c26c69c575095146d4a51588aa82db8d746a"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Load patch from staging
+        run: curl -fsSL https://raw.githubusercontent.com/slohill/TRIBU_GitHub_audio/clean-online-sync-from-4034-20260907/scripts/fix_shadow_and_hide_manual_move_20260910.py -o /tmp/patch.py
+      - name: Apply patch
+        run: python /tmp/patch.py
+      - name: Syntax and invariants
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          a=s.index('<script>')+len('<script>'); b=s.rindex('</script>')
+          Path('/tmp/tribu.js').write_text(s[a:b],encoding='utf-8')
+          assert "Destination <b>'+dest+'</b> — sélectionnez vos unités directement sur la map." in s
+          assert "d.className='source';d.innerHTML='<button title=\"Clic : +1 / maintenir sur la région : tout\">'" not in s
+          assert "Choisissez uniquement : Naviguer ou attaquer un joueur." in s
+          assert "peaceful.textContent='Naviguer';" in s
+          assert "s.parentBattle.kind==='land'&&s.parentBattle.defender===s.player&&c.owner===s.player" in s
+          assert "if(battle){clearInterval(battleTick);clearTimeout(botReactionTimer)}" in s
+          assert "battle.seconds=s.parentBattleSeconds||15;" in s
+          assert "resumeBattleTimer();render();return;" in s
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          assert "const n=1+Math.floor(Math.random()*6);" in s
+          PY
+          node --check /tmp/tribu.js
+          git diff --check
+          test "$(git status --short | awk '{print $2}' | tr '\n' ' ')" = "index.html "
+      - name: Commit production file only
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m "Allège les déplacements et répare Section de l’ombre"
+          git push origin HEAD:main
