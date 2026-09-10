@@ -1997,7 +1997,7 @@ function closeAgentModal(force=false){
  }
  const closedAgentKind=agentModalState&&agentModalState.kind;
  agentModalState=null;$('agentOverlay').classList.add('hidden');$('agentChoices').innerHTML='';
- if(!force&&['spy','thief'].includes(closedAgentKind))resumeGameAfterPriorityCard('reprise après capacité Agent');
+ if(!force&&(!closedAgentKind||['spy','thief'].includes(closedAgentKind)))resumeGameAfterPriorityCard('reprise après capacité Agent');
 }
 function addAgentChoice(label,fn,disabled=false){
  const b=document.createElement('button');b.textContent=label;b.disabled=disabled;b.onclick=fn;$('agentChoices').appendChild(b);
