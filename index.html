@@ -1095,7 +1095,7 @@ function eligibleAmbushers(receiver){
 function clearGoldReactionTimer(){
  if(goldReactionTick){clearInterval(goldReactionTick);goldReactionTick=null}
 }
-function pauseGoldReactionForCard(){if(!goldReaction)return false;clearGoldReactionTimer();goldReaction.pausedByCard=true;render();return true}
+function pauseGoldReactionForCard(){if(!goldReaction)return false;clearGoldReactionTimer();goldReaction.pausedByCard=true;return true}
 function resumeGoldReactionAfterCard(){if(!goldReaction||!goldReaction.pausedByCard)return;goldReaction.seconds=10;delete goldReaction.pausedByCard;startGoldReactionTimer();render();if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow()}
 function resumeGoldReactionStack(){
  if(!goldReactionStack.length)return false;
@@ -1948,6 +1948,14 @@ function playCouncil(handIndex){
  $('choiceText').textContent='Vous avez pioché 2 cartes. Choisissez exactement 2 cartes de votre main à défausser.';
  $('choiceOverlay').classList.remove('hidden');renderCouncilChoices();render();
  if(G&&G.online&&G.online.legacySync)onlineLegacyPushPriorityCardNow();
+}
+function restoreCouncilChoiceOverlay(){
+ const overlay=$('choiceOverlay');if(!overlay)return;
+ const mine=!!(choiceState&&choiceState.kind==='council'&&choiceState.player===localViewer());
+ overlay.classList.toggle('hidden',!mine);
+ if(!mine)return;
+ $('choiceTitle').textContent='Conseil de guerre';
+ renderCouncilChoices();
 }
 function renderCouncilChoices(){
  const actor=choiceState.player,box=$('choiceCards');box.innerHTML='';
@@ -5170,6 +5178,7 @@ render=function(){
  wireOracleCardPreviews();
  if(goldReaction&&goldReaction.pausedByCard&&!choiceState&&!divinationState&&!caravanState&&!egnoState&&!shadowState&&!agentModalState&&!portalMode&&!buildingMode)resumeGoldReactionAfterCard();
  if(G&&G.online&&G.online.legacySync){
+   restoreCouncilChoiceOverlay();
    onlineLegacyLockControls();
    if(G.players&&G.players[G.active]&&!G.players[G.active].bot)onlineLegacyBotDriverIndex=null;
    if(!onlineLegacyGoldTickRender)onlineLegacyMaybePush();
