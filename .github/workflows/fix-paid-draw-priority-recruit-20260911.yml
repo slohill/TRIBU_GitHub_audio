@@ -1,0 +1,75 @@
+name: Fix paid draw priority recruit 20260911
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - '.github/workflows/fix-paid-draw-priority-recruit-20260911.yml'
+      - 'scripts/fix_paid_draw_priority_recruit_20260911.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Guard expected main and historical backup
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "804fde202cc6a252fad29328934c32c7741c593e"
+          git fetch origin backup-before-full-rule-transposition-2026-09-07 clean-online-sync-from-4034-20260907
+          test "$(git rev-parse origin/backup-before-full-rule-transposition-2026-09-07)" = "4034c26c69c575095146d4a51588aa82db8d746a"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Load patch from staging
+        run: git show origin/clean-online-sync-from-4034-20260907:scripts/fix_paid_draw_priority_recruit_20260911.py > /tmp/fix.py
+      - name: Apply patch
+        run: python /tmp/fix.py
+      - name: Syntax and regression checks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('index.html').read_text(encoding='utf-8')
+          scripts='\n'.join(re.findall(r'<script[^>]*>(.*?)</script>',s,re.S))
+          Path('/tmp/app.js').write_text(scripts,encoding='utf-8')
+          assert 'function startPaidDrawTimer()' in s
+          assert 'function pausePaidDrawForCard()' in s
+          assert 'function resumePaidDrawAfterCard()' in s
+          assert "if(paidDrawState&&paidDrawState.player===handPlayer)pausePaidDrawForCard();" in s
+          assert "if(paidDrawState&&paidDrawState.pausedByCard&&!priorityCardResolutionActive()&&!goldReaction)resumePaidDrawAfterCard();" in s
+          assert "if(paidDrawState&&paidDrawState.player===me&&!paidDrawState.pausedByCard)startPaidDrawTimer();" in s
+          assert "log(label+who+' interrompt le recrutement de '+p(recruiter).name+' : recrutement remis à zéro (Or et unités restaurés), puis résolution prioritaire.');\n return true;" in s
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          assert "peaceful.textContent='Naviguer'" in s
+          PY
+          node --check /tmp/app.js
+          node <<'NODE'
+          const assert=require('assert');
+          let paidDrawState={player:1,seconds:4},cleared=0,started=0,rendered=0,pushed=0;
+          let paidDrawTick=123;
+          const clearInterval=()=>{cleared++};
+          function startPaidDrawTimer(){started++}
+          const G={online:{legacySync:true}};
+          function onlineLegacyPushNow(){pushed++}
+          function render(){rendered++}
+          function pausePaidDrawForCard(){if(!paidDrawState)return false;clearInterval(paidDrawTick);paidDrawState.pausedByCard=true;return true}
+          function resumePaidDrawAfterCard(){if(!paidDrawState||!paidDrawState.pausedByCard)return false;paidDrawState.seconds=10;delete paidDrawState.pausedByCard;startPaidDrawTimer();render();if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();return true}
+          assert.strictEqual(pausePaidDrawForCard(),true);assert.strictEqual(paidDrawState.pausedByCard,true);assert.strictEqual(cleared,1);
+          assert.strictEqual(resumePaidDrawAfterCard(),true);assert.strictEqual(paidDrawState.seconds,10);assert.strictEqual(paidDrawState.pausedByCard,undefined);assert.strictEqual(started,1);assert.strictEqual(rendered,1);assert.strictEqual(pushed,1);
+          console.log('Paid draw priority pause/resume regression OK');
+          NODE
+          git diff --check
+          test "$(git diff --name-only)" = "index.html"
+      - name: Commit production file only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m "Répare Conseil pendant une pioche payante hors tour"
+          git push origin HEAD:main
