@@ -1587,9 +1587,10 @@ function divinationSetVisible(name){
    s.committed=true;
  }
 
- // Toutes les cartes Oracle retournent dans le paquet, y compris l'Oracle actif.
- let pool=[...G.oracleDeck,...G.oracleDiscard];
- if(G.oracleActive!==null)pool.push(G.oracleActive);
+ // Divination remélange l'ensemble physique complet des cartes Oracle.
+ // On reconstruit donc le paquet canonique depuis ORACLES plutôt que depuis les zones
+ // courantes, qui peuvent provenir d'un ancien état Online incomplet/incompatible.
+ let pool=ORACLES.map((_,i)=>i);
  G.oracleActive=null;G.oracleDiscard=[];
  oracleClimateVisual=null;oraclePendingNormalMap=false;oracleResolutionAfter=null;
  applyOracleMapVisual();
