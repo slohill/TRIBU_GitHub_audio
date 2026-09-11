@@ -8,7 +8,7 @@ button{font:inherit;cursor:pointer;padding:8px 10px}.hidden{display:none!importa
 .startbox{text-align:center;background:#19201d;padding:28px;border-radius:14px;border:1px solid #59645f;max-width:520px}
 .startbox h1{font-size:42px;margin:0 0 8px}.startbox button{font-size:20px;padding:14px 28px;margin-top:16px}
 header{padding:10px 15px;background:#19201d;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-main{display:grid;grid-template-columns:100px minmax(0,780px) 320px;gap:12px;padding:12px;align-items:start;justify-content:center}.boardCol{min-width:0;width:100%}.rightRail{grid-column:3;background:#19201d;border-radius:9px;padding:12px;position:sticky;top:10px;height:max-content;max-height:94vh;overflow:auto}
+main{display:grid;grid-template-columns:210px minmax(0,780px) 320px;gap:12px;padding:12px;align-items:start;justify-content:center}.boardCol{min-width:0;width:100%}.rightRail{grid-column:3;background:#19201d;border-radius:9px;padding:12px;position:sticky;top:10px;height:max-content;max-height:94vh;overflow:auto}
 .map{position:relative;align-self:start;height:fit-content;line-height:0}.map img{display:block;width:100%;height:auto}
 .spot{position:absolute;transform:translate(-50%,-50%);width:3.5%;aspect-ratio:1;border-radius:50%;border:0;background:transparent;color:transparent;font-size:0;z-index:3}.spot.sea{width:5.2%}
 .spot.dest{outline:5px solid #fff;background:#ffffff55}.spot.src{outline:5px solid #ffe500;background:#ffe50055}.spot.oracle{outline:5px solid #bb5cff;background:#bb5cff55}
@@ -26,7 +26,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 .source{display:grid;grid-template-columns:1fr auto auto auto;gap:5px;align-items:center;background:#252d29;padding:6px;border-radius:6px;margin:5px 0}.source button:first-child{text-align:left}
 .botNotice{padding:7px;border-radius:7px;background:#26302b;margin-top:7px;font-weight:700}.handOwner{border:3px solid #777;border-radius:8px;padding:8px;margin-bottom:8px;font-size:17px;font-weight:900;text-align:center}.priorityOwner{border:3px solid #777;border-radius:8px;padding:8px;margin:7px 0;font-size:16px;font-weight:900;text-align:center}.hand{display:grid;gap:5px;max-height:240px;overflow:auto}.card{background:#252d29;border:1px solid #46514c;border-radius:6px;padding:7px}.card small{display:block;margin-top:3px;color:#d0d6d3}
 .log{max-height:160px;overflow:auto;background:#090b0a;padding:7px;border-radius:6px;font-size:12px}.note{background:#252d29;padding:8px;border-radius:6px}
-@media(max-width:900px){main{grid-template-columns:76px minmax(0,1fr)}.rightRail{grid-column:2;position:static;max-height:none}.playerCard{font-size:11px}.bottomZone{grid-template-columns:1fr!important}.battleBanner{font-size:12px!important}}@media(max-width:760px){main{grid-template-columns:1fr}.playerRail{position:static;flex-direction:row;grid-column:1;overflow-x:auto}.rightRail{grid-column:1}.boardCol{grid-column:1}}
+@media(max-width:900px){main{grid-template-columns:76px minmax(0,1fr)}.rightRail{grid-column:2;position:static;max-height:none}.playerCard{font-size:11px}.playerHandSummary{white-space:normal;flex-direction:column;gap:1px}.bottomZone{grid-template-columns:1fr!important}.battleBanner{font-size:12px!important}}@media(max-width:760px){main{grid-template-columns:1fr}.playerRail{position:static;flex-direction:row;grid-column:1;overflow-x:auto}.rightRail{grid-column:1}.boardCol{grid-column:1}}
 
 .battleOverlay{display:none!important;position:fixed;inset:0;background:#000b;z-index:100;display:flex;align-items:center;justify-content:center;padding:18px}
 .battleBox{width:min(620px,96vw);background:#17201c;border:2px solid #69766f;border-radius:12px;padding:16px;box-shadow:0 12px 34px #000}
@@ -37,6 +37,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 .bonus{font-weight:800}.seaChoice button{display:block;width:100%;margin:6px 0}
 
 .playerRail{position:sticky;top:10px;display:flex;flex-direction:column;gap:5px;z-index:50}
+.playerHandSummary{background:#19201d;border:3px solid #777;border-radius:9px;padding:5px 6px;display:flex;align-items:center;justify-content:space-between;gap:5px;font-size:9px;font-weight:900;white-space:nowrap}
 .playerCard{background:#19201d;border:3px solid #777;border-radius:9px;padding:4px 5px;text-align:center;font-weight:900;cursor:pointer;position:relative;line-height:1.08}
 .playerCard.active{box-shadow:0 0 0 3px #fff5}
 .playerPeek{position:absolute;left:calc(100% + 8px);top:0;width:300px;background:#111b18;border:3px solid #777;border-radius:10px;padding:10px;text-align:left;font-weight:400;z-index:90;display:none;box-shadow:0 8px 24px #000a}
@@ -490,7 +491,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 
   <div class="bottomZone">
     <div class="bottomPanel handOnlyPanel">
-      <h3 class="compactHandTitle">Main — <span id="handCount">0</span> carte(s)</h3>
+      <span id="handCount" class="hidden">0</span>
       <div id="hand" class="handHorizontal"></div>
       <div id="commerceBoard" class="commerceBoard"></div>
     </div>
@@ -2671,10 +2672,22 @@ function botUseAgentOrAssassin(){
  }
  return false;
 }
+function botHandleReturn(){
+ if(!isBot()||G.phase!=='returnChoice'||!returnState||returnState.player!==G.active)return false;
+ const strongholds=returnStrongholds(G.active);
+ const regions=(strongholds.length?strongholds:returnRegions(G.active)).slice().sort();
+ if(!regions.length){
+   log(p().name+' (bot) ne peut pas revenir : aucune région libre sans PNJ.');
+   passReturn();
+   return true;
+ }
+ reformAt(regions[0]);
+ return true;
+}
 function botAdvance(){
  if(!G || !isBot() || battle || goldReaction || priorityCardResolutionActive())return;
 
-
+ if(G.phase==='returnChoice'){botHandleReturn();return}
 
  if(G.phase==='start'){
    let harvestGain=ownRegs(G.active)*2;
@@ -2793,6 +2806,7 @@ function beginReturnChoice(){
  if(!isDecimated(G.active))return false;
  returnState={player:G.active};G.phase='returnChoice';
  log(p().name+' est décimé : voulez-vous revenir ?');render();
+ if(G.players[G.active].bot)queueBot('retour après décimation');
  return true;
 }
 function advanceTurn(reason='nouveau tour'){
@@ -4228,11 +4242,17 @@ function renderPlayerRail(){
    rail.appendChild(card);
  });
 
- renderInPlay(localViewer());
+ const viewer=localViewer();
+ if(Number.isInteger(viewer)&&G.players[viewer]){
+   const pl=G.players[viewer],summary=document.createElement('div');
+   summary.className='playerHandSummary';summary.style.borderColor=COLORS[viewer];summary.style.color=COLORS[viewer];
+   summary.innerHTML='<span>Main - '+pl.hand.length+' carte(s)</span><span>Or : '+pl.gold+'</span><span>Unités : '+totalUnits(viewer)+'/'+cap(viewer)+'</span>';
+   rail.appendChild(summary);
+ }
+ renderInPlay(viewer);
  const buy=document.createElement('button');
  buy.id='buyDraw';buy.className='railBuyDraw';buy.textContent='🃏 5 Or : une carte';
  buy.onclick=spendDraw;
- const viewer=localViewer();
  buy.disabled=isDecimated(viewer)||G.players[viewer].bot||G.players[viewer].gold<5||!!paidDrawState||!!dragonRichState||!!dragonCurseState;
  rail.appendChild(buy);
  const vp=document.createElement('button');
@@ -4295,8 +4315,8 @@ function renderInPlaySelection(){
 }
 function renderInPlay(i){
  const rail=$('playerRail'),list=publicInPlay(i);
- const card=document.createElement('div');card.className='inPlayRailCard';
- card.innerHTML='<div class="inPlayRailTitle">EN JEU</div><div class="inPlayTitleList"></div>';
+ const card=document.createElement('div');card.className='inPlayRailCard';card.style.borderColor=COLORS[i];
+ card.innerHTML='<div class="inPlayRailTitle" style="color:'+COLORS[i]+'">EN JEU</div><div class="inPlayTitleList"></div>';
  const listBox=card.querySelector('.inPlayTitleList');
 
  if(!list.length){
