@@ -1,0 +1,78 @@
+name: Fix bot return and left summary 20260911
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - '.github/workflows/fix-bot-return-left-summary-20260911.yml'
+      - 'scripts/fix_bot_return_left_summary_20260911.py'
+permissions:
+  contents: write
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Guard expected main and historical backup
+        run: |
+          test "$(git rev-parse HEAD)" = "c1f2022b1ca942e9b770e47e2ea695f669f2bc92"
+          test "$(git ls-remote origin refs/heads/backup-before-full-rule-transposition-2026-09-07 | cut -f1)" = "4034c26c69c575095146d4a51588aa82db8d746a"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Load patch from staging
+        run: git show origin/clean-online-sync-from-4034-20260907:scripts/fix_bot_return_left_summary_20260911.py > /tmp/patch.py
+      - name: Apply patch
+        run: python /tmp/patch.py
+      - name: Syntax and functional regression
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          a=s.index('<script>')+len('<script>')
+          b=s.rindex('</script>')
+          Path('/tmp/tribu.js').write_text(s[a:b],encoding='utf-8')
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          assert "peaceful.textContent='Naviguer'" in s
+          assert "if(G.phase==='returnChoice'){botHandleReturn();return}" in s
+          assert "if(G.players[G.active].bot)queueBot('retour après décimation');" in s
+          assert "Main - '+pl.hand.length+' carte(s)" in s
+          assert "Or : '+pl.gold" in s
+          assert "Unités : '+totalUnits(viewer)+'/'+cap(viewer)" in s
+          assert "style=\"color:'+COLORS[i]+'\">EN JEU" in s
+          assert '<h3 class="compactHandTitle">Main' not in s
+          PY
+          node --check /tmp/tribu.js
+          node - <<'NODE'
+          const fs=require('fs'),vm=require('vm');
+          const src=fs.readFileSync('index.html','utf8');
+          function extract(name){
+            const start=src.indexOf('function '+name+'('); if(start<0)throw new Error('missing '+name);
+            const brace=src.indexOf('{',start); let depth=0,end=-1;
+            for(let i=brace;i<src.length;i++){
+              if(src[i]==='{')depth++; else if(src[i]==='}'&&--depth===0){end=i+1;break}
+            }
+            if(end<0)throw new Error('unterminated '+name); return src.slice(start,end);
+          }
+          const fn=extract('botHandleReturn');
+          function run(strong,regions){
+            const ctx={G:{phase:'returnChoice',active:2},returnState:{player:2},picked:null,passed:false,
+              isBot:()=>true,returnStrongholds:()=>strong.slice(),returnRegions:()=>regions.slice(),
+              reformAt:r=>ctx.picked=r,passReturn:()=>{ctx.passed=true},log:()=>{},p:()=>({name:'Bot'})};
+            vm.createContext(ctx);vm.runInContext(fn+'; botHandleReturn();',ctx);return ctx;
+          }
+          let x=run(['G3'],['A1','B2']); if(x.picked!=='G3'||x.passed)throw new Error('stronghold priority failed');
+          x=run([],['C2','A1']); if(x.picked!=='A1'||x.passed)throw new Error('fallback return failed');
+          x=run([],[]); if(!x.passed||x.picked!==null)throw new Error('no-region pass failed');
+          NODE
+          git diff --check
+          test "$(git diff --name-only)" = "index.html"
+      - name: Commit production file only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m "Répare le retour des bots et déplace le résumé joueur à gauche"
+          git push origin HEAD:main
