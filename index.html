@@ -3925,10 +3925,12 @@ function clickSpot(id){
    if(me!==G.active&&!reactionMap)return;
  }
  if(setupState){if(setupState.stage==='regions')setupRegionClick(id);return}
- if(divinationState)return;
- if(oracleNoticeState)return;
+ // Une Divination peut déclencher un Oracle interactif. Dans ce cas, l'Oracle
+ // doit recevoir les clics de carte AVANT le verrou général de Divination.
  if(oracleState&&oracleState.kind==='dragon5'){oracleDragon5Click(id);return}
  if(oracleState&&oracleState.kind==='sacrifice'){oracleSacrificeClick(id);return}
+ if(divinationState)return;
+ if(oracleNoticeState)return;
  if(caravanState||dragonSixState||dragonPublicState||dragonCurseState)return;if(inPlaySelected)hideInPlayPreview();if(dragonRichState){if(dragonRichState.targets.includes(id))return destroyRichDragonTarget(id);return;}if(returnState){if(returnRegions(returnState.player).includes(id))return reformAt(id);return;}if(egnoState){if(egnoTargetLegal(id))return resolveEgnobombe(id);return;}if(shadowState){if(shadowState.stage==='gather'&&!isSea(id)&&G.b[id].owner===shadowState.player)return adjustShadow(id,1);if(shadowState.stage==='target'&&shadowTargetLegal(id))return chooseShadowTarget(id);return;}if(portalMode){if(canPortalRegion(id))return choosePortalRegion(id);return;}if(isBot()||paidDrawState||goldReaction)return;if(buildingMode){if(canPlaceBuilding(id))return placeBuilding(id);return;}if(G.phase==='recruit'&&!isSea(id))return recruitAt(id);if(G.phase==='play'){if(dest&&legalSources(dest).includes(id))return adjust(id,1);return chooseDest(id)}if(G.phase==='oracleMove'&&dragonTargets().includes(id)){G.dragon=id;G.phase='oracleRoll';log(p().name+' place le Dragon sur '+id+'.');render()}}
 function showDragonSixNotice(victim,next){
  clearInterval(dragonSixTick);
