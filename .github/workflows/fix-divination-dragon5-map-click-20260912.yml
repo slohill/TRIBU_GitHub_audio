@@ -1,0 +1,54 @@
+name: Fix divination dragon5 map click 20260912
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - '.github/workflows/fix-divination-dragon5-map-click-20260912.yml'
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Guard expected main and historical backup
+        run: |
+          test "$(git rev-parse HEAD)" = "4262d64573768f105defb5294baaa7ac5bf94d18"
+          test "$(git rev-parse origin/backup-before-full-rule-transposition-2026-09-07)" = "4034c26c69c575095146d4a51588aa82db8d746a"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Load patch from staging
+        run: git show origin/clean-online-sync-from-4034-20260907:scripts/fix_divination_dragon5_map_click_20260912.py > /tmp/patch.py
+      - name: Apply patch
+        run: python /tmp/patch.py
+      - name: Syntax and functional regression
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text()
+          start=s.index('<script>')+len('<script>')
+          end=s.rindex('</script>')
+          Path('/tmp/app.js').write_text(s[start:end])
+          block=s[s.index('function clickSpot(id)'):s.index('function showDragonSixNotice', s.index('function clickSpot(id)'))]
+          assert block.index("if(oracleState&&oracleState.kind==='dragon5')") < block.index('if(divinationState)return;')
+          assert block.index("if(oracleState&&oracleState.kind==='sacrifice')") < block.index('if(divinationState)return;')
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          assert 'Naviguer' in s
+          assert "divinationState={actor,cardId:id,parentBattle:battle||null,parentSeconds:battle?battle.seconds:null,stage:'choice'}" in s
+          assert "oracleState={kind:'dragon5',player:activator,remaining:5" in s
+          assert "if(oracleState.remaining<=0){oracleState=null;checkDecimations();finishOracleResolution();render();completeOracleResolution();return}" in s
+          PY
+          node --check /tmp/app.js
+          git diff --check
+          test "$(git diff --name-only)" = "index.html"
+      - name: Commit production file only
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m "Répare En quête de destruction via Divination en bataille"
+          git push origin HEAD:main
