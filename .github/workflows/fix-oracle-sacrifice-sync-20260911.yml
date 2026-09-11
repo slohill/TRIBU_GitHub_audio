@@ -1,0 +1,61 @@
+name: Fix oracle sacrifice sync 20260911
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - '.github/workflows/fix-oracle-sacrifice-sync-20260911.yml'
+      - 'scripts/fix_oracle_sacrifice_sync_20260911.py'
+permissions:
+  contents: write
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Guard expected main and historical backup
+        run: |
+          test "$(git rev-parse HEAD)" = "75442de764eb1023eadda966b24e87dcceacca65"
+          git fetch origin backup-before-full-rule-transposition-2026-09-07
+          test "$(git rev-parse origin/backup-before-full-rule-transposition-2026-09-07)" = "4034c26c69c575095146d4a51588aa82db8d746a"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Load patch from staging
+        run: git show origin/clean-online-sync-from-4034-20260907:scripts/fix_oracle_sacrifice_sync_20260911.py > /tmp/fix.py
+      - name: Apply patch
+        run: python /tmp/fix.py
+      - name: Syntax and regression checks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text()
+          assert "let oracleSacrificeSyncPending=false;" in s
+          assert "if(oracleSacrificeSyncPending)return;" in s
+          assert "onlineLegacyPushOracleSacrificeNow().finally(()=>{oracleSacrificeSyncPending=false})" in s
+          assert "function onlineLegacyPushOracleSacrificeNow()" in s
+          assert "return send(onlineLegacyRevision,2);" in s
+          assert "oracleSacrificeSyncPending=false;\n const me=packet.youIndex;" in s
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          assert "peaceful.textContent='Naviguer';" in s
+          PY
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('index.html').read_text()
+          m=re.search(r'<script>([\s\S]*)</script>',s)
+          if not m: raise SystemExit('script introuvable')
+          Path('/tmp/index.js').write_text(m.group(1))
+          PY
+          node --check /tmp/index.js
+          git diff --check
+          test "$(git diff --name-only)" = "index.html"
+      - name: Commit production file only
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m "Sérialise la fin des sacrifices Oracle Online"
+          git push origin HEAD:main
