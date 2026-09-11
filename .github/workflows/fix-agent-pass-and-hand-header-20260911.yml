@@ -1,0 +1,73 @@
+name: Fix agent pass and hand header 20260911
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - 'scripts/fix_agent_pass_and_hand_header_20260911.py'
+      - '.github/workflows/fix-agent-pass-and-hand-header-20260911.yml'
+permissions:
+  contents: write
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: clean-online-sync-from-4034-20260907
+          fetch-depth: 0
+      - name: Guard expected main and historical backup
+        run: |
+          git fetch origin main backup-before-full-rule-transposition-2026-09-07
+          test "$(git rev-parse origin/main)" = "0c1af2115dba2594f0fb805a87848d649c520485"
+          test "$(git rev-parse origin/backup-before-full-rule-transposition-2026-09-07)" = "4034c26c69c575095146d4a51588aa82db8d746a"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Load patch from staging
+        run: cp scripts/fix_agent_pass_and_hand_header_20260911.py /tmp/fix.py
+      - name: Apply patch
+        run: |
+          git checkout --detach origin/main
+          python /tmp/fix.py
+      - name: Syntax and functional regression
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text()
+          a=s.index('<script>')+len('<script>')
+          b=s.rindex('</script>')
+          Path('/tmp/tribu.js').write_text(s[a:b])
+          assert "main{display:grid;grid-template-columns:100px minmax(0,780px) 320px;" in s
+          assert 'id="handSummaryTitle"' in s
+          assert 'id="handGold"' in s and 'id="handUnits"' in s
+          assert "handTitle.style.color=handPlayer!==null?COLORS[handPlayer]:''" in s
+          assert "card.innerHTML='<div class=\"inPlayRailTitle\" style=\"color:'+COLORS[i]+'\">EN JEU</div>" in s
+          assert 'playerHandSummary' not in s
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          assert "peaceful.textContent='Naviguer'" in s
+          # Regression: all terminal Espion/Voleur outcomes release agentModalState before render.
+          checks=[
+            "openAgentModal('Espion — carte observée'",
+            "openAgentModal('Voleur — '+n,'Échec critique : le Voleur est défaussé.');\n   agentModalState=null;render();return;",
+            "openAgentModal('Voleur — '+n,'Rien ne se passe.');\n   agentModalState=null;render();return;",
+            "openAgentModal('Voleur — réussite','Vous volez <b>'+CARDS[id].name+'</b> à '+p(target).name+'.');\n agentModalState=null;",
+            "openAgentModal('Voleur — réussite','Vous volez <b>'+CARDS[id].name+'</b> en jeu à '+p(target).name+'.');\n agentModalState=null;",
+            "openAgentModal('Voleur — vol précis','Vous volez directement <b>'+CARDS[id].name+'</b> à '+p(target).name+'.');\n agentModalState=null;",
+          ]
+          for x in checks: assert x in s, x
+          spy=s[s.index('function resolveSpy('):s.index('function validSeenCards(')]
+          assert 'agentModalState=null;' in spy and spy.index('agentModalState=null;') < spy.index('render();')
+          # Pass invariant remains explicit in Online lock.
+          assert "const cardPause=priorityCardResolutionActive();" in s
+          assert "const start=mine&&G.phase==='start'&&!paidDrawState&&!goldReaction&&!cardPause,recruiting=mine&&G.phase==='recruit'&&!cardPause,playing=mine&&G.phase==='play'&&!cardPause" in s
+          PY
+          node --check /tmp/tribu.js
+          git diff --check
+          test "$(git diff --name-only)" = "index.html"
+      - name: Commit production file only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m "Libère la phase de jeu après Agents et restaure l'en-tête de main"
+          git push origin HEAD:main
