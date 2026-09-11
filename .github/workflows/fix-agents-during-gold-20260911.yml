@@ -1,0 +1,96 @@
+name: Fix agents during gold 20260911
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - '.github/workflows/fix-agents-during-gold-20260911.yml'
+      - 'scripts/fix_agents_during_gold_20260911.py'
+permissions:
+  contents: write
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Guard expected main and historical backup
+        run: |
+          test "$(git rev-parse HEAD)" = "e956152bc18618575aaefa5bb9bf5fb7b2f51ee8"
+          git fetch origin backup-before-full-rule-transposition-2026-09-07 clean-online-sync-from-4034-20260907
+          test "$(git rev-parse origin/backup-before-full-rule-transposition-2026-09-07)" = "4034c26c69c575095146d4a51588aa82db8d746a"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Load patch from staging
+        run: git show origin/clean-online-sync-from-4034-20260907:scripts/fix_agents_during_gold_20260911.py > /tmp/patch.py
+      - name: Apply patch
+        run: python /tmp/patch.py
+      - name: Syntax and functional regression
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('index.html').read_text(encoding='utf-8')
+          m=re.search(r'<script>(.*)</script>\s*</body>',s,re.S)
+          if not m: raise SystemExit('script not found')
+          Path('/tmp/app.js').write_text(m.group(1),encoding='utf-8')
+          assert "if(goldReaction)pauseGoldReactionForCard();" in s
+          assert "onlineLegacyPushPriorityCardNow();" in s
+          assert "resumeGoldReactionAfterCard(){if(!goldReaction||!goldReaction.pausedByCard)return;goldReaction.seconds=10;delete goldReaction.pausedByCard;startGoldReactionTimer();render();if(G&&G.online&&G.online.legacySync)onlineLegacyPushGoldReactionNow()}" in s
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          assert "peaceful.textContent='Naviguer'" in s
+          PY
+          node --check /tmp/app.js
+          node <<'JS'
+          const fs=require('fs'),src=fs.readFileSync('/tmp/app.js','utf8');
+          function fn(name){
+            const sig='function '+name+'('; let i=src.indexOf(sig); if(i<0)throw Error('missing '+name);
+            let b=src.indexOf('{',i),d=0,q=null,esc=false;
+            for(let j=b;j<src.length;j++){
+              const c=src[j];
+              if(q){if(esc)esc=false;else if(c==='\\')esc=true;else if(c===q)q=null;continue}
+              if(c==='\"'||c==="'"||c==='`'){q=c;continue}
+              if(c==='{')d++; else if(c==='}'&&--d===0)return src.slice(i,j+1);
+            }
+            throw Error('unterminated '+name);
+          }
+          let goldReaction={seconds:4},goldReactionTick=1,agentModalState=null;
+          let clearCount=0,pauseGameCount=0,priorityPush=0,goldPush=0,genericPush=0,startCount=0,renderCount=0;
+          const G={active:0,phase:'play',players:[{bot:false}],online:{legacySync:true}};
+          const CARDS={7:{name:'Espion'},8:{name:'Voleur'}};
+          function localViewer(){return 0} function isDecimated(){return false} function agentDefaults(){} function agentUsed(){return false}
+          function hideInPlayPreview(){} function pauseGameForPriorityCard(){pauseGameCount++}
+          function useSpy(index){agentModalState={kind:'spy',actor:0,agentIndex:index}}
+          function useThief(index){agentModalState={kind:'thief',actor:0,agentIndex:index}}
+          function activateTrebuchets(){}
+          function clearGoldReactionTimer(){clearCount++;goldReactionTick=null}
+          function startGoldReactionTimer(){startCount++}
+          function render(){renderCount++}
+          function onlineLegacyPushPriorityCardNow(){priorityPush++}
+          function onlineLegacyPushGoldReactionNow(){goldPush++}
+          function onlineLegacyPushNow(){genericPush++}
+          eval(fn('pauseGoldReactionForCard'));
+          eval(fn('resumeGoldReactionAfterCard'));
+          eval(fn('inPlayCardUsable'));
+          eval(fn('activateInPlayCard'));
+          if(!activateInPlayCard(0,7,0))throw Error('spy activation failed');
+          if(!goldReaction.pausedByCard||goldReaction.seconds!==4)throw Error('gold timer not paused intact');
+          if(pauseGameCount!==1||priorityPush!==1)throw Error('priority state not synchronized');
+          if(!agentModalState||agentModalState.kind!=='spy')throw Error('spy state missing');
+          agentModalState=null;
+          resumeGoldReactionAfterCard();
+          if(goldReaction.seconds!==10||goldReaction.pausedByCard)throw Error('gold timer did not restart at 10');
+          if(goldPush!==1||genericPush!==0)throw Error('gold resume not using serialized gold sync');
+          console.log('agent/gold regression ok');
+          JS
+          git diff --check
+          test "$(git diff --name-only)" = "index.html"
+      - name: Commit production file only
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m "Fiabilise Espion et Voleur pendant un gain d'or"
+          git push origin HEAD:main
