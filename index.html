@@ -1098,7 +1098,7 @@ function clearGoldReactionTimer(){
  if(goldReactionTick){clearInterval(goldReactionTick);goldReactionTick=null}
 }
 function pauseGoldReactionForCard(){if(!goldReaction)return false;clearGoldReactionTimer();goldReaction.pausedByCard=true;return true}
-function resumeGoldReactionAfterCard(){if(!goldReaction||!goldReaction.pausedByCard)return;goldReaction.seconds=10;delete goldReaction.pausedByCard;startGoldReactionTimer();render();if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow()}
+function resumeGoldReactionAfterCard(){if(!goldReaction||!goldReaction.pausedByCard)return;goldReaction.seconds=10;delete goldReaction.pausedByCard;startGoldReactionTimer();render();if(G&&G.online&&G.online.legacySync)onlineLegacyPushGoldReactionNow()}
 function resumeGoldReactionStack(){
  if(!goldReactionStack.length)return false;
  goldReaction=goldReactionStack.pop();goldReaction.seconds=10;delete goldReaction.pausedByCard;
@@ -4284,8 +4284,14 @@ function activateInPlayCard(i,id,index=null){
  if(!inPlayCardUsable(i,id,index))return false;
  const name=CARDS[id].name;
  hideInPlayPreview();
- if(name==='Espion'){agentModalState={kind:'spy',actor:i,agentIndex:index};useSpy(index);return true}
- if(name==='Voleur'){agentModalState={kind:'thief',actor:i,agentIndex:index};useThief(index);return true}
+ if(name==='Espion'||name==='Voleur'){
+   if(goldReaction)pauseGoldReactionForCard();
+   pauseGameForPriorityCard();
+   if(name==='Espion'){agentModalState={kind:'spy',actor:i,agentIndex:index};useSpy(index)}
+   else{agentModalState={kind:'thief',actor:i,agentIndex:index};useThief(index)}
+   if(G&&G.online&&G.online.legacySync)onlineLegacyPushPriorityCardNow();
+   return true;
+ }
  if(name==='Plan des trébuchets'){activateTrebuchets();return true}
  return false;
 }
