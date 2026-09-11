@@ -3840,7 +3840,9 @@ function advanceOracleSacrifice(){
    completeOracleResolution();
  }
 }
+let oracleSacrificeSyncPending=false;
 function oracleSacrificeClick(r){
+ if(oracleSacrificeSyncPending)return;
  const q=oracleState&&oracleState.kind==='sacrifice'?oracleState.queues[oracleState.index]:null;
  if(!q||q.player!==localViewer()||!q.eligible.includes(r)||q.chosen.includes(r))return;
  q.chosen.push(r);
@@ -3849,7 +3851,10 @@ function oracleSacrificeClick(r){
    log(p(q.player).name+' sacrifie '+q.chosen.join(', ')+'.');
    oracleState.index++;advanceOracleSacrifice();
  }else render();
- if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();
+ if(G&&G.online&&G.online.legacySync){
+   oracleSacrificeSyncPending=true;
+   onlineLegacyPushOracleSacrificeNow().finally(()=>{oracleSacrificeSyncPending=false});
+ }
 }
 function dragonSimplePathExists(from,steps,blocked){
  if(steps<=0)return true;
@@ -4994,6 +4999,7 @@ function onlineApplyPrivatePresentations(me){
 function onlineLegacyApply(packet){
  if(!packet||!packet.snapshot)return;
  if(!G||!G.online||!G.online.legacySync)return;
+ oracleSacrificeSyncPending=false;
  const me=packet.youIndex;
  const hadCaravan=!!caravanState;
  onlineLegacyApplying=true;
@@ -5113,6 +5119,24 @@ function onlineLegacyPushPriorityCardNow(){
  send(onlineLegacyRevision,2);
 }
 function onlineLegacyPushCaravanNow(){
+ if(!G||!G.online||!G.online.legacySync||onlineLegacyApplying||!onlineSocket)return Promise.resolve(null);
+ const actorIndex=G.online.myPlayerIndex;if(!Number.isInteger(actorIndex)||!G.players[actorIndex]||G.players[actorIndex].bot)return Promise.resolve(null);
+ clearTimeout(onlineLegacyPushTimer);
+ const snapshot=onlineLegacySnapshot(),digest=onlineLegacyDigest();
+ const send=(baseRevision,retries)=>onlineAck('legacyCommit',{baseRevision,actorIndex,snapshot}).then(res=>{
+   onlineLegacyRevision=Math.max(onlineLegacyRevision,res.revision||0);G.online.revision=onlineLegacyRevision;onlineLegacyLastDigest=digest;
+   return res;
+ }).catch(err=>{
+   if(err&&err.current&&retries>0&&Number.isInteger(err.current.revision)){
+     onlineLegacyRevision=Math.max(onlineLegacyRevision,err.current.revision);G.online.revision=onlineLegacyRevision;
+     return send(onlineLegacyRevision,retries-1);
+   }
+   onlineLegacyLastDigest='';if(err&&err.current)onlineLegacyApply(err.current);else onlineError(err);
+   return null;
+ });
+ return send(onlineLegacyRevision,2);
+}
+function onlineLegacyPushOracleSacrificeNow(){
  if(!G||!G.online||!G.online.legacySync||onlineLegacyApplying||!onlineSocket)return Promise.resolve(null);
  const actorIndex=G.online.myPlayerIndex;if(!Number.isInteger(actorIndex)||!G.players[actorIndex]||G.players[actorIndex].bot)return Promise.resolve(null);
  clearTimeout(onlineLegacyPushTimer);
