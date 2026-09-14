@@ -3148,7 +3148,9 @@ function advancePriority(resetPasses){
   battle.seconds=15;
 }
 function passPriority(){
-  if(caravanState||divinationState)return;
+  // Une résolution prioritaire suspend réellement la fenêtre de réaction : son chrono
+  // ne doit ni avancer la priorité ni rester bloqué à 0 pendant cette résolution.
+  if(priorityCardResolutionActive())return;
   if(!battle)return;
   battle.consecutivePasses++;
   if(battle.consecutivePasses>=battle.priorityOrder.length){
@@ -3170,6 +3172,12 @@ function playBattleCard(handIndex){
 }
 function playBattleCardForOwner(owner,handIndex){
   if(caravanState||divinationState||!battle)return;
+  // 0 seconde équivaut exactement à « Passer » : aucune carte ne peut être engagée
+  // dans l'ancienne fenêtre après son expiration.
+  if(!isHotseatMode()&&battle.seconds<=0){
+    if(owner===currentPriorityPlayer()&&onlineLegacyOwnsBattlePriority())passPriority();
+    return;
+  }
   const id=G.players[owner].hand[handIndex];
   if(id===undefined || !cardDef(id).type.startsWith('Tactique'))return;
 
@@ -4382,8 +4390,10 @@ function renderHandBattleState(){
  const viewer=displayedHandViewer(),hand=$('hand');
  if(!hand||viewer===null)return;
  const cards=[...hand.children];
+ const battleExpired=!!battle&&!isHotseatMode()&&battle.seconds<=0;
  cards.forEach((d,idx)=>{
    d.classList.remove('battlePlayable','battleBlocked');
+   if(battleExpired){d.onclick=null;d.classList.add('battleBlocked');d.title='Fenêtre de réaction expirée';return}
    const sid=G.players[viewer].hand[idx];
    if(battle&&sid!==undefined&&CARDS[sid].name==='Section de l’ombre'&&!shadowState&&!egnoState){d.classList.add('battlePlayable');d.title='Jouer Section de l’ombre maintenant';d.onclick=()=>startShadow(idx);return}
    if(battle&&sid!==undefined&&CARDS[sid].name==='Egnobombe'&&canPlayEgnobombe(viewer)){d.classList.add('battlePlayable');d.title='Jouer Egnobombe maintenant';d.onclick=()=>startEgnobombe(idx);return}
@@ -5099,6 +5109,14 @@ function onlineLegacyResumeBattleView(){
    const pt=$('priorityTimer');if(pt)pt.textContent='En pause — gain d’Or';
    return;
  }
+ // Toute carte/résolution prioritaire gèle la bataille. Sans ce garde, l'application
+ // d'un snapshot Online pouvait recréer le timer pendant Divination/Caravane/etc.,
+ // atteindre 0 puis laisser une ancienne fenêtre de réaction visible.
+ if(priorityCardResolutionActive()){
+   onlineLegacyBattleViewSeconds=null;
+   const pt=$('priorityTimer');if(pt)pt.textContent='En pause — résolution de carte';
+   return;
+ }
  const priority=currentPriorityPlayer(),me=G.online&&G.online.myPlayerIndex;
  const myHumanPriority=Number.isInteger(priority)&&priority===me&&G.players[priority]&&!G.players[priority].bot;
  if(myHumanPriority){
@@ -5118,8 +5136,14 @@ function onlineLegacyResumeBattleView(){
  battleTick=setInterval(()=>{
    if(!battle){clearInterval(battleTick);hideBattle();return}
    onlineLegacyBattleViewSeconds=Math.max(0,onlineLegacyBattleViewSeconds-1);
-   const pt=$('priorityTimer');if(pt)pt.textContent=onlineLegacyBattleViewSeconds+' s';
-   if(onlineLegacyBattleViewSeconds<=0)clearInterval(battleTick);
+   const pt=$('priorityTimer');
+   if(onlineLegacyBattleViewSeconds<=0){
+     // Ce navigateur n'est pas propriétaire de la priorité : il ne peut pas committer
+     // le « Passer ». Ne jamais afficher un faux 0 actif ; attendre le snapshot canonique.
+     if(pt)pt.textContent='En attente…';
+     clearInterval(battleTick);return;
+   }
+   if(pt)pt.textContent=onlineLegacyBattleViewSeconds+' s';
  },1000);
 }
 function onlineLegacyStart(state){
