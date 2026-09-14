@@ -38,17 +38,13 @@ new="""function resolveAssassin(target){
 """
 assert old in s
 s=s.replace(old,new,1)
-old="""    if(goldReaction&&c.name!=='Embuscade')pauseGoldReactionForCard();
-    return cardAction.call(d,ev);
-"""
-new="""    if(goldReaction&&c.name!=='Embuscade'&&c.name!=='Assassin')pauseGoldReactionForCard();
-    return cardAction.call(d,ev);
-"""
+old="if(goldReaction&&c.name!=='Embuscade')pauseGoldReactionForCard();"
+new="if(goldReaction&&c.name!=='Embuscade'&&c.name!=='Assassin')pauseGoldReactionForCard();"
 assert old in s
 s=s.replace(old,new,1)
 marker="if(stormRoll%2===1){"
 pos=s.index(marker)
-tail=s[pos:pos+800]
+tail=s[pos:pos+1200]
 needle="dest=null;picks={};checkDecimations();render();return;"
 assert needle in tail
 tail=tail.replace(needle,"""dest=null;picks={};checkDecimations();
@@ -57,5 +53,5 @@ tail=tail.replace(needle,"""dest=null;picks={};checkDecimations();
      // et son prochain tour proposera normalement le retour après décimation.
      if(isDecimated(G.active)){advanceTurn('décimation par Tempête en mer');return}
      render();return;""",1)
-s=s[:pos]+tail+s[pos+800:]
+s=s[:pos]+tail+s[pos+1200:]
 p.write_text(s)
