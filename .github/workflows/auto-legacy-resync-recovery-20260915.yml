@@ -1,0 +1,83 @@
+name: Auto legacy resync recovery 2026-09-15
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout staging tools
+        uses: actions/checkout@v4
+        with:
+          ref: clean-online-sync-from-4034-20260907
+          path: staging
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: prod
+          fetch-depth: 0
+      - name: Guard exact main
+        working-directory: prod
+        run: |
+          test "$(git rev-parse HEAD)" = "36109179613b3aef9681a3725e02befc39a857d4"
+      - name: Apply focused patch
+        working-directory: prod
+        run: python ../staging/scripts/auto_legacy_resync_recovery_20260915.py
+      - name: JavaScript syntax check
+        working-directory: prod
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text()
+          js=s.rsplit('<script>',1)[1].split('</script>',1)[0]
+          Path('/tmp/tribu.js').write_text(js)
+          PY
+          node --check /tmp/tribu.js
+      - name: Functional recovery simulation
+        working-directory: prod
+        run: |
+          node <<'NODE'
+          const fs=require('fs');const s=fs.readFileSync('index.html','utf8');
+          for(const needle of [
+            "err.message==='Synchronisation complète indisponible.'",
+            "await onlineAck('resumeRoom',saved)",
+            "await onlineAck('requestLegacyState',{})",
+            "if(!full||!full.snapshot)throw new Error",
+            "onlineLegacyApply({snapshot:full.snapshot,revision:full.revision,youIndex:full.youIndex})",
+            "onlineLegacyRecoveryPending?'🌐 Resynchronisation de la partie…'",
+            "onlineLegacyPriorityTerminalPending||onlineLegacyRecoveryPending"
+          ]) if(!s.includes(needle)) throw new Error('Missing recovery invariant: '+needle);
+          let pending=false,attempted=false,controlsFrozen=false,applied=false,calls=[];
+          async function simulate(error,saved=true,snapshot=true){
+            if(error!=='Synchronisation complète indisponible.'||pending||attempted||!saved)return false;
+            attempted=true;pending=true;controlsFrozen=true;
+            calls.push('resumeRoom');calls.push('requestLegacyState');
+            if(!snapshot){pending=false;throw new Error('no snapshot')}
+            pending=false;applied=true;attempted=false;return true;
+          }
+          (async()=>{
+            const ok=await simulate('Synchronisation complète indisponible.');
+            if(!ok||!controlsFrozen||!applied||pending||attempted)throw new Error('Recovery did not complete cleanly');
+            if(calls.join(',')!=='resumeRoom,requestLegacyState')throw new Error('Wrong recovery order');
+            calls=[];if(await simulate('Ce n’est pas votre tour.'))throw new Error('Unrelated errors must not recover');
+            console.log('Functional recovery simulation passed');
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+      - name: Structural invariants
+        working-directory: prod
+        run: |
+          grep -Fq "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" index.html
+          grep -Fq "nav.textContent='Naviguer'" index.html
+          grep -Fq "function onlineLegacyPushPriorityTerminalNow(owner)" index.html
+          git diff --check
+          test "$(git diff --name-only)" = "index.html"
+      - name: Commit and push main only
+        working-directory: prod
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Récupère automatiquement une synchro Online perdue"
+          git push origin HEAD:main
