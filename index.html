@@ -3959,6 +3959,7 @@ function clickSpot(id){
  if(G&&G.online&&onlineGameState&&!(G.online&&G.online.legacySync)){if(onlineGameState.status==='setup')onlineSetupRegionClick(id);else if(onlineGameState.status==='playing'&&onlineGameState.phase==='recruit'&&onlineGameState.active===onlineGameState.youIndex)recruitAt(id);else if(onlineGameState.status==='playing'&&onlineGameState.phase==='play'&&onlineGameState.active===onlineGameState.youIndex)onlineMoveClick(id);else if(onlineGameState.status==='playing'&&onlineGameState.phase==='oracleMove'&&onlineGameState.active===onlineGameState.youIndex)onlineDragonClick(id);return}
  if(G&&G.online&&G.online.legacySync){
    const me=G.online.myPlayerIndex;
+   if(onlineLegacyPriorityTerminalPending)return;
    const reactionMap=(oracleState&&oracleState.kind==='sacrifice'&&oracleState.queues&&oracleState.queues[oracleState.index]&&oracleState.queues[oracleState.index].player===me)||(oracleState&&oracleState.kind==='dragon5'&&oracleState.player===me)||(dragonRichState&&dragonRichState.player===me)||(egnoState&&egnoState.player===me)||(shadowState&&shadowState.player===me)||(portalMode&&portalMode.owner===me);
    if(me!==G.active&&!reactionMap)return;
    // Pendant une résolution prioritaire, la carte est la seule interaction autorisée.
@@ -4657,7 +4658,7 @@ function render(){
    '</div>'+
    '<div style="margin-top:7px"><span class="badge">Phase : '+G.phase+'</span></div>'+
  '</div>';
- const cardPause=priorityCardResolutionActive();
+ const cardPause=priorityCardResolutionActive()||onlineLegacyPriorityTerminalPending;
  $('startTurn').classList.toggle('hidden',G.phase!=='start'||isDecimated(G.active)||cardPause);['draw','harvest','recruit'].forEach(id=>$(id).disabled=isBot());
  $('toOracle').disabled=G.phase!=='play'||!!battle||isBot()||!!paidDrawState||!!goldReaction||!!dragonRichState||!!dragonCurseState||!!caravanState;
  $('toOracle').textContent=oraclePassArmed?'Confirmer : passer à l’Oracle':'Passer à l’Oracle';
@@ -4945,7 +4946,7 @@ function onlineApplyStateToDisplay(state){
 // The original TRIBU engine remains the only gameplay engine. Online only stores
 // and relays complete committed engine snapshots. UI drafts such as dest/picks are
 // deliberately not synchronized.
-let onlineLegacyRevision=0,onlineLegacyApplying=false,onlineLegacyLastDigest='',onlineLegacyPushTimer=null,onlineLegacyBotDriverIndex=null,onlineLegacyBattleViewSeconds=null,onlineLegacyGoldViewSeconds=null,onlineLegacyGoldTickRender=false;
+let onlineLegacyRevision=0,onlineLegacyApplying=false,onlineLegacyLastDigest='',onlineLegacyPushTimer=null,onlineLegacyBotDriverIndex=null,onlineLegacyBattleViewSeconds=null,onlineLegacyGoldViewSeconds=null,onlineLegacyGoldTickRender=false,onlineLegacyPriorityWasActive=false,onlineLegacyPriorityTrackedActor=null,onlineLegacyPriorityTerminalPending=false;
 function onlineLegacyDriverIndex(){
  if(!G)return -1;
  return G.players.findIndex(pl=>!pl.bot);
@@ -5175,8 +5176,57 @@ function onlineLegacyStart(state){
    }else onlineLegacyBootstrap(res.bootstrap,state);
  }).catch(onlineError);
 }
-function onlineLegacyCanPublish(){
+function onlineLegacyCanCommitPriorityTerminal(owner){
  if(!G||!G.online||!G.online.legacySync||onlineLegacyApplying||!onlineSocket)return false;
+ const me=G.online.myPlayerIndex;
+ if(!Number.isInteger(me)||!G.players[me]||G.players[me].bot)return false;
+ if(Number.isInteger(owner)&&G.players[owner]&&!G.players[owner].bot)return owner===me;
+ if(Number.isInteger(owner)&&G.players[owner]&&G.players[owner].bot)return onlineLegacyCanExecuteBot();
+ return false;
+}
+function onlineLegacyPushPriorityTerminalNow(owner){
+ // Une fois une résolution prioritaire terminée, son état a déjà disparu des variables
+ // de résolution. On conserve donc explicitement l'acteur et on commite le snapshot
+ // terminal exact, au lieu de dépendre du joueur actif ou d'un prochain render.
+ onlineLegacyPriorityWasActive=false;onlineLegacyPriorityTrackedActor=null;
+ if(!onlineLegacyCanCommitPriorityTerminal(owner)||onlineLegacyPriorityTerminalPending)return Promise.resolve(null);
+ onlineLegacyPriorityTerminalPending=true;
+ clearTimeout(onlineLegacyPushTimer);
+ const snapshot=onlineLegacySnapshot(),digest=onlineLegacyDigest(),actorIndex=G.online.myPlayerIndex;
+ const send=(baseRevision,retries)=>onlineAck('legacyCommit',{baseRevision,actorIndex,snapshot}).then(res=>{
+   onlineLegacyRevision=Math.max(onlineLegacyRevision,res.revision||0);G.online.revision=onlineLegacyRevision;onlineLegacyLastDigest=digest;
+   return res;
+ }).catch(err=>{
+   // Important : un conflit de révision ne doit jamais restaurer le snapshot où la
+   // carte était encore ouverte. On rejoue le même état terminal sur la nouvelle révision.
+   if(err&&err.current&&retries>0&&Number.isInteger(err.current.revision)){
+     onlineLegacyRevision=Math.max(onlineLegacyRevision,err.current.revision);G.online.revision=onlineLegacyRevision;
+     return send(onlineLegacyRevision,retries-1);
+   }
+   onlineLegacyLastDigest='';if(err&&err.current)onlineLegacyApply(err.current);else onlineError(err);
+   return null;
+ }).finally(()=>{onlineLegacyPriorityTerminalPending=false});
+ return send(onlineLegacyRevision,2);
+}
+function onlineLegacyTrackPriorityTerminal(){
+ const active=priorityCardResolutionActive();
+ if(active){
+   onlineLegacyPriorityWasActive=true;
+   const actor=priorityCardResolutionActor();
+   if(Number.isInteger(actor))onlineLegacyPriorityTrackedActor=actor;
+   return;
+ }
+ if(!onlineLegacyPriorityWasActive)return;
+ const actor=onlineLegacyPriorityTrackedActor;
+ onlineLegacyPriorityWasActive=false;onlineLegacyPriorityTrackedActor=null;
+ if(onlineLegacyApplying||!Number.isInteger(actor)||!onlineLegacyCanCommitPriorityTerminal(actor))return;
+ onlineLegacyPushPriorityTerminalNow(actor).then(()=>{
+   // Les reprises de chrono/gain d'Or/pioche ne sont autorisées qu'après le commit terminal.
+   if(G&&G.online&&G.online.legacySync&&!onlineLegacyApplying)render();
+ });
+}
+function onlineLegacyCanPublish(){
+ if(!G||!G.online||!G.online.legacySync||onlineLegacyApplying||onlineLegacyPriorityTerminalPending||!onlineSocket)return false;
  const me=G.online.myPlayerIndex;if(!Number.isInteger(me)||!G.players[me]||G.players[me].bot)return false;
  if(priorityCardResolutionActor()===me)return true;
  if(G.players[G.active]&&G.players[G.active].bot){
@@ -5215,26 +5265,7 @@ function onlineLegacyPushPriorityCardNow(){
  send(onlineLegacyRevision,2);
 }
 function onlineLegacyPushAssassinNow(actor){
- if(!G||!G.online||!G.online.legacySync||onlineLegacyApplying||!onlineSocket)return Promise.resolve(null);
- const actorIndex=G.online.myPlayerIndex;
- if(!Number.isInteger(actorIndex)||actorIndex!==actor||!G.players[actorIndex]||G.players[actorIndex].bot)return Promise.resolve(null);
- clearTimeout(onlineLegacyPushTimer);
- const snapshot=onlineLegacySnapshot(),digest=onlineLegacyDigest();
- const send=(baseRevision,retries)=>onlineAck('legacyCommit',{baseRevision,actorIndex,snapshot}).then(res=>{
-   onlineLegacyRevision=Math.max(onlineLegacyRevision,res.revision||0);G.online.revision=onlineLegacyRevision;onlineLegacyLastDigest=digest;
-   return res;
- }).catch(err=>{
-   // L'état terminal d'Assassin (carte consommée, cible résolue, modal fermé) appartient
-   // à l'acteur de la carte. En cas de conflit de révision, on rejoue ce même snapshot
-   // terminal plutôt que de restaurer le snapshot serveur où Assassin était encore ouvert.
-   if(err&&err.current&&retries>0&&Number.isInteger(err.current.revision)){
-     onlineLegacyRevision=Math.max(onlineLegacyRevision,err.current.revision);G.online.revision=onlineLegacyRevision;
-     return send(onlineLegacyRevision,retries-1);
-   }
-   onlineLegacyLastDigest='';if(err&&err.current)onlineLegacyApply(err.current);else onlineError(err);
-   return null;
- });
- return send(onlineLegacyRevision,2);
+ return onlineLegacyPushPriorityTerminalNow(actor);
 }
 function onlineLegacyPushCaravanNow(){
  if(!G||!G.online||!G.online.legacySync||onlineLegacyApplying||!onlineSocket)return Promise.resolve(null);
@@ -5356,7 +5387,7 @@ function onlineLegacyLockControls(){
  if($('draw'))$('draw').disabled=!start;if($('harvest'))$('harvest').disabled=!start;if($('recruit'))$('recruit').disabled=!start;
  if($('endRecruit'))$('endRecruit').disabled=!recruiting;if($('resetRecruit'))$('resetRecruit').disabled=!recruiting;
  if($('toOracle'))$('toOracle').disabled=!playing;if($('roll'))$('roll').disabled=!oracleRoll;
- const map=$('map');if(map)map.style.pointerEvents='';
+ const map=$('map');if(map)map.style.pointerEvents=onlineLegacyPriorityTerminalPending?'none':'';
  const n=$('status');if(n&&!n.querySelector('.onlineLegacyNotice'))n.insertAdjacentHTML('beforeend','<div class="botNotice onlineLegacyNotice">🌐 Online — moteur original TRIBU synchronisé.</div>');
 }
 function wireOracleCardPreviews(){
@@ -5375,8 +5406,11 @@ const onlineLegacyBaseRender=render;
 render=function(){
  onlineLegacyBaseRender();
  wireOracleCardPreviews();
- if(paidDrawState&&paidDrawState.pausedByCard&&!priorityCardResolutionActive()&&!goldReaction)resumePaidDrawAfterCard();
- if(goldReaction&&goldReaction.pausedByCard&&!paidDrawState&&!choiceState&&!divinationState&&!caravanState&&!egnoState&&!shadowState&&!agentModalState&&!portalMode&&!buildingMode)resumeGoldReactionAfterCard();
+ // Détecter la fermeture d'une résolution AVANT de relancer un chrono interrompu :
+ // le snapshot terminal doit être accepté par le serveur avant toute nouvelle action.
+ if(G&&G.online&&G.online.legacySync)onlineLegacyTrackPriorityTerminal();
+ if(!onlineLegacyPriorityTerminalPending&&paidDrawState&&paidDrawState.pausedByCard&&!priorityCardResolutionActive()&&!goldReaction)resumePaidDrawAfterCard();
+ if(!onlineLegacyPriorityTerminalPending&&goldReaction&&goldReaction.pausedByCard&&!paidDrawState&&!choiceState&&!divinationState&&!caravanState&&!egnoState&&!shadowState&&!agentModalState&&!portalMode&&!buildingMode)resumeGoldReactionAfterCard();
  if(G&&G.online&&G.online.legacySync){
    restoreCouncilChoiceOverlay();
    restorePriorityCardOverlays();
