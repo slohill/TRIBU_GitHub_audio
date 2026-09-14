@@ -1,0 +1,82 @@
+name: Fix Pyrodontes effective temperate 20260914
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - '.github/workflows/fix-pyrodontes-effective-temperate-20260914.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout staging tools
+        uses: actions/checkout@v4
+        with:
+          ref: clean-online-sync-from-4034-20260907
+          path: staging
+      - name: Checkout exact main target
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: work
+          fetch-depth: 0
+      - name: Verify expected main SHA
+        working-directory: work
+        run: test "$(git rev-parse HEAD)" = "d23d3190e10aa1ac8fc9e65e74405909d7fd09d9"
+      - name: Apply targeted patch
+        working-directory: work
+        run: python ../staging/scripts/fix_pyrodontes_effective_temperate_20260914.py
+      - name: Check JavaScript syntax
+        working-directory: work
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          a=s.index('<script src="https://tribu-online.onrender.com/socket.io/socket.io.js"></script>')
+          a=s.index('<script>',a)+len('<script>'); b=s.rindex('</script>')
+          Path('/tmp/tribu.js').write_text(s[a:b],encoding='utf-8')
+          PY
+          node --check /tmp/tribu.js
+      - name: Functional Pyrodontes climate regression
+        working-directory: work
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          assert "if(base==='e')return 't';" in s
+          assert "if(base==='d')return 't';" in s
+          assert "if(currentTerrain(battle.target)!=='t') return {ok:false,reason:'La région doit être actuellement tempérée.'};" in s
+          assert "R[battle.target][1]!=='t'||currentTerrain(battle.target)!=='t'" not in s
+          assert "R[battle.target][1]==='t' && currentTerrain(battle.target)==='t'" not in s
+          assert "R[target][1]==='t' && currentTerrain(target)==='t'" not in s
+          assert "side==='attacker' && battle.kind==='land' && currentTerrain(battle.target)==='t' ? 5 : 0" in s
+          assert "c.name==='Pyrodontes de guerre' && !isSea(target) && currentTerrain(target)==='t'" in s
+          # Simule les deux transitions climatiques visées par la régression.
+          def terrain(base,climate):
+              if climate=='Canicule': return 't' if base=='e' else ('d' if base in ('t','d') else base)
+              if climate=='Vague de froid': return 'e' if base in ('t','e') else ('t' if base=='d' else base)
+              return base
+          assert terrain('e','Canicule')=='t'
+          assert terrain('d','Vague de froid')=='t'
+          assert terrain('t','Canicule')=='d'
+          assert terrain('t','Vague de froid')=='e'
+          print('Pyrodontes effective-terrain regression: OK')
+          PY
+      - name: Diff checks
+        working-directory: work
+        run: |
+          git diff --check
+          test "$(git diff --name-only)" = "index.html"
+      - name: Commit and push only index.html
+        working-directory: work
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Répare Pyrodontes sur terrains tempérés par Oracle"
+          git push origin HEAD:main
