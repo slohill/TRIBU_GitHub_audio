@@ -2463,7 +2463,7 @@ function botAttackBonus(i,target){
    if(c.name==='Pluie de flèches')best=Math.max(best,3);
    if(c.name==='Montures')best=Math.max(best,4);
    if(c.name==='Balistes')best=Math.max(best,2);
-   if(c.name==='Pyrodontes de guerre' && !isSea(target) && R[target][1]==='t' && currentTerrain(target)==='t')best=Math.max(best,5);
+   if(c.name==='Pyrodontes de guerre' && !isSea(target) && currentTerrain(target)==='t')best=Math.max(best,5);
  });
  return best;
 }
@@ -2997,7 +2997,7 @@ function battleCardLegality(cardId, owner){
   if(name==='Pyrodontes de guerre'){
     if(owner!==battle.attacker) return {ok:false,reason:'Seul l’attaquant peut jouer Pyrodontes.'};
     if(battle.kind!=='land') return {ok:false,reason:'Uniquement en bataille terrestre.'};
-    if(R[battle.target][1]!=='t'||currentTerrain(battle.target)!=='t') return {ok:false,reason:'La région doit être naturellement tempérée et être actuellement tempérée.'};
+    if(currentTerrain(battle.target)!=='t') return {ok:false,reason:'La région doit être actuellement tempérée.'};
     return {ok:true,forcedSide:'attacker',reason:'+5 Attaque uniquement.'};
   }
 
@@ -3059,7 +3059,7 @@ function battleBonusFor(card,side){
   if(name==='Mur de pique') return side==='defender'?4:0;
   if(name==='Pluie de flèches') return 3;
   if(name==='Pyrodontes de guerre'){
-    return side==='attacker' && battle.kind==='land' && R[battle.target][1]==='t' && currentTerrain(battle.target)==='t' ? 5 : 0;
+    return side==='attacker' && battle.kind==='land' && currentTerrain(battle.target)==='t' ? 5 : 0;
   }
   if(name==='Montures') return side==='attacker'?4:0;
   if(name==='Balistes') return 0;
