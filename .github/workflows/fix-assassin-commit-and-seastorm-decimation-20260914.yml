@@ -1,0 +1,51 @@
+name: Fix assassin commit and sea storm decimation 20260914
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - '.github/workflows/fix-assassin-commit-and-seastorm-decimation-20260914.yml'
+      - 'scripts/fix_assassin_commit_and_seastorm_decimation_20260914.py'
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Guard expected main and historical backup
+        run: |
+          test "$(git rev-parse HEAD)" = "8898519416c926ccfa54748b22e34ad9332b8d04"
+          test "$(git rev-parse origin/backup-before-full-rule-transposition-2026-09-07)" = "4034c26c69c575095146d4a51588aa82db8d746a"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Load patch from staging
+        run: git show origin/clean-online-sync-from-4034-20260907:scripts/fix_assassin_commit_and_seastorm_decimation_20260914.py > /tmp/patch.py
+      - name: Apply patch
+        run: python /tmp/patch.py
+      - name: Syntax and functional regression
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text()
+          script=s.split('<script>',1)[1].rsplit('</script>',1)[0]
+          Path('/tmp/tribu.js').write_text(script)
+          assert "if(goldReaction)pauseGoldReactionForCard();\n discardHandCard(actor,idx);" in s
+          assert "if(goldReaction&&c.name!=='Embuscade'&&c.name!=='Assassin')pauseGoldReactionForCard();" in s
+          start=s[s.index('function startAssassin'):s.index('function resolveAssassin')]
+          assert 'pauseGoldReactionForCard()' not in start
+          assert "if(isDecimated(G.active)){advanceTurn('décimation par Tempête en mer');return}" in s
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          assert 'Naviguer' in s
+          PY
+          node --check /tmp/tribu.js
+          git diff --check
+          test "$(git diff --name-only)" = "index.html"
+      - name: Commit production file only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m "Répare Assassin pendant gain d'or et décimation en Tempête en mer"
+          git push origin HEAD:main
