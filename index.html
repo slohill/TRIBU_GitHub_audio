@@ -4980,7 +4980,7 @@ function onlineApplyStateToDisplay(state){
 // The original TRIBU engine remains the only gameplay engine. Online only stores
 // and relays complete committed engine snapshots. UI drafts such as dest/picks are
 // deliberately not synchronized.
-let onlineLegacyRevision=0,onlineLegacyApplying=false,onlineLegacyLastDigest='',onlineLegacyPushTimer=null,onlineLegacyBotDriverIndex=null,onlineLegacyBattleViewSeconds=null,onlineLegacyGoldViewSeconds=null,onlineLegacyGoldTickRender=false,onlineLegacyPriorityWasActive=false,onlineLegacyPriorityTrackedActor=null,onlineLegacyPriorityTerminalPending=false;
+let onlineLegacyRevision=0,onlineLegacyApplying=false,onlineLegacyLastDigest='',onlineLegacyPushTimer=null,onlineLegacyBotDriverIndex=null,onlineLegacyBattleViewSeconds=null,onlineLegacyGoldViewSeconds=null,onlineLegacyGoldTickRender=false,onlineLegacyPriorityWasActive=false,onlineLegacyPriorityTrackedActor=null,onlineLegacyPriorityTerminalPending=false,onlineLegacyRecoveryPending=false,onlineLegacyRecoveryAttempted=false;
 function onlineLegacyDriverIndex(){
  if(!G)return -1;
  return G.players.findIndex(pl=>!pl.bot);
@@ -5291,7 +5291,7 @@ function onlineLegacyTrackPriorityTerminal(){
  });
 }
 function onlineLegacyCanPublish(){
- if(!G||!G.online||!G.online.legacySync||onlineLegacyApplying||onlineLegacyPriorityTerminalPending||!onlineSocket)return false;
+ if(!G||!G.online||!G.online.legacySync||onlineLegacyApplying||onlineLegacyPriorityTerminalPending||onlineLegacyRecoveryPending||!onlineSocket)return false;
  const me=G.online.myPlayerIndex;if(!Number.isInteger(me)||!G.players[me]||G.players[me].bot)return false;
  if(priorityCardResolutionActor()===me)return true;
  if(G.players[G.active]&&G.players[G.active].bot){
@@ -5441,7 +5441,7 @@ function onlineLegacyViewerNeedsMap(me){
 function onlineLegacyLockControls(){
  if(!G||!G.online||!G.online.legacySync)return;
  const me=G.online.myPlayerIndex,mine=me===G.active&&!G.players[me].bot;
- const cardPause=priorityCardResolutionActive();
+ const cardPause=priorityCardResolutionActive()||onlineLegacyRecoveryPending;
  const start=mine&&G.phase==='start'&&!paidDrawState&&!goldReaction&&!cardPause,recruiting=mine&&G.phase==='recruit'&&!cardPause,playing=mine&&G.phase==='play'&&!cardPause,oracleRoll=mine&&G.phase==='oracleRoll'&&!cardPause;
  const s=$('startTurn');if(s)s.classList.toggle('hidden',!start);
  const rb=$('recruitBox'),pb=$('playBox'),ob=$('oracleBox');
@@ -5452,8 +5452,8 @@ function onlineLegacyLockControls(){
  if($('draw'))$('draw').disabled=!start;if($('harvest'))$('harvest').disabled=!start;if($('recruit'))$('recruit').disabled=!start;
  if($('endRecruit'))$('endRecruit').disabled=!recruiting;if($('resetRecruit'))$('resetRecruit').disabled=!recruiting;
  if($('toOracle'))$('toOracle').disabled=!playing;if($('roll'))$('roll').disabled=!oracleRoll;
- const map=$('map');if(map)map.style.pointerEvents=onlineLegacyPriorityTerminalPending?'none':'';
- const n=$('status');if(n&&!n.querySelector('.onlineLegacyNotice'))n.insertAdjacentHTML('beforeend','<div class="botNotice onlineLegacyNotice">🌐 Online — moteur original TRIBU synchronisé.</div>');
+ const map=$('map');if(map)map.style.pointerEvents=(onlineLegacyPriorityTerminalPending||onlineLegacyRecoveryPending)?'none':'';
+ const n=$('status');if(n){let notice=n.querySelector('.onlineLegacyNotice');if(!notice){n.insertAdjacentHTML('beforeend','<div class="botNotice onlineLegacyNotice">🌐 Online — moteur original TRIBU synchronisé.</div>');notice=n.querySelector('.onlineLegacyNotice')}if(notice)notice.textContent=onlineLegacyRecoveryPending?'🌐 Resynchronisation de la partie…':'🌐 Online — moteur original TRIBU synchronisé.';}
 }
 function wireOracleCardPreviews(){
  const activeId=G&&G.oracleActive!==null?G.oracleActive:null,nextId=G?nextOracle():null;
@@ -5592,7 +5592,36 @@ function connectOnline(){
  });
 }
 function onlineAck(action,payload){return connectOnline().then(socket=>new Promise((resolve,reject)=>socket.emit(action,payload,res=>{if(res&&res.ok){resolve(res);return}const err=new Error(res&&res.error||'Erreur serveur.');if(res&&res.current)err.current=res.current;reject(err)})))}
-function onlineError(err){alert(err&&err.message?err.message:String(err))}
+function onlineLegacyCanAutoRecover(err){
+ return !!(err&&err.message==='Synchronisation complète indisponible.'&&G&&G.online&&G.online.legacySync&&!onlineLegacyRecoveryPending&&!onlineLegacyRecoveryAttempted&&onlineResumeRead());
+}
+async function onlineLegacyRecoverSession(){
+ const saved=onlineResumeRead();if(!saved)throw new Error('Aucune reprise de partie disponible.');
+ onlineLegacyRecoveryAttempted=true;onlineLegacyRecoveryPending=true;
+ clearTimeout(onlineLegacyPushTimer);onlineLegacyPushTimer=null;
+ clearInterval(battleTick);clearTimeout(botReactionTimer);clearInterval(paidDrawTick);clearGoldReactionTimer();clearTimeout(botTimer);botTimer=null;botToken++;
+ onlineLegacyLockControls();
+ try{
+   const resumed=await onlineAck('resumeRoom',saved);
+   onlineResumeSave(resumed.resume);onlineRoom=resumed.room;onlineSelectedMode=resumed.room.mode;onlineGameState=resumed.game;
+   const full=await onlineAck('requestLegacyState',{});
+   if(!full||!full.snapshot)throw new Error('Aucun snapshot complet disponible pour reprendre la partie.');
+   onlineLegacyRecoveryPending=false;
+   if(!G||!G.online||!G.online.legacySync)onlineLegacyBootstrap(full.bootstrap,resumed.game);
+   onlineLegacyApply({snapshot:full.snapshot,revision:full.revision,youIndex:full.youIndex});
+   onlineLegacyRecoveryAttempted=false;
+   return true;
+ }catch(e){
+   onlineLegacyRecoveryPending=false;onlineLegacyLockControls();throw e;
+ }
+}
+function onlineError(err){
+ if(onlineLegacyCanAutoRecover(err)){
+   onlineLegacyRecoverSession().catch(recoveryErr=>alert('Synchronisation complète indisponible.\nLa resynchronisation automatique a échoué : '+(recoveryErr&&recoveryErr.message?recoveryErr.message:String(recoveryErr))+'\nRechargez la page pour reprendre la partie.'));
+   return;
+ }
+ alert(err&&err.message?err.message:String(err));
+}
 $('startBtn').onclick=()=>launchLegacyMode($('gameMode').value,+$('victoryMode').value||3);
 $('onlineCreate').onclick=()=>{onlinePseudo();showOnlineScreen('onlineCreateScreen')};
 $('onlineJoin').onclick=()=>{onlinePseudo();onlineResumeRefresh();showOnlineScreen('onlineJoinScreen')};
