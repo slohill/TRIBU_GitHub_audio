@@ -1374,7 +1374,7 @@ function startAssassin(handIndex){
  if(id===undefined||CARDS[id].name!=='Assassin'||isDecimated(actor))return;
  const targets=assassinTargets(actor);
  if(!targets.length){log('Assassin : aucun Agent adverse à cibler.');render();return}
- if(goldReaction)pauseGoldReactionForCard();
+ // Ouvrir le choix de cible ne joue pas encore Assassin : le chrono d'Or continue.
  agentModalState={kind:'assassin',actor,handIndex,cardId:id};
  pauseGameForPriorityCard();
  openAgentModal('Assassin','Choisissez l’Agent adverse à assassiner.');
@@ -1392,6 +1392,9 @@ function resolveAssassin(target){
  const s=agentModalState;if(!s||s.kind!=='assassin')return;
  const actor=s.actor,idx=G.players[actor].hand.indexOf(s.cardId);
  if(idx<0){closeAgentModal();render();return}
+ // Le choix d'une cible engage définitivement la carte : seulement maintenant
+ // le gain d'Or est interrompu, puis il reprendra à 10 s après résolution.
+ if(goldReaction)pauseGoldReactionForCard();
  discardHandCard(actor,idx);
  const roll=1+Math.floor(Math.random()*6);
  let killed=false;
@@ -3411,7 +3414,12 @@ function commitMovement(n,seaDefender){
    if(stormRoll%2===1){
      const lost=consumePickedSources().length;
      log(lost+' unité(s) sont perdues dans la Tempête en mer.');
-     dest=null;picks={};checkDecimations();render();return;
+     dest=null;picks={};checkDecimations();
+     // Si la Tempête vient de décimer le joueur actif, il ne peut plus passer
+     // manuellement à l'Oracle : terminer immédiatement son tour évite le blocage
+     // et son prochain tour proposera normalement le retour après décimation.
+     if(isDecimated(G.active)){advanceTurn('décimation par Tempête en mer');return}
+     render();return;
    }
    // Pair : le déplacement/attaque se poursuit normalement avec toute la sélection.
  }
@@ -4763,7 +4771,7 @@ function render(){
      if(G.phase==='recruit'&&recruitSnapshot&&recruitSnapshot.player===G.active){
        resetRecruitmentForPriorityCard(handPlayer,c.name);
      }
-     if(goldReaction&&c.name!=='Embuscade')pauseGoldReactionForCard();
+     if(goldReaction&&c.name!=='Embuscade'&&c.name!=='Assassin')pauseGoldReactionForCard();
      return cardAction.call(d,ev);
    };
  }
