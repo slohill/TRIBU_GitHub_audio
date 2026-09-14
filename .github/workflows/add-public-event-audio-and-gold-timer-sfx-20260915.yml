@@ -1,0 +1,117 @@
+name: Add public event audio and gold timer sfx 20260915
+
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - scripts/add_public_event_audio_and_gold_timer_sfx_20260915.py
+      - .github/workflows/add-public-event-audio-and-gold-timer-sfx-20260915.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout staging tools
+        uses: actions/checkout@v4
+        with:
+          ref: clean-online-sync-from-4034-20260907
+          fetch-depth: 0
+
+      - name: Preserve patch script
+        run: cp scripts/add_public_event_audio_and_gold_timer_sfx_20260915.py /tmp/add_public_event_audio_and_gold_timer_sfx_20260915.py
+
+      - name: Checkout exact main target
+        run: |
+          git fetch origin main
+          git checkout --detach 953096752edb7594922374bbdb59cf6813da223d
+
+      - name: Verify expected main SHA and uploaded audio files
+        run: |
+          test "$(git rev-parse HEAD)" = "953096752edb7594922374bbdb59cf6813da223d"
+          test "$(git rev-parse origin/main)" = "953096752edb7594922374bbdb59cf6813da223d"
+          test -s assets/audio/Egnobombe.mp3
+          test -s assets/audio/epicbattle.mp3
+          test -s assets/audio/gaindor.mp3
+
+      - name: Apply targeted patch
+        run: python /tmp/add_public_event_audio_and_gold_timer_sfx_20260915.py
+
+      - name: Check JavaScript syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          js=s.split('<script>',1)[1].rsplit('</script>',1)[0]
+          Path('/tmp/tribu.js').write_text(js,encoding='utf-8')
+          PY
+          node --check /tmp/tribu.js
+
+      - name: Functional public event and gold SFX regression
+        run: |
+          node <<'JS'
+          const fs=require('fs'),vm=require('vm');
+          const src=fs.readFileSync('/tmp/tribu.js','utf8');
+          function extract(name){
+            const start=src.indexOf('function '+name+'('); if(start<0)throw new Error('missing '+name);
+            const brace=src.indexOf('{',start); let depth=0;
+            for(let i=brace;i<src.length;i++){
+              if(src[i]==='{')depth++;
+              else if(src[i]==='}'&&--depth===0)return src.slice(start,i+1);
+            }
+            throw new Error('unterminated '+name);
+          }
+          // Public texts use the real player names and only the requested event kinds.
+          {
+            const c={G:{players:[{name:'A'},{name:'B'}]},p:i=>c.G.players[i]};
+            vm.createContext(c);vm.runInContext(extract('publicEventText'),c);
+            const eg=c.publicEventText({kind:'egnobombe',actor:0});
+            const ep=c.publicEventText({kind:'epicbattle',actor:0,other:1});
+            if(!eg.includes("A a utilisé l'Egnobombe")||!eg.includes('Egnorax'))throw new Error('bad Egnobombe text');
+            if(!ep.includes('A a vaincu B')||!ep.includes('tavernes de Myrmigate'))throw new Error('bad epic text');
+          }
+          // Gold countdown SFX: each start resets to zero, each clear stops and resets.
+          {
+            let playCount=0,pauseCount=0;
+            const audio={currentTime:7,volume:0,loop:false,preload:'',pause(){pauseCount++},play(){playCount++;return Promise.resolve()},load(){}};
+            const c={
+              AUDIO_SRC:{gaindor:'assets/audio/gaindor.mp3'},audioSfxEnabled:true,goldReaction:{seconds:10},isHotseatMode:()=>false,
+              goldReactionSfx:audio,goldReactionSfxActive:false,goldReactionTick:123,clearInterval:()=>{},Audio:function(){return audio}
+            };
+            vm.createContext(c);
+            ['goldReactionAudio','startGoldReactionSfx','stopGoldReactionSfx','clearGoldReactionTimer'].forEach(n=>vm.runInContext(extract(n),c));
+            c.startGoldReactionSfx();
+            if(playCount!==1||audio.currentTime!==0||!c.goldReactionSfxActive)throw new Error('gold sfx did not restart from zero');
+            audio.currentTime=4;c.clearGoldReactionTimer();
+            if(audio.currentTime!==0||c.goldReactionSfxActive||pauseCount<2)throw new Error('gold sfx did not stop with timer');
+            c.goldReaction.pausedByCard=true;c.startGoldReactionSfx();
+            if(playCount!==1)throw new Error('gold sfx played while timer paused');
+          }
+          console.log('public event + gold timer SFX simulation OK');
+          JS
+
+      - name: Structural invariants
+        run: |
+          grep -F 'egnobombe:"assets/audio/Egnobombe.mp3"' index.html
+          grep -F 'epicbattle:"assets/audio/epicbattle.mp3"' index.html
+          grep -F 'gaindor:"assets/audio/gaindor.mp3"' index.html
+          grep -F "announcePublicEvent('egnobombe',actor);" index.html
+          grep -F "announcePublicEvent('epicbattle',attacker,defender);" index.html
+          grep -F "announcePublicEvent('epicbattle',defender,attacker);" index.html
+          grep -F 'startGoldReactionSfx();' index.html
+          grep -F 'stopGoldReactionSfx();' index.html
+          grep -F "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" index.html
+          grep -F "peaceful.textContent='Naviguer'" index.html
+          git diff --check
+          test "$(git diff --name-only)" = "index.html"
+
+      - name: Commit and push only index.html
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Ajoute les sons Egnobombe, bataille épique et gain d'Or"
+          git push origin HEAD:main
