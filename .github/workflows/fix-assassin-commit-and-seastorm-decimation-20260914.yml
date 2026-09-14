@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/fix-assassin-commit-and-seastorm-decimation-20260914.yml'
       - 'scripts/fix_assassin_commit_and_seastorm_decimation_20260914.py'
+permissions:
+  contents: write
 jobs:
   patch-main:
     runs-on: ubuntu-latest
