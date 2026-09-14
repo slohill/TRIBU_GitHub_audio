@@ -56,7 +56,6 @@ jobs:
           assert "R[target][1]==='t' && currentTerrain(target)==='t'" not in s
           assert "side==='attacker' && battle.kind==='land' && currentTerrain(battle.target)==='t' ? 5 : 0" in s
           assert "c.name==='Pyrodontes de guerre' && !isSea(target) && currentTerrain(target)==='t'" in s
-          # Simule les deux transitions climatiques visées par la régression.
           def terrain(base,climate):
               if climate=='Canicule': return 't' if base=='e' else ('d' if base in ('t','d') else base)
               if climate=='Vague de froid': return 'e' if base in ('t','e') else ('t' if base=='d' else base)
