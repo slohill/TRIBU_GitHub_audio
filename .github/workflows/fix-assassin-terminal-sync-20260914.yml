@@ -1,0 +1,132 @@
+name: Fix assassin terminal sync 20260914
+
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - scripts/fix_assassin_terminal_sync_20260914.py
+      - .github/workflows/fix-assassin-terminal-sync-20260914.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout staging tools
+        uses: actions/checkout@v4
+        with:
+          ref: clean-online-sync-from-4034-20260907
+          fetch-depth: 0
+
+      - name: Preserve patch script
+        run: cp scripts/fix_assassin_terminal_sync_20260914.py /tmp/fix_assassin_terminal_sync_20260914.py
+
+      - name: Checkout exact main target
+        run: |
+          git fetch origin main
+          git checkout --detach 353880889eff1dad4e93ff8953e225cd74655910
+
+      - name: Verify expected main SHA
+        run: |
+          test "$(git rev-parse HEAD)" = "353880889eff1dad4e93ff8953e225cd74655910"
+          test "$(git rev-parse origin/main)" = "353880889eff1dad4e93ff8953e225cd74655910"
+
+      - name: Apply targeted patch
+        run: python /tmp/fix_assassin_terminal_sync_20260914.py
+
+      - name: Check JavaScript syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          js=s.split('<script>',1)[1].rsplit('</script>',1)[0]
+          Path('/tmp/tribu.js').write_text(js,encoding='utf-8')
+          PY
+          node --check /tmp/tribu.js
+
+      - name: Functional Assassin regression simulation
+        run: |
+          node <<'JS'
+          const fs=require('fs'),vm=require('vm');
+          const src=fs.readFileSync('/tmp/tribu.js','utf8');
+          function extract(name){
+            const start=src.indexOf('function '+name+'('); if(start<0)throw new Error('missing '+name);
+            const brace=src.indexOf('{',start); let depth=0;
+            for(let i=brace;i<src.length;i++){
+              if(src[i]==='{')depth++;
+              else if(src[i]==='}'&&--depth===0)return src.slice(start,i+1);
+            }
+            throw new Error('unterminated '+name);
+          }
+
+          // 1) Pendant l'Assassin adverse, le joueur actif ne peut plus agir sur la map.
+          {
+            let moved=0;
+            const c={
+              G:{active:2,online:{legacySync:true,myPlayerIndex:2},players:[{},{},{}],phase:'play'},onlineGameState:null,
+              oracleState:null,dragonRichState:null,egnoState:null,shadowState:null,portalMode:null,setupState:null,
+              divinationState:null,oracleNoticeState:null,caravanState:null,dragonSixState:null,dragonPublicState:null,dragonCurseState:null,
+              inPlaySelected:null,returnState:null,paidDrawState:null,goldReaction:null,buildingMode:null,dest:null,
+              priorityCardResolutionActive:()=>true,isBot:()=>false,chooseDest:()=>moved++,hideInPlayPreview:()=>{},returnRegions:()=>[],
+              isSea:()=>false,dragonTargets:()=>[],legalSources:()=>[],adjust:()=>{},recruitAt:()=>{},placeBuilding:()=>{},
+              destroyRichDragonTarget:()=>{},reformAt:()=>{},egnoTargetLegal:()=>false,resolveEgnobombe:()=>{},
+              oracleDragon5Click:()=>{},oracleSacrificeClick:()=>{},chooseShadowTarget:()=>{},adjustShadow:()=>{},canPortalRegion:()=>false,choosePortalRegion:()=>{},
+              p:()=>({name:'J3'}),log:()=>{},render:()=>{}
+            };
+            vm.createContext(c);vm.runInContext(extract('clickSpot'),c);c.clickSpot('A1');
+            if(moved!==0)throw new Error('map remained active during priority resolution');
+            c.priorityCardResolutionActive=()=>false;c.clickSpot('A1');
+            if(moved!==1)throw new Error('map did not resume after priority resolution');
+          }
+
+          // 2) L'état terminal Assassin est committé par J2 avant reprise de J3.
+          (async()=>{
+            const events=[];
+            const assassinCard={name:'Assassin'};
+            const c={
+              agentModalState:{kind:'assassin',actor:1,cardId:7},goldReaction:null,
+              G:{active:2,online:{legacySync:true},players:[
+                {name:'J1',hand:[],inPlay:[],inPlayUID:[]},
+                {name:'J2',hand:[7],inPlay:[],inPlayUID:[]},
+                {name:'J3',hand:[],inPlay:[9],inPlayUID:['u9']}
+              ],discard:[]},
+              CARDS:{7:assassinCard,9:{name:'Espion'}},
+              closeAgentModal:(force)=>{events.push('close:'+force);c.agentModalState=null},
+              pauseGoldReactionForCard:()=>{},discardHandCard:(actor,idx)=>{const id=c.G.players[actor].hand.splice(idx,1)[0];c.G.discard.push(id)},
+              agentDefaults:()=>{},agentUID:()=> 'u9',audioPlaySfx:()=>{},log:()=>{},p:i=>c.G.players[i],
+              showAssassinMapMessage:()=>{},localViewer:()=>1,
+              onlineLegacyPushAssassinNow:(actor)=>{if(c.agentModalState!==null)throw new Error('modal still active at terminal commit');events.push('push:'+actor);return Promise.resolve()},
+              render:()=>events.push('render'),resumeGameAfterPriorityCard:()=>events.push('resume'),
+              Math:Object.create(Math)
+            };
+            c.Math.random=()=>0.99;
+            vm.createContext(c);vm.runInContext(extract('resolveAssassin'),c);
+            c.resolveAssassin({owner:2,index:0,id:9,name:'Espion',uid:'u9'});
+            await new Promise(r=>setImmediate(r));
+            if(c.G.players[1].hand.length!==0)throw new Error('Assassin card not consumed');
+            if(c.G.players[2].inPlay.length!==0)throw new Error('target Agent not resolved');
+            if(events.join('|')!=='close:true|push:1|render|resume')throw new Error('bad terminal ordering: '+events.join('|'));
+            console.log('Assassin terminal sync simulation OK');
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+
+      - name: Structural invariants
+        run: |
+          grep -F "onlineLegacyPushAssassinNow(actor).then" index.html
+          grep -F "if(priorityCardResolutionActive()&&!reactionMap)return;" index.html
+          grep -F "(portalMode&&portalMode.owner===me)" index.html
+          grep -F "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" index.html
+          grep -F "peaceful.textContent='Naviguer'" index.html
+          git diff --check
+          test "$(git diff --name-only)" = "index.html"
+
+      - name: Commit and push only index.html
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Sérialise la fin d'Assassin Online"
+          git push origin HEAD:main
