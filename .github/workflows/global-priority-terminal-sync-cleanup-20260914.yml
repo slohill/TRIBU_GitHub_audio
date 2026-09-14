@@ -1,0 +1,155 @@
+name: Global priority terminal sync cleanup 20260914
+
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - scripts/global_priority_terminal_sync_cleanup_20260914.py
+      - .github/workflows/global-priority-terminal-sync-cleanup-20260914.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout staging tools
+        uses: actions/checkout@v4
+        with:
+          ref: clean-online-sync-from-4034-20260907
+          fetch-depth: 0
+
+      - name: Preserve patch script
+        run: cp scripts/global_priority_terminal_sync_cleanup_20260914.py /tmp/global_priority_terminal_sync_cleanup_20260914.py
+
+      - name: Checkout exact main target
+        run: |
+          git fetch origin main
+          git checkout --detach 1117ca51a3ec651f4d0d79867f9d462291b52d26
+
+      - name: Verify expected main SHA
+        run: |
+          test "$(git rev-parse HEAD)" = "1117ca51a3ec651f4d0d79867f9d462291b52d26"
+          test "$(git rev-parse origin/main)" = "1117ca51a3ec651f4d0d79867f9d462291b52d26"
+
+      - name: Apply targeted patch
+        run: python /tmp/global_priority_terminal_sync_cleanup_20260914.py
+
+      - name: Check JavaScript syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          js=s.split('<script>',1)[1].rsplit('</script>',1)[0]
+          Path('/tmp/tribu.js').write_text(js,encoding='utf-8')
+          PY
+          node --check /tmp/tribu.js
+
+      - name: Functional terminal sync simulation
+        run: |
+          node <<'JS'
+          const fs=require('fs'),vm=require('vm');
+          const src=fs.readFileSync('/tmp/tribu.js','utf8');
+          function extract(name){
+            const start=src.indexOf('function '+name+'('); if(start<0)throw new Error('missing '+name);
+            const brace=src.indexOf('{',start); let depth=0;
+            for(let i=brace;i<src.length;i++){
+              if(src[i]==='{')depth++;
+              else if(src[i]==='}'&&--depth===0)return src.slice(start,i+1);
+            }
+            throw new Error('unterminated '+name);
+          }
+          async function flush(){await new Promise(r=>setImmediate(r));await new Promise(r=>setImmediate(r));}
+          (async()=>{
+            // J2 termine une carte prioritaire pendant le tour de J3 : le snapshot terminal
+            // doit être rejoué sur conflit, et le vieux snapshot ne doit jamais être appliqué.
+            {
+              let priority=true,actor=1,commits=[],applied=0,renders=0,acks=0;
+              const terminalSnapshot={terminal:true,cardState:null};
+              const c={
+                G:{active:2,online:{legacySync:true,myPlayerIndex:1,revision:7},players:[{bot:false},{bot:false},{bot:false}]},
+                onlineLegacyApplying:false,onlineSocket:{},onlineLegacyPriorityWasActive:false,onlineLegacyPriorityTrackedActor:null,onlineLegacyPriorityTerminalPending:false,
+                onlineLegacyPushTimer:null,onlineLegacyRevision:7,onlineLegacyLastDigest:'',
+                priorityCardResolutionActive:()=>priority,priorityCardResolutionActor:()=>actor,
+                onlineLegacyCanExecuteBot:()=>false,
+                onlineLegacySnapshot:()=>terminalSnapshot,onlineLegacyDigest:()=>JSON.stringify(terminalSnapshot),
+                onlineLegacyDecode:x=>x,onlineError:e=>{throw e},onlineLegacyApply:()=>{applied++},render:()=>{renders++},
+                clearTimeout:()=>{},Number,Promise,
+                onlineAck:(name,payload)=>{
+                  commits.push({base:payload.baseRevision,snapshot:payload.snapshot});acks++;
+                  if(acks===1)return Promise.reject({current:{revision:8,snapshot:{stale:true}}});
+                  return Promise.resolve({revision:9});
+                }
+              };
+              vm.createContext(c);
+              ['onlineLegacyCanCommitPriorityTerminal','onlineLegacyPushPriorityTerminalNow','onlineLegacyTrackPriorityTerminal'].forEach(n=>vm.runInContext(extract(n),c));
+              c.onlineLegacyTrackPriorityTerminal();
+              if(!c.onlineLegacyPriorityWasActive||c.onlineLegacyPriorityTrackedActor!==1)throw new Error('priority actor not tracked');
+              priority=false;c.onlineLegacyTrackPriorityTerminal();
+              if(!c.onlineLegacyPriorityTerminalPending)throw new Error('terminal lock not armed');
+              await flush();
+              if(commits.length!==2)throw new Error('terminal snapshot was not retried');
+              if(commits[0].snapshot!==commits[1].snapshot||commits[0].snapshot!==terminalSnapshot)throw new Error('retry changed terminal snapshot');
+              if(commits[0].base!==7||commits[1].base!==8)throw new Error('bad revision retry chain');
+              if(applied!==0)throw new Error('stale snapshot was applied during retry');
+              if(c.onlineLegacyPriorityTerminalPending)throw new Error('terminal lock remained stuck');
+              if(renders!==1)throw new Error('post-commit resume render missing');
+            }
+            // Un navigateur qui n'est pas l'acteur observe la fermeture mais ne publie rien.
+            {
+              let priority=true,calls=0;
+              const c={
+                G:{active:2,online:{legacySync:true,myPlayerIndex:2},players:[{bot:false},{bot:false},{bot:false}]},
+                onlineLegacyApplying:false,onlineSocket:{},onlineLegacyPriorityWasActive:false,onlineLegacyPriorityTrackedActor:null,onlineLegacyPriorityTerminalPending:false,
+                priorityCardResolutionActive:()=>priority,priorityCardResolutionActor:()=>1,onlineLegacyCanExecuteBot:()=>false,
+                onlineLegacyPushPriorityTerminalNow:()=>{calls++;return Promise.resolve()},Number
+              };
+              vm.createContext(c);vm.runInContext(extract('onlineLegacyCanCommitPriorityTerminal'),c);vm.runInContext(extract('onlineLegacyTrackPriorityTerminal'),c);
+              c.onlineLegacyTrackPriorityTerminal();priority=false;c.onlineLegacyTrackPriorityTerminal();
+              if(calls!==0)throw new Error('remote observer tried to commit terminal state');
+            }
+            console.log('global priority terminal sync simulation OK');
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+
+      - name: Structural priority audit
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          required=[
+            'divinationState||caravanState||egnoState||shadowState||portalMode',
+            "(choiceState&&choiceState.kind==='council')||agentModalState",
+            'function onlineLegacyPushPriorityTerminalNow(owner)',
+            'function onlineLegacyTrackPriorityTerminal()',
+            'onlineLegacyPriorityTerminalPending',
+            'if(onlineLegacyPriorityTerminalPending)return;',
+            "const cardPause=priorityCardResolutionActive()||onlineLegacyPriorityTerminalPending;",
+            "map.style.pointerEvents=onlineLegacyPriorityTerminalPending?'none':'';",
+            'return onlineLegacyPushPriorityTerminalNow(actor);',
+            "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};",
+            "peaceful.textContent='Naviguer'",
+          ]
+          for x in required:
+            assert x in s, x
+          # La détection terminale doit précéder les reprises de timers dans le wrapper render.
+          wrapper=s[s.index('render=function(){'):s.index('const onlineLegacyBaseQueueBot=queueBot;')]
+          assert wrapper.index('onlineLegacyTrackPriorityTerminal();') < wrapper.index('resumePaidDrawAfterCard()')
+          assert wrapper.index('onlineLegacyTrackPriorityTerminal();') < wrapper.index('resumeGoldReactionAfterCard()')
+          # Aucun retour au helper Assassin spécialisé fragile : Assassin passe par le mécanisme global.
+          body=s[s.index('function onlineLegacyPushAssassinNow'):s.index('function onlineLegacyPushCaravanNow')]
+          assert 'return onlineLegacyPushPriorityTerminalNow(actor);' in body
+          print('priority family structural audit OK')
+          PY
+          git diff --check
+          test "$(git diff --name-only)" = "index.html"
+
+      - name: Commit and push only index.html
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Fiabilise globalement les fins de résolutions prioritaires Online"
+          git push origin HEAD:main
