@@ -4433,6 +4433,11 @@ let commerceDeals=[],commerceSeq=1,commerceDraft=null,commerceBattlePaused=false
 function commerceHumans(){return G?G.players.map((x,i)=>({x,i})).filter(o=>!o.x.bot).map(o=>o.i):[]}
 function commerceViewer(){
  const h=commerceHumans();
+ // Online : chaque navigateur ne peut consulter que l'interface Commerce de son propre joueur.
+ if(G&&G.online&&G.online.legacySync){
+   const v=localViewer();
+   return Number.isInteger(v)&&h.includes(v)?v:(h[0]??G.active);
+ }
  if(Number.isInteger(commerceViewerOverride)&&h.includes(commerceViewerOverride))return commerceViewerOverride;
  let v=localViewer();if(v==null||G.players[v].bot)return h.length?h[0]:G.active;return v
 }
@@ -4442,6 +4447,7 @@ function commerceCardName(id){return CARDS[id]?CARDS[id].name:'Carte inconnue'}
 function commerceHasCards(i,ids){const hand=G.players[i].hand.slice();return ids.every(id=>{const k=hand.indexOf(id);if(k<0)return false;hand.splice(k,1);return true})}
 function commerceValid(d){return commerceHasCards(d.from,d.giveCards)&&commerceHasCards(d.to,d.wantCards)&&G.players[d.from].gold>=d.giveGold&&G.players[d.to].gold>=d.wantGold}
 function commerceRemoveCards(i,ids){ids.forEach(id=>{const k=G.players[i].hand.indexOf(id);if(k>=0)G.players[i].hand.splice(k,1)})}
+function commerceSyncOnline(){if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow()}
 function commerceExecute(d){
  if(d.status!=='accepted'||!commerceCanExecute(d))return;
  if(!commerceValid(d)){d.status='invalid';log('Commerce : l’échange #'+d.id+' est invalide, une ressource promise n’est plus disponible.');renderCommerce();render();return}
@@ -4449,10 +4455,10 @@ function commerceExecute(d){
  G.players[d.to].hand.push(...d.giveCards);G.players[d.from].hand.push(...d.wantCards);
  G.players[d.from].gold-=d.giveGold;G.players[d.to].gold+=d.giveGold;G.players[d.to].gold-=d.wantGold;G.players[d.from].gold+=d.wantGold;
  if(d.giveGold>0||d.wantGold>0)audioPlaySfx('gold',.72);
- d.status='done';log('Commerce : échange #'+d.id+' conclu entre '+p(d.from).name+' et '+p(d.to).name+'.');renderCommerce();render();
+ d.status='done';log('Commerce : échange #'+d.id+' conclu entre '+p(d.from).name+' et '+p(d.to).name+'.');renderCommerce();render();commerceSyncOnline();
 }
-function commerceAccept(id){const d=commerceDeals.find(x=>x.id===id);if(!d||d.status!=='pending')return;d.status='accepted';d.expires=0;log(p(commerceViewer()).name+' accepte la négociation #'+d.id+'.');if(commerceCanExecute(d))commerceExecute(d);else{renderCommerce();render()}}
-function commerceRefuse(id){const d=commerceDeals.find(x=>x.id===id);if(!d)return;d.status='refused';d.expires=0;log('Commerce : proposition #'+d.id+' refusée.');renderCommerce()}
+function commerceAccept(id){const d=commerceDeals.find(x=>x.id===id);if(!d||d.status!=='pending')return;d.status='accepted';d.expires=0;log(p(commerceViewer()).name+' accepte la négociation #'+d.id+'.');if(commerceCanExecute(d))commerceExecute(d);else{renderCommerce();render();commerceSyncOnline()}}
+function commerceRefuse(id){const d=commerceDeals.find(x=>x.id===id);if(!d)return;d.status='refused';d.expires=0;log('Commerce : proposition #'+d.id+' refusée.');renderCommerce();commerceSyncOnline()}
 function commerceCounter(id){
  const d=commerceDeals.find(x=>x.id===id);if(!d)return;const v=commerceViewer(),other=v===d.from?d.to:d.from;
  // La contre-proposition reprend l'accord affiché, mais du point de vue du joueur qui répond.
@@ -4462,8 +4468,8 @@ function commerceCounter(id){
  renderCommerce();
 }
 function commerceSetClosed(id,closed){const d=commerceDeals.find(x=>x.id===id);if(!d)return;d.closed=!!closed;renderCommerce()}
-function commerceReopenExpired(id){const d=commerceDeals.find(x=>x.id===id);if(!d||d.closed||d.type==='show'||d.status!=='expired')return;d.status='pending';d.expires=Date.now()+120000;log('Commerce : négociation #'+d.id+' réouverte pour 2 minutes.');renderCommerce();render()}
-function commerceOpen(){if(!G)return;const lv=localViewer(),h=commerceHumans();commerceViewerOverride=h.includes(lv)?lv:(h[0]??null);$('commerceOverlay').classList.remove('hidden');commerceDraft=null;renderCommerce()}
+function commerceReopenExpired(id){const d=commerceDeals.find(x=>x.id===id);if(!d||d.closed||d.type==='show'||d.status!=='expired')return;d.status='pending';d.expires=Date.now()+120000;log('Commerce : négociation #'+d.id+' réouverte pour 2 minutes.');renderCommerce();render();commerceSyncOnline()}
+function commerceOpen(){if(!G)return;const lv=localViewer(),h=commerceHumans();commerceViewerOverride=(G.online&&G.online.legacySync)?null:(h.includes(lv)?lv:(h[0]??null));$('commerceOverlay').classList.remove('hidden');commerceDraft=null;renderCommerce()}
 function commerceClose(){$('commerceOverlay').classList.add('hidden');commerceDraft=null}
 function commerceStart(mode){const v=commerceViewer(),ps=commercePartners(v);commerceDraft={mode,from:v,to:ps[0],giveCards:[],wantCards:[],giveGold:0,wantGold:0,parent:null};renderCommerce()}
 function commerceToggleCard(side,id,button){if(!commerceDraft)return;const a=commerceDraft[side],k=a.indexOf(id);if(k>=0)a.splice(k,1);else a.push(id);if(button)button.classList.toggle('selected',a.includes(id))}
@@ -4481,7 +4487,7 @@ function commerceSubmit(){const d=commerceDraft;if(!d||d.to==null)return;
  if(d.counter)commercePruneUnavailableGiveCards(d);
  if(d.mode==='show'){if(d.giveCards.length!==1)return;commerceDeals.unshift({id:commerceSeq++,type:'show',from:d.from,to:d.to,giveCards:d.giveCards.slice(),status:'shown',expires:Date.now()+60000,closed:false});log(p(d.from).name+' montre une carte à '+p(d.to).name+' pendant 1 minute.');}
  else{commerceDeals.unshift({id:commerceSeq++,type:d.mode,from:d.from,to:d.to,giveCards:d.giveCards.slice(),wantCards:d.wantCards.slice(),giveGold:+d.giveGold||0,wantGold:+d.wantGold||0,status:'pending',expires:Date.now()+120000,parent:d.parent||null,closed:false});log(p(d.from).name+(d.counter?' envoie une contre-proposition à ':' ouvre une négociation avec ')+p(d.to).name+'.');}
- commerceDraft=null;renderCommerce();render();
+ commerceDraft=null;renderCommerce();render();commerceSyncOnline();
 }
 function commerceDemandCatalog(){return CARDS.map((c,id)=>({id,name:c.name}))}
 function commerceDealText(ids){return ids.length?ids.map(commerceCardName).join(', '):'aucune carte'}
@@ -4586,13 +4592,13 @@ function commerceBind(){
  const gg=$('commerceGiveGold');if(gg){gg.oninput=()=>commerceDraft.giveGold=Math.max(0,Math.min(p(commerceDraft.from).gold,+gg.value||0));gg.onchange=gg.oninput}
  const wg=$('commerceWantGold');if(wg){wg.oninput=()=>commerceDraft.wantGold=Math.max(0,+wg.value||0);wg.onchange=wg.oninput}
  const sb=$('commerceSubmit');if(sb)sb.onclick=commerceSubmit;const cc=$('commerceDraftCancel');if(cc)cc.onclick=()=>{commerceDraft=null;renderCommerce()};
- document.querySelectorAll('[data-accept]').forEach(b=>b.onclick=()=>commerceAccept(+b.dataset.accept));document.querySelectorAll('[data-refuse]').forEach(b=>b.onclick=()=>commerceRefuse(+b.dataset.refuse));document.querySelectorAll('[data-counter]').forEach(b=>b.onclick=()=>commerceCounter(+b.dataset.counter));document.querySelectorAll('[data-execute]').forEach(b=>b.onclick=()=>commerceExecute(commerceDeals.find(d=>d.id===+b.dataset.execute)));document.querySelectorAll('[data-seen]').forEach(b=>b.onclick=()=>{const d=commerceDeals.find(x=>x.id===+b.dataset.seen);if(d){d.expires=0;d.status='seen';renderCommerce();render()}});
+ document.querySelectorAll('[data-accept]').forEach(b=>b.onclick=()=>commerceAccept(+b.dataset.accept));document.querySelectorAll('[data-refuse]').forEach(b=>b.onclick=()=>commerceRefuse(+b.dataset.refuse));document.querySelectorAll('[data-counter]').forEach(b=>b.onclick=()=>commerceCounter(+b.dataset.counter));document.querySelectorAll('[data-execute]').forEach(b=>b.onclick=()=>commerceExecute(commerceDeals.find(d=>d.id===+b.dataset.execute)));document.querySelectorAll('[data-seen]').forEach(b=>b.onclick=()=>{const d=commerceDeals.find(x=>x.id===+b.dataset.seen);if(d){d.expires=0;d.status='seen';renderCommerce();render();commerceSyncOnline()}});
  document.querySelectorAll('[data-close-deal]').forEach(b=>b.onclick=()=>commerceSetClosed(+b.dataset.closeDeal,true));document.querySelectorAll('[data-reopen-expired]').forEach(b=>b.onclick=()=>commerceReopenExpired(+b.dataset.reopenExpired));
 }
 function renderCommerce(){if(!G)return;renderCommerceBoard();const v=commerceViewer(),body=$('commerceBody');if(!body)return;
  const relevant=commerceDeals.filter(d=>d.from===v||d.to===v),open=relevant.filter(d=>!d.closed),closed=relevant.filter(d=>d.closed);
  const humans=commerceHumans();
- let viewerBar=humans.length>1?'<div class="commerceBox" style="margin-bottom:10px"><b>Commerce consulté par :</b><div class="commerceActions">'+humans.map(i=>'<button data-commerce-viewer="'+i+'" '+(i===v?'disabled':'')+'>'+p(i).name+'</button>').join('')+'</div><div class="commerceHint">Sur le même appareil, choisissez ici le joueur qui consulte ses propositions et contre-propositions.</div></div>':'';
+ let viewerBar=(!(G.online&&G.online.legacySync)&&humans.length>1)?'<div class="commerceBox" style="margin-bottom:10px"><b>Commerce consulté par :</b><div class="commerceActions">'+humans.map(i=>'<button data-commerce-viewer="'+i+'" '+(i===v?'disabled':'')+'>'+p(i).name+'</button>').join('')+'</div><div class="commerceHint">Sur le même appareil, choisissez ici le joueur qui consulte ses propositions et contre-propositions.</div></div>':'';
  let h=viewerBar+'<div class="commerceGrid"><div>'+commerceRenderDraft()+'<div class="commerceBox"><h3>Règles locales</h3><div class="commerceHint">Les négociations peuvent être ouvertes hors tour. Un échange accepté ne peut être exécuté que pendant la Phase de Jeu de l’un des deux participants. Les cartes et l’Or promis sont revérifiés au moment de l’échange.</div></div></div><div class="commerceBox"><h3>Négociations ouvertes</h3>';
  h+=open.length?open.map(d=>commerceRenderDeal(d,v)).join(''):'<div class="commerceEmpty">Aucune négociation ouverte pour '+p(v).name+'.</div>';
  h+='<details class="commerceArchive" '+(closed.length?'':'hidden')+'><summary>🗑️ Corbeille ('+closed.length+')</summary><div class="commerceHint">Les propositions et contre-propositions placées ici restent consultables, mais ne peuvent plus être réouvertes.</div>'+(closed.map(d=>{if(d.type==='show')return '<div class="commerceOffer closed"><b>Carte montrée #'+d.id+'</b><div class="meta">'+p(d.from).name+' → '+p(d.to).name+' — '+d.status+'</div><div class="sides"><div class="side"><b>'+p(d.from).name+' avait montré :</b><br>'+commerceDealText(d.giveCards)+'</div></div></div>';return '<div class="commerceOffer closed"><b>Négociation #'+d.id+(d.parent?' — contre-proposition à #'+d.parent:'')+'</b><div class="meta">'+p(d.from).name+' ↔ '+p(d.to).name+' — '+d.status+'</div><div class="sides"><div class="side"><b>'+p(d.from).name+' donnait :</b><br>'+commerceDealText(d.giveCards)+(d.giveGold?' + '+d.giveGold+' Or':'')+'</div><div class="side"><b>'+p(d.to).name+' donnait :</b><br>'+commerceDealText(d.wantCards)+(d.wantGold?' + '+d.wantGold+' Or':'')+'</div></div></div>'}).join(''))+'</details></div></div>';body.innerHTML=h;commerceBind();
