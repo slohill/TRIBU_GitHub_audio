@@ -1405,12 +1405,24 @@ function resolveAssassin(target){
    if(pl.inPlayUID)pl.inPlayUID.splice(target.index,1);
    G.discard.push(removed);killed=true;
  }
- closeAgentModal();
+ // Assassin peut être joué hors du tour de son propriétaire. Après fermeture du modal,
+ // priorityCardResolutionActor() ne désigne plus cet acteur : un push générique n'est donc
+ // plus autorisé. On ferme sans relancer le jeu, on sérialise d'abord l'état terminal,
+ // puis seulement on reprend les timers/contrôles locaux.
+ closeAgentModal(true);
  audioPlaySfx(killed?'assassin':'fail',killed?.9:.75);
  log(p(actor).name+' joue Assassin sur '+p(target.owner).name+' — '+target.name+' : dé '+roll+'. '+(killed?'Agent éliminé.':'Échec.'));
  G.assassinNotice={seq:Number(G.assassinNotice&&G.assassinNotice.seq||0)+1,targetOwner:target.owner,targetName:target.name,actor,killed};
  if(!G.online||!G.online.legacySync||localViewer()===target.owner)showAssassinMapMessage(target.owner,target.name,actor,killed);
+ if(G&&G.online&&G.online.legacySync){
+   onlineLegacyPushAssassinNow(actor).then(()=>{
+     render();
+     resumeGameAfterPriorityCard('reprise après Assassin');
+   });
+   return;
+ }
  render();
+ resumeGameAfterPriorityCard('reprise après Assassin');
 }
 function caravanRevealCount(){return G.players.length}
 function drawOneToPool(){
@@ -3947,8 +3959,13 @@ function clickSpot(id){
  if(G&&G.online&&onlineGameState&&!(G.online&&G.online.legacySync)){if(onlineGameState.status==='setup')onlineSetupRegionClick(id);else if(onlineGameState.status==='playing'&&onlineGameState.phase==='recruit'&&onlineGameState.active===onlineGameState.youIndex)recruitAt(id);else if(onlineGameState.status==='playing'&&onlineGameState.phase==='play'&&onlineGameState.active===onlineGameState.youIndex)onlineMoveClick(id);else if(onlineGameState.status==='playing'&&onlineGameState.phase==='oracleMove'&&onlineGameState.active===onlineGameState.youIndex)onlineDragonClick(id);return}
  if(G&&G.online&&G.online.legacySync){
    const me=G.online.myPlayerIndex;
-   const reactionMap=(oracleState&&oracleState.kind==='sacrifice'&&oracleState.queues&&oracleState.queues[oracleState.index]&&oracleState.queues[oracleState.index].player===me)||(oracleState&&oracleState.kind==='dragon5'&&oracleState.player===me)||(dragonRichState&&dragonRichState.player===me)||(egnoState&&egnoState.player===me)||(shadowState&&shadowState.player===me);
+   const reactionMap=(oracleState&&oracleState.kind==='sacrifice'&&oracleState.queues&&oracleState.queues[oracleState.index]&&oracleState.queues[oracleState.index].player===me)||(oracleState&&oracleState.kind==='dragon5'&&oracleState.player===me)||(dragonRichState&&dragonRichState.player===me)||(egnoState&&egnoState.player===me)||(shadowState&&shadowState.player===me)||(portalMode&&portalMode.owner===me);
    if(me!==G.active&&!reactionMap)return;
+   // Pendant une résolution prioritaire, la carte est la seule interaction autorisée.
+   // Les cartes qui utilisent réellement la map sont explicitement listées ci-dessus.
+   // Cela empêche notamment le joueur actif de déplacer des unités derrière le modal
+   // Assassin d'un adversaire et de republier un snapshot encore pré-résolution.
+   if(priorityCardResolutionActive()&&!reactionMap)return;
  }
  if(setupState){if(setupState.stage==='regions')setupRegionClick(id);return}
  // Une Divination peut déclencher un Oracle interactif. Dans ce cas, l'Oracle
@@ -5196,6 +5213,28 @@ function onlineLegacyPushPriorityCardNow(){
    onlineLegacyLastDigest='';if(err&&err.current)onlineLegacyApply(err.current);else onlineError(err);
  });
  send(onlineLegacyRevision,2);
+}
+function onlineLegacyPushAssassinNow(actor){
+ if(!G||!G.online||!G.online.legacySync||onlineLegacyApplying||!onlineSocket)return Promise.resolve(null);
+ const actorIndex=G.online.myPlayerIndex;
+ if(!Number.isInteger(actorIndex)||actorIndex!==actor||!G.players[actorIndex]||G.players[actorIndex].bot)return Promise.resolve(null);
+ clearTimeout(onlineLegacyPushTimer);
+ const snapshot=onlineLegacySnapshot(),digest=onlineLegacyDigest();
+ const send=(baseRevision,retries)=>onlineAck('legacyCommit',{baseRevision,actorIndex,snapshot}).then(res=>{
+   onlineLegacyRevision=Math.max(onlineLegacyRevision,res.revision||0);G.online.revision=onlineLegacyRevision;onlineLegacyLastDigest=digest;
+   return res;
+ }).catch(err=>{
+   // L'état terminal d'Assassin (carte consommée, cible résolue, modal fermé) appartient
+   // à l'acteur de la carte. En cas de conflit de révision, on rejoue ce même snapshot
+   // terminal plutôt que de restaurer le snapshot serveur où Assassin était encore ouvert.
+   if(err&&err.current&&retries>0&&Number.isInteger(err.current.revision)){
+     onlineLegacyRevision=Math.max(onlineLegacyRevision,err.current.revision);G.online.revision=onlineLegacyRevision;
+     return send(onlineLegacyRevision,retries-1);
+   }
+   onlineLegacyLastDigest='';if(err&&err.current)onlineLegacyApply(err.current);else onlineError(err);
+   return null;
+ });
+ return send(onlineLegacyRevision,2);
 }
 function onlineLegacyPushCaravanNow(){
  if(!G||!G.online||!G.online.legacySync||onlineLegacyApplying||!onlineSocket)return Promise.resolve(null);
