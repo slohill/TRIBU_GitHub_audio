@@ -2,6 +2,11 @@ name: Fix Online commerce sync and privacy 20260914
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - clean-online-sync-from-4034-20260907
+    paths:
+      - .github/workflows/fix-online-commerce-sync-privacy-20260914.yml
 
 permissions:
   contents: write
