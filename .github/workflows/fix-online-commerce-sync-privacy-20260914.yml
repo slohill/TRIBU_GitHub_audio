@@ -1,0 +1,81 @@
+name: Fix Online commerce sync and privacy 20260914
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout staging tools
+        uses: actions/checkout@v4
+        with:
+          ref: clean-online-sync-from-4034-20260907
+          path: staging
+
+      - name: Checkout exact main target
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: work
+          fetch-depth: 0
+
+      - name: Verify expected main SHA
+        working-directory: work
+        run: |
+          test "$(git rev-parse HEAD)" = "c909a7a49b30daed1d96b2388092f921420bbc30"
+
+      - name: Apply targeted commerce patch
+        working-directory: work
+        run: python ../staging/scripts/fix_online_commerce_sync_privacy_20260914.py
+
+      - name: Check JavaScript syntax
+        working-directory: work
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          a=s.index('<script src="https://tribu-online.onrender.com/socket.io/socket.io.js"></script>')
+          a=s.index('<script>',a)+len('<script>')
+          b=s.rindex('</script>')
+          Path('/tmp/tribu.js').write_text(s[a:b],encoding='utf-8')
+          PY
+          node --check /tmp/tribu.js
+
+      - name: Functional commerce regression checks
+        working-directory: work
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          assert "function commerceSyncOnline(){if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow()}" in s
+          assert "commerceDraft=null;renderCommerce();render();commerceSyncOnline();" in s
+          assert "if(commerceCanExecute(d))commerceExecute(d);else{renderCommerce();render();commerceSyncOnline()}" in s
+          assert "d.status='done';log('Commerce : échange #'+d.id+' conclu" in s and "renderCommerce();render();commerceSyncOnline();" in s
+          assert "(!(G.online&&G.online.legacySync)&&humans.length>1)" in s
+          online_block=s[s.index('function commerceViewer(){'):s.index('function commercePartners',s.index('function commerceViewer(){'))]
+          assert 'if(G&&G.online&&G.online.legacySync)' in online_block
+          assert 'commerceViewerOverride' not in online_block.split('if(G&&G.online&&G.online.legacySync)',1)[1].split('}',1)[0]
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          assert 'Naviguer' in s
+          print('commerce structural regressions: OK')
+          PY
+
+      - name: Diff checks
+        working-directory: work
+        run: |
+          git diff --check
+          test "$(git diff --name-only)" = "index.html"
+          git diff -- index.html
+
+      - name: Commit and push only index.html
+        working-directory: work
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Répare le commerce multijoueur Online"
+          git push origin HEAD:main
