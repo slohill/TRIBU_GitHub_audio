@@ -46,23 +46,16 @@ new="""    if(goldReaction&&c.name!=='Embuscade'&&c.name!=='Assassin')pauseGoldR
 """
 assert old in s
 s=s.replace(old,new,1)
-old="""   if(stormRoll%2===1){
-     const lost=consumePickedSources().length;
-     log(lost+' unité(s) sont perdues dans la Tempête en mer.');
-     dest=null;picks={};checkDecimations();render();return;
-   }
-"""
-new="""   if(stormRoll%2===1){
-     const lost=consumePickedSources().length;
-     log(lost+' unité(s) sont perdues dans la Tempête en mer.');
-     dest=null;picks={};checkDecimations();
+marker="if(stormRoll%2===1){"
+pos=s.index(marker)
+tail=s[pos:pos+800]
+needle="dest=null;picks={};checkDecimations();render();return;"
+assert needle in tail
+tail=tail.replace(needle,"""dest=null;picks={};checkDecimations();
      // Si la Tempête vient de décimer le joueur actif, il ne peut plus passer
      // manuellement à l'Oracle : terminer immédiatement son tour évite le blocage
      // et son prochain tour proposera normalement le retour après décimation.
      if(isDecimated(G.active)){advanceTurn('décimation par Tempête en mer');return}
-     render();return;
-   }
-"""
-assert old in s
-s=s.replace(old,new,1)
+     render();return;""",1)
+s=s[:pos]+tail+s[pos+800:]
 p.write_text(s)
