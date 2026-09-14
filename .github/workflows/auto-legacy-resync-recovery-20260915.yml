@@ -1,6 +1,9 @@
 name: Auto legacy resync recovery 2026-09-15
 on:
   workflow_dispatch:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths: [.github/workflows/auto-legacy-resync-recovery-20260915.yml]
 permissions:
   contents: write
 jobs:
