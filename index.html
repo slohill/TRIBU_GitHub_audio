@@ -605,6 +605,15 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
     <button id="dragonCurseContinue">Continuer</button>
   </div>
 </div>
+<div id="publicEventOverlay" class="dragonCurseOverlay hidden">
+  <div class="dragonCurseModal">
+    <div id="publicEventIcon" class="dragonCurseIcon">⚔️</div>
+    <h2 id="publicEventTitle">ÉVÉNEMENT</h2>
+    <div id="publicEventText" class="dragonCurseText"></div>
+    <div id="publicEventTimer" style="margin-top:10px;font-weight:900">8 s</div>
+    <button id="publicEventPass">Passer</button>
+  </div>
+</div>
 <div id="agentOverlay" class="agentOverlay hidden">
   <div class="agentModal">
     <h3 id="agentTitle">Agent</h3>
@@ -881,7 +890,10 @@ const AUDIO_SRC={
  drums:"assets/audio/tambours.wav",
  horn:"assets/audio/cor.wav",
  cardMove:"assets/audio/card_move.mp3",
- construction:"assets/audio/construction.mp3"
+ construction:"assets/audio/construction.mp3",
+ egnobombe:"assets/audio/Egnobombe.mp3",
+ epicbattle:"assets/audio/epicbattle.mp3",
+ gaindor:"assets/audio/gaindor.mp3"
 };
 const audioTracks={};
 function audioLoadPrefs(){
@@ -911,8 +923,8 @@ function audioSafePlay(a,seek=null){
  if(a.readyState>=1)go(); else a.addEventListener('loadedmetadata',go,{once:true});
 }
 function audioStopTrack(a,reset=false){if(!a)return;a.pause();if(reset){try{a.currentTime=0}catch(e){}}}
-let onlineSfxSeq=0,onlineSfxEvents=[],onlineSfxSeenSeq=0,onlineDirectSfxSeenSeq=0,onlineOraclePresentationSeenSeq=0,onlineAssassinNoticeSeenSeq=0,onlineDragonSixPresentationSeenSeq=0,onlineOracleRemoteTick=null,onlineDragonSixRemoteTick=null;
-const audioSfxPools={};let audioSfxPoolCursor=0,audioSfxPrimed=false;
+let onlineSfxSeq=0,onlineSfxEvents=[],onlineSfxSeenSeq=0,onlineDirectSfxSeenSeq=0,onlineOraclePresentationSeenSeq=0,onlineAssassinNoticeSeenSeq=0,onlineDragonSixPresentationSeenSeq=0,onlinePublicEventSeenSeq=0,onlineOracleRemoteTick=null,onlineDragonSixRemoteTick=null,onlinePublicEventTick=null;
+const audioSfxPools={};let audioSfxPoolCursor=0,audioSfxPrimed=false,goldReactionSfx=null,goldReactionSfxActive=false;
 function audioSfxPool(name){
  if(!AUDIO_SRC[name])return [];
  if(!audioSfxPools[name])audioSfxPools[name]=Array.from({length:3},()=>{const a=new Audio(AUDIO_SRC[name]);a.preload='auto';return a});
@@ -923,9 +935,26 @@ function audioPrimeSfx(){
  audioSfxPrimed=true;
  // Sur tablette/iOS, lancer toutes les pistes même à volume 0 peut les rendre audibles.
  // On prépare donc seulement les objets Audio au premier geste utilisateur.
- ['gold','oracle','dragon','assassin','thief','fail','drums','horn','cardMove','construction'].forEach(name=>{
+ ['gold','oracle','dragon','assassin','thief','fail','drums','horn','cardMove','construction','egnobombe','epicbattle'].forEach(name=>{
    audioSfxPool(name).forEach(a=>{try{a.load()}catch(e){}});
  });
+ try{goldReactionAudio().load()}catch(e){}
+}
+function goldReactionAudio(){
+ if(!goldReactionSfx){goldReactionSfx=new Audio(AUDIO_SRC.gaindor);goldReactionSfx.preload='auto';goldReactionSfx.loop=true}
+ return goldReactionSfx;
+}
+function startGoldReactionSfx(){
+ if(!audioSfxEnabled||!goldReaction||goldReaction.pausedByCard||isHotseatMode())return;
+ const a=goldReactionAudio();
+ try{a.pause();a.currentTime=0}catch(e){}
+ a.volume=.78;goldReactionSfxActive=true;
+ try{const pr=a.play();if(pr&&pr.catch)pr.catch(()=>{})}catch(e){}
+}
+function stopGoldReactionSfx(){
+ if(!goldReactionSfx)return;
+ try{goldReactionSfx.pause();goldReactionSfx.currentTime=0}catch(e){}
+ goldReactionSfxActive=false;
 }
 function audioPlaySfxLocal(name,vol=.8){
  if(!audioSfxEnabled||!AUDIO_SRC[name])return;
@@ -998,7 +1027,7 @@ function audioSetMusic(on){
  if($('start')&&!$('start').classList.contains('hidden')){audioMaybeWelcome();return}
  const a=audioTrack(audioAmbientIndex===0?'ambient1':'ambient2');audioStartAmbient(audioAmbientIndex,a.currentTime||0,true);
 }
-function audioSetSfx(on){audioSfxEnabled=!!on;try{localStorage.setItem('tribu_sfx',on?'on':'off')}catch(e){}audioUpdateButtons()}
+function audioSetSfx(on){audioSfxEnabled=!!on;try{localStorage.setItem('tribu_sfx',on?'on':'off')}catch(e){}if(!audioSfxEnabled)stopGoldReactionSfx();else if(goldReaction&&!goldReaction.pausedByCard)startGoldReactionSfx();audioUpdateButtons()}
 function audioWireControls(){
  const m=$('musicToggle'),x=$('sfxToggle');if(m)m.onclick=()=>audioSetMusic(!audioMusicEnabled);if(x)x.onclick=()=>audioSetSfx(!audioSfxEnabled);
  audioUpdateButtons();
@@ -1096,6 +1125,7 @@ function eligibleAmbushers(receiver){
 }
 function clearGoldReactionTimer(){
  if(goldReactionTick){clearInterval(goldReactionTick);goldReactionTick=null}
+ stopGoldReactionSfx();
 }
 function pauseGoldReactionForCard(){if(!goldReaction)return false;clearGoldReactionTimer();goldReaction.pausedByCard=true;return true}
 function resumeGoldReactionAfterCard(){if(!goldReaction||!goldReaction.pausedByCard)return;goldReaction.seconds=10;delete goldReaction.pausedByCard;startGoldReactionTimer();render();if(G&&G.online&&G.online.legacySync)onlineLegacyPushGoldReactionNow()}
@@ -1122,6 +1152,7 @@ function startGoldReactionTimer(){
    maybeBotAmbush();
    return;
  }
+ startGoldReactionSfx();
  goldReactionTick=setInterval(()=>{
    if(!goldReaction){clearGoldReactionTimer();return}
    if(goldReaction.pausedByCard)return;
@@ -1715,6 +1746,7 @@ function resolveEgnobombe(r){
  clearTopBanner();
 
  log(p(actor).name+' déclenche Egnobombe en '+r+' : '+sacrificed+' unité(s) sacrifiée(s), unités détruites sur '+affected.join(', ')+'.');checkDecimations();
+ announcePublicEvent('egnobombe',actor);
 
  // If a paused battle's defending region was hit, refresh its board-based defense.
  if(parent&&parent.kind==='land'&&affected.includes(parent.target)){
@@ -3549,6 +3581,7 @@ function resolveBattle(){
      battle.epicVpAwarded=true;
      G.players[attacker].pvPermanent=(G.players[attacker].pvPermanent||0)+1;
      log('🏆 BATAILLE ÉPIQUE : '+p(attacker).name+' gagne 1 Point de victoire permanent en battant une puissance militaire totale de '+d+'.');
+     announcePublicEvent('epicbattle',attacker,defender);
    }
    if(battle.kind==='land'&&battle.trebuchetsUsed&&defender!==null){
      const wid=cardIndexByName('Murs frontaliers'),wc=wallCount(defender);
@@ -3585,6 +3618,7 @@ function resolveBattle(){
      battle.epicVpAwarded=true;
      G.players[defender].pvPermanent=(G.players[defender].pvPermanent||0)+1;
      log('🏆 BATAILLE ÉPIQUE : '+p(defender).name+' gagne 1 Point de victoire permanent en battant une puissance militaire totale de '+a+'.');
+     announcePublicEvent('epicbattle',defender,attacker);
    }
    if(battle.kind==='land'){
      const c=G.b[target];
@@ -4966,6 +5000,8 @@ function onlineLegacyStartGoldViewTimer(){
  clearGoldReactionTimer();
  if(!goldReaction){onlineLegacyGoldViewSeconds=null;return}
  onlineLegacyGoldViewSeconds=Math.max(0,Number(goldReaction.seconds)||0);
+ if(goldReaction.pausedByCard)return;
+ startGoldReactionSfx();
  goldReactionTick=setInterval(()=>{
    if(!goldReaction){clearGoldReactionTimer();onlineLegacyGoldViewSeconds=null;return}
    if(goldReaction.pausedByCard)return;
@@ -5041,7 +5077,7 @@ function onlineLegacyBootstrap(full,state){
  paidDrawState=null;goldReaction=null;goldReactionStack=[];shadowState=null;battleStack=[];egnoState=null;returnState=null;dragonRichState=null;dragonCurseState=null;dragonPublicState=null;
  agentModalState=null;caravanState=null;oraclePassArmed=false;oracleState=null;seaStormState=null;oracleClimateVisual=null;oraclePendingNormalMap=false;turnEpoch=0;
  divinationState=null;recruitSnapshot=null;gameOverState=null;commerceDeals=[];commerceSeq=1;onlineLegacyBotDriverIndex=null;
- onlineSfxSeq=0;onlineSfxEvents=[];onlineSfxSeenSeq=0;onlineDirectSfxSeenSeq=0;onlineOraclePresentationSeenSeq=Number(G.oraclePresentation&&G.oraclePresentation.seq||0);onlineAssassinNoticeSeenSeq=Number(G.assassinNotice&&G.assassinNotice.seq||0);onlineDragonSixPresentationSeenSeq=Number(G.dragonSixPresentation&&G.dragonSixPresentation.seq||0);
+ onlineSfxSeq=0;onlineSfxEvents=[];onlineSfxSeenSeq=0;onlineDirectSfxSeenSeq=0;onlineOraclePresentationSeenSeq=Number(G.oraclePresentation&&G.oraclePresentation.seq||0);onlineAssassinNoticeSeenSeq=Number(G.assassinNotice&&G.assassinNotice.seq||0);onlineDragonSixPresentationSeenSeq=Number(G.dragonSixPresentation&&G.dragonSixPresentation.seq||0);onlinePublicEventSeenSeq=Number(G.publicEventPresentation&&G.publicEventPresentation.seq||0);
  if(G.phase==='play')setMovable();else resetMove();
  onlineLegacyRevision=full.legacyRevision||0;
  onlineLegacyLastDigest=onlineLegacyDigest();
@@ -5071,7 +5107,36 @@ function showOracleRemoteNotice(name){
  const pass=$('oracleNoticePass');if(pass)pass.onclick=close;
  onlineOracleRemoteTick=setInterval(()=>{seconds--;$('oracleNoticeTimer').textContent=Math.max(0,seconds)+' s';if(seconds<=0)close()},1000);
 }
+function publicEventText(ev){
+ if(!ev)return '';
+ if(ev.kind==='egnobombe')return p(ev.actor).name+" a utilisé l'Egnobombe : le nuage mortel de cette arme Egnorax dévastatrice a décimé les populations de nombreuses Régions... Il y a très peu de survivants...";
+ if(ev.kind==='epicbattle'){
+   const loser=Number.isInteger(ev.other)&&G.players[ev.other]?p(ev.other).name:'les forces hostiles';
+   return p(ev.actor).name+' a vaincu '+loser+' lors d’une grande et périlleuse bataille. Cette victoire sera chantée dans les tavernes de Myrmigate et ces chants traverseront les âges';
+ }
+ return '';
+}
+function showPublicEventPresentation(ev){
+ if(!ev||!publicEventText(ev))return;
+ clearInterval(onlinePublicEventTick);
+ const epic=ev.kind==='epicbattle';
+ $('publicEventIcon').textContent=epic?'🏆⚔️':'💣☠️';
+ $('publicEventTitle').textContent=epic?'BATAILLE ÉPIQUE':'EGNOBOMBE';
+ $('publicEventText').textContent=publicEventText(ev);
+ let seconds=8;$('publicEventTimer').textContent='8 s';$('publicEventOverlay').classList.remove('hidden');
+ audioPlaySfxLocal(epic?'epicbattle':'egnobombe',.92);
+ const close=()=>{clearInterval(onlinePublicEventTick);$('publicEventOverlay').classList.add('hidden')};
+ const pass=$('publicEventPass');if(pass)pass.onclick=close;
+ onlinePublicEventTick=setInterval(()=>{seconds--;$('publicEventTimer').textContent=Math.max(0,seconds)+' s';if(seconds<=0)close()},1000);
+}
+function announcePublicEvent(kind,actor,other=null){
+ if(!G)return;
+ const ev={seq:Number(G.publicEventPresentation&&G.publicEventPresentation.seq||0)+1,kind,actor,other,at:Date.now()};
+ G.publicEventPresentation=ev;onlinePublicEventSeenSeq=ev.seq;showPublicEventPresentation(ev);
+}
 function onlineApplyPrivatePresentations(me){
+ const pe=G&&G.publicEventPresentation;
+ if(pe&&Number(pe.seq)>onlinePublicEventSeenSeq){onlinePublicEventSeenSeq=Number(pe.seq);if(!pe.at||Date.now()-Number(pe.at)<30000)showPublicEventPresentation(pe)}
  const op=G&&G.oraclePresentation;
  if(op&&Number(op.seq)>onlineOraclePresentationSeenSeq){onlineOraclePresentationSeenSeq=Number(op.seq);showOracleRemoteNotice(op.name)}
  const dp=G&&G.dragonSixPresentation;
