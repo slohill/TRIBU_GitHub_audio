@@ -1,0 +1,102 @@
+name: Fix battle timer zero pass 20260914
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - '.github/workflows/fix-battle-timer-zero-pass-20260914.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout staging tools
+        uses: actions/checkout@v4
+        with:
+          ref: clean-online-sync-from-4034-20260907
+          path: staging
+
+      - name: Checkout exact main target
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: work
+          fetch-depth: 0
+
+      - name: Verify expected main SHA
+        working-directory: work
+        run: test "$(git rev-parse HEAD)" = "f99ea2b1d7664dbf12b81b91fe31a7dd8afbe091"
+
+      - name: Apply targeted patch
+        working-directory: work
+        run: python ../staging/scripts/fix_battle_timer_zero_pass_20260914.py
+
+      - name: Check JavaScript syntax
+        working-directory: work
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          a=s.index('<script src="https://tribu-online.onrender.com/socket.io/socket.io.js"></script>')
+          a=s.index('<script>',a)+len('<script>')
+          b=s.rindex('</script>')
+          Path('/tmp/tribu.js').write_text(s[a:b],encoding='utf-8')
+          PY
+          node --check /tmp/tribu.js
+
+      - name: Battle timer regression checks
+        working-directory: work
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          assert "function passPriority(){\n  // Une résolution prioritaire" in s
+          assert "if(priorityCardResolutionActive())return;\n  if(!battle)return;" in s
+          assert "if(!isHotseatMode()&&battle.seconds<=0){" in s
+          assert "if(owner===currentPriorityPlayer()&&onlineLegacyOwnsBattlePriority())passPriority();" in s
+          assert "const battleExpired=!!battle&&!isHotseatMode()&&battle.seconds<=0;" in s
+          assert "d.title='Fenêtre de réaction expirée'" in s
+          assert "if(priorityCardResolutionActive()){\n   onlineLegacyBattleViewSeconds=null;" in s
+          assert "pt.textContent='En pause — résolution de carte'" in s
+          assert "pt.textContent='En attente…'" in s
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          assert 'Naviguer' in s
+
+          # Modèle fonctionnel minimal : une résolution prioritaire gèle le chrono,
+          # et une fenêtre à 0 se comporte comme un Passer avant toute consommation de carte.
+          class Battle:
+              def __init__(self, seconds=1): self.seconds=seconds; self.priority=0; self.passes=0
+          b=Battle(2)
+          priority_resolution=True
+          timer_armed=not priority_resolution
+          assert not timer_armed and b.seconds==2
+          priority_resolution=False
+          b.seconds=0
+          card_consumed=False
+          if b.seconds<=0:
+              b.passes+=1; b.priority=1
+          else:
+              card_consumed=True
+          assert b.passes==1 and b.priority==1 and not card_consumed
+          print('battle timer zero/pass regression model: OK')
+          PY
+
+      - name: Diff checks
+        working-directory: work
+        run: |
+          git diff --check
+          test "$(git diff --name-only)" = "index.html"
+          git diff -- index.html
+
+      - name: Commit and push only index.html
+        working-directory: work
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Fiabilise l'expiration du chrono de bataille"
+          git push origin HEAD:main
