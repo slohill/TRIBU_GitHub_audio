@@ -1890,11 +1890,16 @@ function startPaidDrawTimer(){
    paidDrawState.seconds--;
    if(paidDrawState.seconds<=0){
      clearInterval(paidDrawTick);
+     const resumeGold=!!paidDrawState.pausedGold;
      log('Fin de la fenêtre de 10 secondes après la pioche payante.');
      paidDrawState=null;
-     render();
-     if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();
-     queueBot('fin fenêtre pioche');
+     if(resumeGold&&goldReaction&&goldReaction.pausedByCard){
+       resumeGoldReactionAfterCard();
+     }else{
+       render();
+       if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();
+       queueBot('fin fenêtre pioche');
+     }
      return;
    }
    render();
@@ -1914,6 +1919,8 @@ function spendDraw(){
  if(caravanState||divinationState)return;
  const viewer=localViewer();
  if(!G||G.players[viewer].bot||G.players[viewer].gold<5||paidDrawState)return;
+ const pausedGold=!!goldReaction;
+ if(pausedGold)pauseGoldReactionForCard();
  G.players[viewer].gold-=5;
  draw(viewer,1);
 
@@ -1931,11 +1938,14 @@ function spendDraw(){
    render();return;
  }
 
- paidDrawState={player:viewer,seconds:10,phase:G.phase};
+ paidDrawState={player:viewer,seconds:10,phase:G.phase,pausedGold};
  log(p(viewer).name+' dépense 5 Or, pioche 1 carte et dispose de 10 secondes pour la consulter ou jouer une carte.');
  startPaidDrawTimer();
  render();
- if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();
+ if(G&&G.online&&G.online.legacySync){
+   if(pausedGold)onlineLegacyPushGoldReactionNow();
+   else onlineLegacyPushNow();
+ }
 }
 
 function playTax(handIndex){
@@ -5289,7 +5299,7 @@ render=function(){
  onlineLegacyBaseRender();
  wireOracleCardPreviews();
  if(paidDrawState&&paidDrawState.pausedByCard&&!priorityCardResolutionActive()&&!goldReaction)resumePaidDrawAfterCard();
- if(goldReaction&&goldReaction.pausedByCard&&!choiceState&&!divinationState&&!caravanState&&!egnoState&&!shadowState&&!agentModalState&&!portalMode&&!buildingMode)resumeGoldReactionAfterCard();
+ if(goldReaction&&goldReaction.pausedByCard&&!paidDrawState&&!choiceState&&!divinationState&&!caravanState&&!egnoState&&!shadowState&&!agentModalState&&!portalMode&&!buildingMode)resumeGoldReactionAfterCard();
  if(G&&G.online&&G.online.legacySync){
    restoreCouncilChoiceOverlay();
    restorePriorityCardOverlays();
