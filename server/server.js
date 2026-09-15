@@ -187,6 +187,21 @@ function makeBoard() {
   });
   return board;
 }
+function tokenHash(value){return crypto.createHash('sha256').update(String(value||'')).digest('hex')}
+function roomRecoveryCapsule(room){
+  if(!room||!room.launched||!room.game||room.game.status!=='playing')return null;
+  const game=JSON.parse(JSON.stringify(room.game));
+  (game.players||[]).forEach(p=>{if(!p.bot){p.socketId=null;p.connected=false}});
+  return {version:1,code:room.code,name:room.name,mode:room.mode,maxHumans:room.maxHumans,bots:room.bots,victoryPoints:room.victoryPoints,seed:room.seed,hostPlayerId:room.hostPlayerId||((room.players.find(p=>p.id===room.hostId)||{}).playerId)||null,players:room.players.map(p=>({playerId:p.playerId,pseudo:p.pseudo,ready:!!p.ready,tokenHash:p.reconnectTokenHash||tokenHash(p.reconnectToken)})),game,legacyMode:!!room.legacyMode,legacyRevision:room.legacyRevision||0,legacySnapshot:room.legacySnapshot||null};
+}
+function restoreRoomFromRecovery(saved){
+  const cap=saved&&saved.recovery,code=cleanCode(saved&&saved.code),pid=cleanText(saved&&saved.playerId,80),token=cleanText(saved&&saved.token,120);
+  if(!cap||cap.version!==1||cleanCode(cap.code)!==code||!cap.game||cap.game.status!=='playing'||!Array.isArray(cap.players))return null;
+  const seat=cap.players.find(p=>p.playerId===pid&&p.tokenHash===tokenHash(token));if(!seat)return null;
+  const room={code,name:cleanText(cap.name,30)||`Partie ${code}`,mode:cleanText(cap.mode,20),maxHumans:Math.max(2,Math.min(5,Number(cap.maxHumans)||2)),bots:Math.max(0,Math.min(4,Number(cap.bots)||0)),victoryPoints:[3,4,5].includes(Number(cap.victoryPoints))?Number(cap.victoryPoints):3,hostId:null,hostPlayerId:cleanText(cap.hostPlayerId,80)||null,launched:true,seed:Number(cap.seed)>>>0,game:cap.game,legacyMode:!!cap.legacyMode,legacyRevision:Math.max(0,Number(cap.legacyRevision)||0),legacySnapshot:cap.legacySnapshot||null,players:cap.players.map(p=>({id:null,playerId:cleanText(p.playerId,80),reconnectToken:null,reconnectTokenHash:String(p.tokenHash||''),pseudo:cleanText(p.pseudo,24),ready:!!p.ready,connected:false}))};
+  (room.game.players||[]).forEach(p=>{if(!p.bot){p.socketId=null;p.connected=false}});
+  rooms.set(code,room);return room;
+}
 function publicRoom(room) {
   return {
     code: room.code,
@@ -198,7 +213,7 @@ function publicRoom(room) {
     hostId: room.hostId,
     launched: room.launched,
     seed: room.launched ? room.seed : null,
-    players: room.players.map(p => ({ id: p.id, playerId: p.playerId, pseudo: p.pseudo, ready: p.ready, host: p.id === room.hostId, connected: p.connected !== false }))
+    players: room.players.map(p => ({ id: p.id, playerId: p.playerId, pseudo: p.pseudo, ready: p.ready, host: room.hostPlayerId ? p.playerId===room.hostPlayerId : p.id === room.hostId, connected: p.connected !== false }))
   };
 }
 function publicGameView(room, socketId) {
@@ -262,7 +277,7 @@ function emitLegacy(room,exceptSocketId=null){
   room.players.forEach(p=>{
     if(p.id===exceptSocketId)return;
     const socket=io.sockets.sockets.get(p.id);if(!socket)return;
-    socket.emit('legacyState',{snapshot:room.legacySnapshot,revision:room.legacyRevision||0,youIndex:legacyYouIndex(room,p.id)});
+    socket.emit('legacyState',{snapshot:room.legacySnapshot,revision:room.legacyRevision||0,youIndex:legacyYouIndex(room,p.id),recovery:roomRecoveryCapsule(room)});
   });
 }
 
@@ -431,11 +446,13 @@ io.on('connection', socket => {
       bots,
       victoryPoints,
       hostId: socket.id,
+      hostPlayerId: null,
       launched: false,
       seed: null,
       game: null,
       players: [{ id: socket.id, playerId: playerId(), reconnectToken: reconnectToken(), pseudo, ready: false, connected: true }]
     };
+    room.hostPlayerId=room.players[0].playerId;
     rooms.set(code, room);
     socket.join(code);
     socket.data.roomCode = code;
@@ -461,18 +478,19 @@ io.on('connection', socket => {
 
   socket.on('resumeRoom', (payload = {}, ack = () => {}) => {
     const code = cleanCode(payload.code), pid = cleanText(payload.playerId, 80), token = cleanText(payload.token, 120);
-    const room = rooms.get(code);
+    let room = rooms.get(code);
+    if (!room) room=restoreRoomFromRecovery(payload);
     if (!room || !room.launched || !room.game) return ack({ ok:false, error:'Cette partie en cours n’est plus disponible.' });
-    const lobbyPlayer = room.players.find(p => p.playerId === pid && p.reconnectToken === token);
+    const lobbyPlayer = room.players.find(p => p.playerId === pid && (p.reconnectToken === token || p.reconnectTokenHash === tokenHash(token)));
     if (!lobbyPlayer) return ack({ ok:false, error:'Impossible de vérifier votre place dans cette partie.' });
     leaveCurrentRoom(socket);
-    const oldSocketId=lobbyPlayer.id; lobbyPlayer.id=socket.id; lobbyPlayer.connected=true;
-    if (room.hostId===oldSocketId) room.hostId=socket.id;
+    const oldSocketId=lobbyPlayer.id; lobbyPlayer.id=socket.id; lobbyPlayer.connected=true;lobbyPlayer.reconnectToken=token;lobbyPlayer.reconnectTokenHash=tokenHash(token);
+    if (room.hostId===oldSocketId || room.hostPlayerId===pid) room.hostId=socket.id;
     const gp=room.game.players.find(p=>!p.bot&&p.playerId===pid);
     if(!gp) return ack({ok:false,error:'Siège de jeu introuvable.'});
     gp.socketId=socket.id;gp.connected=true;socket.join(code);socket.data.roomCode=code;
     const resume={code,pseudo:lobbyPlayer.pseudo,playerId:pid,token:lobbyPlayer.reconnectToken};
-    ack({ok:true,room:publicRoom(room),game:publicGameView(room,socket.id),resume});emitRoom(room);emitGame(room);
+    ack({ok:true,room:publicRoom(room),game:publicGameView(room,socket.id),resume:{...resume,recovery:roomRecoveryCapsule(room)}});emitRoom(room);emitGame(room);
   });
 
   socket.on('setReady', (ready, ack = () => {}) => {
@@ -584,7 +602,7 @@ io.on('connection', socket => {
     const room=roomForSocket(socket);
     if(!room||!room.game||room.game.status!=='playing')return rejectGameAction(ack,'La partie complète n’est pas disponible.');
     const youIndex=humanGameIndex(room,socket.id);if(youIndex<0)return rejectGameAction(ack,'Joueur introuvable.');
-    ack({ok:true,revision:room.legacyRevision||0,youIndex,bootstrap:legacyBootstrapView(room,socket.id),snapshot:room.legacySnapshot||null});
+    ack({ok:true,revision:room.legacyRevision||0,youIndex,bootstrap:legacyBootstrapView(room,socket.id),snapshot:room.legacySnapshot||null,recovery:roomRecoveryCapsule(room)});
   });
 
   socket.on('legacySfx', (payload = {}) => {
@@ -610,7 +628,7 @@ io.on('connection', socket => {
     }
     if(!payload.snapshot||typeof payload.snapshot!=='object')return rejectGameAction(ack,'État de jeu invalide.');
     room.legacySnapshot=payload.snapshot;room.legacyRevision=current+1;
-    ack({ok:true,revision:room.legacyRevision});emitLegacy(room,socket.id);
+    ack({ok:true,revision:room.legacyRevision,recovery:roomRecoveryCapsule(room)});emitLegacy(room,socket.id);
   });
 
   socket.on('gameAction', (payload = {}, ack = () => {}) => {

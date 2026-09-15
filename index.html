@@ -4877,7 +4877,8 @@ const ONLINE_SERVER='https://tribu-online.onrender.com';
 let onlineSelectedMode=null,onlineReadyState=false,onlineSocket=null,onlineRoom=null,onlineGameState=null,onlineSetupSelectedRegions=[],onlineSetupDraft={color:null,portrait:null};
 const ONLINE_RESUME_KEY='tribuOnlineResumeV1';
 function onlineResumeRead(){try{const v=JSON.parse(localStorage.getItem(ONLINE_RESUME_KEY)||'null');return v&&v.code&&v.playerId&&v.token?v:null}catch(_){return null}}
-function onlineResumeSave(v){if(!v)return;localStorage.setItem(ONLINE_RESUME_KEY,JSON.stringify(v));onlineResumeRefresh()}
+function onlineResumeSave(v){if(!v)return;const prev=onlineResumeRead()||{};localStorage.setItem(ONLINE_RESUME_KEY,JSON.stringify({...prev,...v,recovery:v.recovery||prev.recovery||null}));onlineResumeRefresh()}
+function onlineResumeSaveRecovery(recovery){if(!recovery)return;const prev=onlineResumeRead();if(!prev)return;onlineResumeSave({...prev,recovery})}
 function onlineResumeClear(){localStorage.removeItem(ONLINE_RESUME_KEY);onlineResumeRefresh()}
 function onlineResumeRefresh(){const v=onlineResumeRead(),b=$('onlineResumeRoom'),h=$('onlineResumeHint');if(!b||!h)return;b.classList.toggle('hidden',!v);h.classList.toggle('hidden',!v);if(v){b.textContent='Partie en cours';h.textContent=(v.pseudo||'Joueur')+' · '+v.code}}
 let onlineMoveDraft={target:null,picks:{}};
@@ -5602,11 +5603,11 @@ function connectOnline(){
   socket.on('roomState',renderOnlineLobby);
   socket.on('gameLaunched',room=>{onlineRoom=room;$('onlineLaunch').disabled=true;$('onlineReady').disabled=true;launchOnlineRoom(room)});
   socket.on('gameState',applyOnlineGameState);
-  socket.on('legacyState',packet=>onlineLegacyApply(packet));
+  socket.on('legacyState',packet=>{onlineResumeSaveRecovery(packet&&packet.recovery);onlineLegacyApply(packet)});
   socket.on('legacySfx',onlineReceiveSfx);
  });
 }
-function onlineAck(action,payload){return connectOnline().then(socket=>new Promise((resolve,reject)=>socket.emit(action,payload,res=>{if(res&&res.ok){resolve(res);return}const err=new Error(res&&res.error||'Erreur serveur.');if(res&&res.current)err.current=res.current;reject(err)})))}
+function onlineAck(action,payload){return connectOnline().then(socket=>new Promise((resolve,reject)=>socket.emit(action,payload,res=>{if(res&&res.ok){if(res.recovery)onlineResumeSaveRecovery(res.recovery);resolve(res);return}const err=new Error(res&&res.error||'Erreur serveur.');if(res&&res.current)err.current=res.current;reject(err)})))}
 function onlineLegacyCanAutoRecover(err){
  return !!(err&&err.message==='Synchronisation complète indisponible.'&&G&&G.online&&G.online.legacySync&&!onlineLegacyRecoveryPending&&!onlineLegacyRecoveryAttempted&&onlineResumeRead());
 }
@@ -5646,7 +5647,7 @@ document.querySelectorAll('[data-online-back]').forEach(b=>b.onclick=()=>{if(onl
 $('onlineCreateRoom').onclick=async()=>{try{onlinePseudo();if(!$('onlineRoomCode').value.trim())$('onlineRoomCode').value='TRB-'+Math.floor(1000+Math.random()*9000);const res=await onlineAck('createRoom',{pseudo:onlinePseudo(),name:$('onlineRoomName').value,code:$('onlineRoomCode').value,mode:onlineSelectedMode,maxHumans:onlineSeatCount(onlineSelectedMode),bots:onlineBotCount(onlineSelectedMode),victoryPoints:+$('onlineVictory').value});onlineResumeSave(res.resume);renderOnlineLobby(res.room)}catch(e){onlineError(e)}};
 $('onlineReady').onclick=async()=>{try{await onlineAck('setReady',!onlineReadyState)}catch(e){onlineError(e)}};
 $('onlineJoinRoom').onclick=async()=>{try{const code=$('onlineJoinCode').value.trim();if(!code){$('onlineJoinCode').focus();return}const res=await onlineAck('joinRoom',{code,pseudo:onlinePseudo()});onlineResumeSave(res.resume);renderOnlineLobby(res.room)}catch(e){onlineError(e)}};
-$('onlineResumeRoom').onclick=async()=>{const saved=onlineResumeRead();if(!saved)return onlineResumeRefresh();try{const res=await onlineAck('resumeRoom',saved);onlineResumeSave(res.resume);onlineRoom=res.room;onlineSelectedMode=res.room.mode;$('victoryMode').value=String(res.room.victoryPoints||3);applyOnlineGameState(res.game)}catch(e){onlineResumeClear();onlineError(e)}};
+$('onlineResumeRoom').onclick=async()=>{const saved=onlineResumeRead();if(!saved)return onlineResumeRefresh();try{const res=await onlineAck('resumeRoom',saved);onlineResumeSave(res.resume);onlineRoom=res.room;onlineSelectedMode=res.room.mode;$('victoryMode').value=String(res.room.victoryPoints||3);applyOnlineGameState(res.game)}catch(e){onlineError(e)}};
 $('onlineLaunch').onclick=async()=>{try{await onlineAck('launchGame',{})}catch(e){onlineError(e)}};
 onlineResumeRefresh();
 document.addEventListener('pointerdown',e=>{
