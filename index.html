@@ -3911,6 +3911,7 @@ function beginOracleSacrifices(terrain,name,protectedBuilding){
  if(!queues.length){
    log(name+' : aucune région éligible à sacrifier.');
    checkDecimations();
+   finishOracleResolution();
    render();
    completeOracleResolution();
    return;
@@ -3942,6 +3943,7 @@ function advanceOracleSacrifice(){
  if(oracleState&&oracleState.index>=oracleState.queues.length){
    oracleState=null;
    checkDecimations();
+   finishOracleResolution();
    render();
    completeOracleResolution();
  }
