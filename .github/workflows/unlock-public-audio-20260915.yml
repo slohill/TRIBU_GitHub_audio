@@ -1,0 +1,70 @@
+name: Unlock public audio 20260915
+on:
+  workflow_dispatch:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths: [.github/workflows/unlock-public-audio-20260915.yml]
+permissions:
+  contents: write
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout staging tools
+        uses: actions/checkout@v4
+        with:
+          ref: clean-online-sync-from-4034-20260907
+          path: staging
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: work
+          fetch-depth: 0
+      - name: Guard exact main
+        working-directory: work
+        run: test "$(git rev-parse HEAD)" = "29608e28a7a3a11e63a3b4f0ac4c7c725e2e78cc"
+      - name: Apply focused patch
+        working-directory: work
+        run: python ../staging/scripts/unlock_public_audio_20260915.py
+      - name: JavaScript syntax check
+        working-directory: work
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text()
+          a=s.index('<script>')+len('<script>'); b=s.rindex('</script>')
+          Path('/tmp/tribu.js').write_text(s[a:b])
+          PY
+          node --check /tmp/tribu.js
+      - name: Functional audio unlock simulation
+        working-directory: work
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text()
+          assert 'function audioUnlockElement(a)' in s
+          assert "['egnobombe','epicbattle'].forEach(name=>audioUnlockElement(audioSfxPool(name)[0]))" in s
+          assert 'audioUnlockElement(goldReactionAudio());' in s
+          assert 'a.muted=true' in s and 'a.play()' in s and 'a.pause()' in s and 'a.currentTime=0' in s
+          assert "audioPlaySfxLocal(epic?'epicbattle':'egnobombe',.92);" in s
+          assert 'startGoldReactionSfx();' in s
+          print('public audio unlock paths verified')
+          PY
+      - name: Structural invariants
+        working-directory: work
+        run: |
+          grep -Fq "assets/audio/gaindor.mp3" index.html
+          grep -Fq "assets/audio/Egnobombe.mp3" index.html
+          grep -Fq "assets/audio/epicbattle.mp3" index.html
+          grep -Fq "\$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" index.html
+          git diff --check
+          test "$(git diff --name-only)" = "index.html"
+      - name: Commit and push main only
+        working-directory: work
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m "Déverrouille les sons publics sur chaque joueur"
+          git push origin HEAD:main
