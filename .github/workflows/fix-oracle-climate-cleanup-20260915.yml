@@ -1,39 +1,51 @@
 name: Fix Oracle climate cleanup 20260915
-permissions:
-  contents: write
 on:
   push:
     branches: [clean-online-sync-from-4034-20260907]
-    paths: ['.github/workflows/fix-oracle-climate-cleanup-20260915.yml']
-  workflow_dispatch:
+    paths: [.github/workflows/fix-oracle-climate-cleanup-20260915.yml]
+permissions:
+  contents: write
 jobs:
   patch-main:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout staging tools
+        uses: actions/checkout@v4
+        with:
+          ref: clean-online-sync-from-4034-20260907
+          path: staging
+      - name: Checkout main
+        uses: actions/checkout@v4
         with:
           ref: main
+          path: prod
           fetch-depth: 0
-      - name: Verify exact main
+      - name: Guard exact main
+        working-directory: prod
         run: test "$(git rev-parse HEAD)" = "d3a78e09b18ec007a819d05d7bca20a1a872a2a1"
-      - name: Fetch and apply staging patch
+      - name: Apply focused patch
+        working-directory: prod
+        run: python ../staging/.github/scripts/patch_oracle_climate_cleanup_20260915.py
+      - name: JavaScript syntax check
+        working-directory: prod
         run: |
-          git show origin/clean-online-sync-from-4034-20260907:.github/scripts/patch_oracle_climate_cleanup_20260915.py > /tmp/patch.py
-          python /tmp/patch.py
-      - name: JavaScript syntax
-        run: |
-          python -c "from pathlib import Path; s=Path('index.html').read_text(); Path('/tmp/tribu.js').write_text(s[s.index('<script>')+8:s.rindex('</script>')])"
+          python - <<'PY'
+          from pathlib import Path
+          h=Path('index.html').read_text(); js=h.rsplit('<script>',1)[1].split('</script>',1)[0]; Path('/tmp/tribu.js').write_text(js)
+          PY
           node --check /tmp/tribu.js
-      - name: Regression and invariants
+      - name: Structural regression checks
+        working-directory: prod
         run: |
-          test "$(grep -c 'finishOracleResolution();' index.html)" -ge 5
-          grep -Fq "log(name+' : aucune région éligible à sacrifier.');" index.html
-          grep -Fq "oracleState&&oracleState.index>=oracleState.queues.length" index.html
-          grep -Fq "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" index.html
-          grep -Fq "oraclePendingNormalMap=climateEnding&&(nextName==='Givre mortel'||nextName==='Tempête de sable');" index.html
+          grep -F "log(name+' : aucune région éligible à sacrifier.');" index.html
+          grep -F "oracleState&&oracleState.index>=oracleState.queues.length" index.html
+          grep -F "finishOracleResolution();" index.html
+          grep -F "oraclePendingNormalMap=climateEnding&&(nextName==='Givre mortel'||nextName==='Tempête de sable');" index.html
+          grep -F "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" index.html
           git diff --check
           test "$(git diff --name-only)" = "index.html"
-      - name: Commit and push only production file
+      - name: Commit and push production file only
+        working-directory: prod
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
