@@ -1,0 +1,69 @@
+name: Client room recovery 20260915
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths: [.github/workflows/add-client-room-recovery-20260915.yml]
+permissions:
+  contents: write
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout staging tools
+        uses: actions/checkout@v4
+        with:
+          ref: clean-online-sync-from-4034-20260907
+          path: staging
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: prod
+          fetch-depth: 0
+      - name: Guard exact main
+        working-directory: prod
+        run: test "$(git rev-parse HEAD)" = "10dcc9262b6003fa1fbb83cc3c30f2828865ce1a"
+      - name: Apply focused patch
+        working-directory: prod
+        run: python ../staging/scripts/add_client_room_recovery_20260915.py
+      - name: JavaScript syntax checks
+        working-directory: prod
+        run: |
+          node --check server/server.js
+          python - <<'PY'
+          from pathlib import Path
+          h=Path('index.html').read_text(); js=h.rsplit('<script>',1)[1].split('</script>',1)[0]; Path('/tmp/tribu.js').write_text(js)
+          PY
+          node --check /tmp/tribu.js
+      - name: Functional recovery simulation
+        working-directory: prod
+        run: |
+          node - <<'NODE'
+          const crypto=require('crypto');
+          const hash=v=>crypto.createHash('sha256').update(String(v||'')).digest('hex');
+          const token='secret-seat-token';
+          const cap={version:1,code:'TRB-1234',players:[{playerId:'p1',tokenHash:hash(token)}],game:{status:'playing',players:[{playerId:'p1',bot:false,socketId:'old',connected:true}]},legacyMode:true,legacyRevision:7,legacySnapshot:{turn:4,phase:'play'}};
+          if(cap.players[0].tokenHash!==hash(token))throw Error('token recovery failed');
+          const restored=JSON.parse(JSON.stringify(cap.game));restored.players.forEach(p=>{if(!p.bot){p.socketId=null;p.connected=false}});
+          if(restored.players[0].socketId!==null||restored.players[0].connected!==false)throw Error('stale socket survived');
+          if(cap.legacySnapshot.turn!==4||cap.legacyRevision!==7)throw Error('canonical snapshot lost');
+          console.log('client-assisted room recovery simulation ok');
+          NODE
+      - name: Structural invariants
+        working-directory: prod
+        run: |
+          grep -F "const rooms = new Map();" server/server.js
+          grep -F "restoreRoomFromRecovery" server/server.js
+          grep -F "recovery:roomRecoveryCapsule(room)" server/server.js
+          grep -F "onlineResumeSaveRecovery" index.html
+          grep -F "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" index.html
+          git diff --check
+          test "$(git diff --name-only | sort | tr '\n' ' ')" = "index.html server/server.js "
+      - name: Commit and push production files only
+        working-directory: prod
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html server/server.js
+          git commit -m "Restaure une partie Online après redémarrage serveur"
+          git push origin HEAD:main
