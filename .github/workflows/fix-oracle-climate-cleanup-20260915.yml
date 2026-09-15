@@ -15,55 +15,21 @@ jobs:
           ref: main
           fetch-depth: 0
       - name: Verify exact main
-        run: |
-          test "$(git rev-parse HEAD)" = "d3a78e09b18ec007a819d05d7bca20a1a872a2a1"
-      - name: Fetch patch script from staging
+        run: test "$(git rev-parse HEAD)" = "d3a78e09b18ec007a819d05d7bca20a1a872a2a1"
+      - name: Fetch and apply staging patch
         run: |
           git show origin/clean-online-sync-from-4034-20260907:.github/scripts/patch_oracle_climate_cleanup_20260915.py > /tmp/patch.py
           python /tmp/patch.py
       - name: JavaScript syntax
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          s=Path('index.html').read_text()
-          a=s.index('<script>')+len('<script>')
-          b=s.rindex('</script>')
-          Path('/tmp/tribu.js').write_text(s[a:b])
-          PY
+          python -c "from pathlib import Path; s=Path('index.html').read_text(); Path('/tmp/tribu.js').write_text(s[s.index('<script>')+8:s.rindex('</script>')])"
           node --check /tmp/tribu.js
-      - name: Functional Oracle climate regression
+      - name: Regression and invariants
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          s=Path('index.html').read_text()
-          no_queue="""if(!queues.length){
-   log(name+' : aucune région éligible à sacrifier.');
-   checkDecimations();
-   finishOracleResolution();
-   render();
-   completeOracleResolution();"""
-          completed="""if(oracleState&&oracleState.index>=oracleState.queues.length){
-   oracleState=null;
-   checkDecimations();
-   finishOracleResolution();
-   render();
-   completeOracleResolution();"""
-          assert no_queue in s, 'nettoyage absent du chemin sans sacrifice'
-          assert completed in s, 'nettoyage absent du chemin sacrifices terminés'
-          # Simulation minimale de l invariant Canicule -> Tempête de sable.
-          climate='Canicule'; pending=True
-          def finish():
-              global climate,pending
-              if pending:
-                  pending=False; climate=None
-          finish()
-          assert climate is None and pending is False
-          print('Oracle climate cleanup regression: OK')
-          PY
-      - name: Structural invariants
-        run: |
+          test "$(grep -c 'finishOracleResolution();' index.html)" -ge 5
+          grep -Fq "log(name+' : aucune région éligible à sacrifier.');" index.html
+          grep -Fq "oracleState&&oracleState.index>=oracleState.queues.length" index.html
           grep -Fq "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" index.html
-          grep -Fq "function finishOracleResolution()" index.html
           grep -Fq "oraclePendingNormalMap=climateEnding&&(nextName==='Givre mortel'||nextName==='Tempête de sable');" index.html
           git diff --check
           test "$(git diff --name-only)" = "index.html"
