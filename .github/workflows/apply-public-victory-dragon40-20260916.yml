@@ -1,0 +1,95 @@
+name: Apply public victory and Dragon 40 announcements
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout staging tools
+        uses: actions/checkout@v4
+        with:
+          ref: clean-online-sync-from-4034-20260907
+          path: staging
+
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: prod
+          fetch-depth: 0
+
+      - name: Verify exact main SHA
+        working-directory: prod
+        run: |
+          test "$(git rev-parse HEAD)" = "935a1faf4c7a986a739bd50a92a9ee19f0f7dffe"
+
+      - name: Apply focused patch
+        working-directory: prod
+        run: python ../staging/tmp_patch_public_victory_dragon40_20260916.py
+
+      - name: Avoid duplicate Dragon sound during 40-Or destruction
+        working-directory: prod
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html'); s=p.read_text(encoding='utf-8')
+          needle=" audioPlaySfx('dragon',.675);\n log('🐉 Le Dragon ravage '+r+' : toutes les unités et le bâtiment éventuel sont détruits.');"
+          assert needle in s
+          s=s.replace(needle," log('🐉 Le Dragon ravage '+r+' : toutes les unités et le bâtiment éventuel sont détruits.');",1)
+          # dragon.wav is a public Online sound too: unlock it on the first real gesture.
+          old="['egnobombe','epicbattle'].forEach(name=>audioUnlockElement(audioSfxPool(name)[0]));"
+          new="['dragon','egnobombe','epicbattle'].forEach(name=>audioUnlockElement(audioSfxPool(name)[0]));"
+          assert old in s
+          s=s.replace(old,new,1)
+          p.write_text(s,encoding='utf-8')
+          PY
+
+      - name: JavaScript syntax check
+        working-directory: prod
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          a=s.rfind('<script>'); b=s.find('</script>',a)
+          assert a>=0 and b>a
+          Path('/tmp/tribu.js').write_text(s[a+8:b],encoding='utf-8')
+          PY
+          node --check /tmp/tribu.js
+
+      - name: Regression invariants
+        working-directory: prod
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          assert "p(winner).name+' a '+points+' Point'+(points>1?'s':'')+' de victoire et remporte la partie !'" in s
+          assert "if(gameOverState)return showVictoryPresentation(gameOverState);" in s
+          assert "audioPlaySfxLocal('epicbattle',.92)" in s
+          assert "G.dragonCursePresentation={seq:" in s
+          assert "if(cp&&Number(cp.seq)>onlineDragonCursePresentationSeenSeq)" in s
+          assert "'La Malédiction du Dragon frappe '+p(victim).name+' !'" in s
+          assert "if(victim===localViewer())return showDragonCurseVictimNotice(victim);" in s
+          assert "audioPlaySfx('dragon',.675);" in s
+          assert "['dragon','egnobombe','epicbattle'].forEach" in s
+          # Only the curse opening plays the 40-Or Dragon sound now; destruction must not replay it.
+          rich=s[s.index('function destroyRichDragonTarget'):s.index('function showDragonCurseVictimNotice')]
+          assert "audioPlaySfx('dragon'" not in rich
+          PY
+          git diff --check
+
+      - name: Commit only production file
+        working-directory: prod
+        run: |
+          test "$(git status --short | wc -l)" -eq 1
+          test -n "$(git status --short index.html)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Synchronise victoire et Malédiction du Dragon"
+          git push origin HEAD:main
