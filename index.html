@@ -923,7 +923,7 @@ function audioSafePlay(a,seek=null){
  if(a.readyState>=1)go(); else a.addEventListener('loadedmetadata',go,{once:true});
 }
 function audioStopTrack(a,reset=false){if(!a)return;a.pause();if(reset){try{a.currentTime=0}catch(e){}}}
-let onlineSfxSeq=0,onlineSfxEvents=[],onlineSfxSeenSeq=0,onlineDirectSfxSeenSeq=0,onlineOraclePresentationSeenSeq=0,onlineAssassinNoticeSeenSeq=0,onlineDragonSixPresentationSeenSeq=0,onlinePublicEventSeenSeq=0,onlineOracleRemoteTick=null,onlineDragonSixRemoteTick=null,onlinePublicEventTick=null;
+let onlineSfxSeq=0,onlineSfxEvents=[],onlineSfxSeenSeq=0,onlineDirectSfxSeenSeq=0,onlineOraclePresentationSeenSeq=0,onlineAssassinNoticeSeenSeq=0,onlineDragonSixPresentationSeenSeq=0,onlineDragonCursePresentationSeenSeq=0,onlinePublicEventSeenSeq=0,onlineOracleRemoteTick=null,onlineDragonSixRemoteTick=null,onlineDragonCurseRemoteTick=null,onlinePublicEventTick=null,victoryPresentationSeenKey=null;
 const audioSfxPools={};let audioSfxPoolCursor=0,audioSfxPrimed=false,goldReactionSfx=null,goldReactionSfxActive=false;
 function audioSfxPool(name){
  if(!AUDIO_SRC[name])return [];
@@ -952,7 +952,7 @@ function audioPrimeSfx(){
  // Ces trois sons peuvent être déclenchés sans geste local : fenêtre d'Or reçue
  // par snapshot, Egnobombe et bataille épique publiques. On déverrouille donc leur
  // premier lecteur pendant le premier geste réel du joueur.
- ['egnobombe','epicbattle'].forEach(name=>audioUnlockElement(audioSfxPool(name)[0]));
+ ['dragon','egnobombe','epicbattle'].forEach(name=>audioUnlockElement(audioSfxPool(name)[0]));
  audioUnlockElement(goldReactionAudio());
 }
 function goldReactionAudio(){
@@ -1205,20 +1205,38 @@ function destroyRichDragonTarget(r){
      const b=c.building;removeInPlayCard(b.owner,b.cardId);G.discard.push(b.cardId);c.building=null;
    }
  }
- audioPlaySfx('dragon',.675);
  log('🐉 Le Dragon ravage '+r+' : toutes les unités et le bâtiment éventuel sont détruits.');
  dragonRichState=null;clearTopBanner();checkDecimations();
  if(s.pausedBattle&&battle){battle.seconds=s.pausedBattleSeconds||15;resumeBattleTimer()}
  continueAfterGold(s.after);
  queueBot('après Dragon 40 Or');
 }
+function showDragonCurseVictimNotice(i){
+ $('dragonCurseText').textContent=
+`Vous ne vous rassasiez jamais, vous en voulez toujours plus, toujours plus d’or et de diamants…
+
+Cela fait des mois que vous ne parlez plus à vos sujets et votre famille. Vous errez constamment dans vos salles des coffres…
+
+Vos soldats désertent car la malédiction plane sur votre empire…
+
+Vous êtes maudit et le Dragon arrive. Il est là pour s’emparer de vos trésors !`;
+ $('dragonCurseOverlay').classList.remove('hidden');
+}
 function showDragonCurse(i,after){
  const targets=richestDragonRegions(i);
  const paused=!!battle;
  if(paused){clearInterval(battleTick);clearTimeout(botReactionTimer)}
  dragonCurseState={player:i,targets,after,pausedBattle:paused,pausedBattleSeconds:paused?battle.seconds:null};
+ audioPlaySfx('dragon',.675);
+ if(G&&G.online&&G.online.legacySync){
+   G.dragonCursePresentation={seq:Number(G.dragonCursePresentation&&G.dragonCursePresentation.seq||0)+1,victim:i,at:Date.now()};
+   onlineDragonCursePresentationSeenSeq=Number(G.dragonCursePresentation.seq);
+   if(i===localViewer()&&!G.players[i].bot)showDragonCurseVictimNotice(i);
+   else if(G.players[i].bot)setTimeout(continueDragonCurse,350);
+   return;
+ }
 
- // Annonce publique : chaque joueur humain valide l'avoir vue.
+ // Local / hot-seat : chaque joueur humain valide l'annonce avant le texte privé.
  const humans=G.players.map((pl,j)=>({pl,j})).filter(x=>!x.pl.bot).map(x=>x.j);
  dragonPublicState={victim:i,acks:humans,index:0};
  $('dragonPublicText').textContent='La Malédiction du Dragon frappe '+p(i).name+' !';
@@ -1244,15 +1262,7 @@ function finishDragonPublicAck(){
  const i=dragonCurseState.player;
  const isViewer=i===localViewer()&&!G.players[i].bot;
  if(isViewer){
-   $('dragonCurseText').textContent=
-`Vous ne vous rassasiez jamais, vous en voulez toujours plus, toujours plus d’or et de diamants…
-
-Cela fait des mois que vous ne parlez plus à vos sujets et votre famille. Vous errez constamment dans vos salles des coffres…
-
-Vos soldats désertent car la malédiction plane sur votre empire…
-
-Vous êtes maudit et le Dragon arrive. Il est là pour s’emparer de vos trésors !`;
-   $('dragonCurseOverlay').classList.remove('hidden');
+   showDragonCurseVictimNotice(i);
  }else{
    setTimeout(continueDragonCurse,350);
  }
@@ -4275,8 +4285,19 @@ function publicInPlay(i){
  return G.players[i].inPlay||[];
 }
 const PROVINCE_VP={A:1,B:1,C:2,D:2,E:3,F:2,G:2,H:1,I:1};
+function showVictoryPresentation(state){
+ if(!state||!Number.isInteger(state.winner)||!G.players[state.winner])return false;
+ const winner=state.winner,points=Number(state.points)||victoryPoints(winner);
+ $('victoryTitle').textContent='🏆 '+p(winner).name.toUpperCase()+' REMPORTE LA PARTIE !';
+ $('victoryText').textContent=p(winner).name+' a '+points+' Point'+(points>1?'s':'')+' de victoire et remporte la partie !';
+ $('victoryOverlay').classList.remove('hidden');
+ const key=winner+':'+points;
+ if(victoryPresentationSeenKey!==key){victoryPresentationSeenKey=key;audioPlaySfxLocal('epicbattle',.92)}
+ return true;
+}
 function checkVictory(){
- if(!G||gameOverState)return false;
+ if(!G)return false;
+ if(gameOverState)return showVictoryPresentation(gameOverState);
  let winner=-1,best=-1;
  G.players.forEach((pl,i)=>{
    const vp=victoryPoints(i);
@@ -4285,9 +4306,7 @@ function checkVictory(){
  if(winner<0)return false;
  gameOverState={winner,points:best};
  clearTimeout(botTimer);clearTimeout(botReactionTimer);clearInterval(battleTick);clearInterval(shadowTick);
- $('victoryTitle').textContent='🏆 '+p(winner).name.toUpperCase()+' REMPORTE LA PARTIE !';
- $('victoryText').textContent=p(winner).name+' atteint '+best+' Point'+(best>1?'s':'')+' de victoire. Objectif du mode : '+G.victoryTarget+' PV.';
- $('victoryOverlay').classList.remove('hidden');
+ showVictoryPresentation(gameOverState);
  log('🏆 '+p(winner).name+' remporte la partie avec '+best+' PV.');
  return true;
 }
@@ -5105,7 +5124,7 @@ function onlineLegacyBootstrap(full,state){
  paidDrawState=null;goldReaction=null;goldReactionStack=[];shadowState=null;battleStack=[];egnoState=null;returnState=null;dragonRichState=null;dragonCurseState=null;dragonPublicState=null;
  agentModalState=null;caravanState=null;oraclePassArmed=false;oracleState=null;seaStormState=null;oracleClimateVisual=null;oraclePendingNormalMap=false;turnEpoch=0;
  divinationState=null;recruitSnapshot=null;gameOverState=null;commerceDeals=[];commerceSeq=1;onlineLegacyBotDriverIndex=null;
- onlineSfxSeq=0;onlineSfxEvents=[];onlineSfxSeenSeq=0;onlineDirectSfxSeenSeq=0;onlineOraclePresentationSeenSeq=Number(G.oraclePresentation&&G.oraclePresentation.seq||0);onlineAssassinNoticeSeenSeq=Number(G.assassinNotice&&G.assassinNotice.seq||0);onlineDragonSixPresentationSeenSeq=Number(G.dragonSixPresentation&&G.dragonSixPresentation.seq||0);onlinePublicEventSeenSeq=Number(G.publicEventPresentation&&G.publicEventPresentation.seq||0);
+ onlineSfxSeq=0;onlineSfxEvents=[];onlineSfxSeenSeq=0;onlineDirectSfxSeenSeq=0;onlineOraclePresentationSeenSeq=Number(G.oraclePresentation&&G.oraclePresentation.seq||0);onlineAssassinNoticeSeenSeq=Number(G.assassinNotice&&G.assassinNotice.seq||0);onlineDragonSixPresentationSeenSeq=Number(G.dragonSixPresentation&&G.dragonSixPresentation.seq||0);onlineDragonCursePresentationSeenSeq=Number(G.dragonCursePresentation&&G.dragonCursePresentation.seq||0);onlinePublicEventSeenSeq=Number(G.publicEventPresentation&&G.publicEventPresentation.seq||0);
  if(G.phase==='play')setMovable();else resetMove();
  onlineLegacyRevision=full.legacyRevision||0;
  onlineLegacyLastDigest=onlineLegacyDigest();
@@ -5125,6 +5144,17 @@ function showDragonSixRemoteNotice(victim){
  const close=()=>{clearInterval(onlineDragonSixRemoteTick);$('dragonSixOverlay').classList.add('hidden')};
  const pass=$('dragonSixPass');if(pass)pass.onclick=close;
  onlineDragonSixRemoteTick=setInterval(()=>{seconds--;$('dragonSixTimer').textContent=Math.max(0,seconds)+' s';if(seconds<=0)close()},1000);
+}
+function showDragonCurseRemoteNotice(victim){
+ clearInterval(onlineDragonCurseRemoteTick);
+ if(victim===localViewer())return showDragonCurseVictimNotice(victim);
+ $('dragonPublicText').textContent='La Malédiction du Dragon frappe '+p(victim).name+' !';
+ $('dragonPublicOverlay').classList.remove('hidden');
+ let seconds=5;
+ const pass=$('dragonPublicPass');
+ const close=()=>{clearInterval(onlineDragonCurseRemoteTick);$('dragonPublicOverlay').classList.add('hidden')};
+ if(pass){pass.textContent='Passer';pass.onclick=close}
+ onlineDragonCurseRemoteTick=setInterval(()=>{seconds--;if(seconds<=0)close()},1000);
 }
 function showOracleRemoteNotice(name){
  clearInterval(onlineOracleRemoteTick);
@@ -5169,6 +5199,8 @@ function onlineApplyPrivatePresentations(me){
  if(op&&Number(op.seq)>onlineOraclePresentationSeenSeq){onlineOraclePresentationSeenSeq=Number(op.seq);showOracleRemoteNotice(op.name)}
  const dp=G&&G.dragonSixPresentation;
  if(dp&&Number(dp.seq)>onlineDragonSixPresentationSeenSeq){onlineDragonSixPresentationSeenSeq=Number(dp.seq);showDragonSixRemoteNotice(dp.victim)}
+ const cp=G&&G.dragonCursePresentation;
+ if(cp&&Number(cp.seq)>onlineDragonCursePresentationSeenSeq){onlineDragonCursePresentationSeenSeq=Number(cp.seq);if(!cp.at||Date.now()-Number(cp.at)<30000)showDragonCurseRemoteNotice(cp.victim)}
  const an=G&&G.assassinNotice;
  if(an&&Number(an.seq)>onlineAssassinNoticeSeenSeq){onlineAssassinNoticeSeenSeq=Number(an.seq);if(an.targetOwner===me)showAssassinMapMessage(an.targetOwner,an.targetName,an.actor,!!an.killed)}
 }
