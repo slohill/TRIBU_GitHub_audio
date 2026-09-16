@@ -1,6 +1,10 @@
 name: Apply public victory and Dragon 40 announcements
 
 on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths:
+      - '.github/workflows/apply-public-victory-dragon40-20260916.yml'
   workflow_dispatch:
 
 permissions:
@@ -41,7 +45,6 @@ jobs:
           needle=" audioPlaySfx('dragon',.675);\n log('🐉 Le Dragon ravage '+r+' : toutes les unités et le bâtiment éventuel sont détruits.');"
           assert needle in s
           s=s.replace(needle," log('🐉 Le Dragon ravage '+r+' : toutes les unités et le bâtiment éventuel sont détruits.');",1)
-          # dragon.wav is a public Online sound too: unlock it on the first real gesture.
           old="['egnobombe','epicbattle'].forEach(name=>audioUnlockElement(audioSfxPool(name)[0]));"
           new="['dragon','egnobombe','epicbattle'].forEach(name=>audioUnlockElement(audioSfxPool(name)[0]));"
           assert old in s
@@ -77,7 +80,6 @@ jobs:
           assert "if(victim===localViewer())return showDragonCurseVictimNotice(victim);" in s
           assert "audioPlaySfx('dragon',.675);" in s
           assert "['dragon','egnobombe','epicbattle'].forEach" in s
-          # Only the curse opening plays the 40-Or Dragon sound now; destruction must not replay it.
           rich=s[s.index('function destroyRichDragonTarget'):s.index('function showDragonCurseVictimNotice')]
           assert "audioPlaySfx('dragon'" not in rich
           PY
