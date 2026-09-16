@@ -1,0 +1,58 @@
+name: Fix Egnobombe ghosts and Dragon volume
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout staging tools
+        uses: actions/checkout@v4
+        with:
+          ref: clean-online-sync-from-4034-20260907
+      - name: Save patch script
+        run: cp tmp_patch_egnobombe_ghost_dragon_volume_20260916.py /tmp/patch.py
+      - name: Checkout exact main
+        run: |
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "c022a80214c73e8b18a0b71c5d8ad6b4e34428d9"
+          git checkout --detach origin/main
+      - name: Apply focused patch
+        run: python /tmp/patch.py
+      - name: JavaScript syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text()
+          a=s.index('<script>')+len('<script>'); b=s.rindex('</script>')
+          Path('/tmp/tribu.js').write_text(s[a:b])
+          PY
+          node --check /tmp/tribu.js
+      - name: Functional ghost-unit regression simulation
+        run: |
+          node <<'JS'
+          let movable={A:[1,1,1,1,1],B:[1,1],SEA:[1,1,1]},picks={A:3,B:1},dest='B';
+          function invalidateMovementOnDestroyedCase(r){movable[r]=[];if(picks&&Object.prototype.hasOwnProperty.call(picks,r))delete picks[r];if(dest===r){dest=null;picks={}}}
+          invalidateMovementOnDestroyedCase('A');
+          if(movable.A.length!==0||Object.prototype.hasOwnProperty.call(picks,'A'))throw Error('unités fantômes terrestres');
+          invalidateMovementOnDestroyedCase('SEA');
+          if(movable.SEA.length!==0)throw Error('unités fantômes maritimes');
+          invalidateMovementOnDestroyedCase('B');
+          if(dest!==null||Object.keys(picks).length)throw Error('sélection de mouvement détruite encore active');
+          JS
+      - name: Structural invariants
+        run: |
+          grep -q "function invalidateMovementOnDestroyedCase(r)" index.html
+          test "$(grep -o "audioPlaySfx('dragon',.675)" index.html | wc -l)" -eq 2
+          test "$(grep -o "audioPlaySfx('dragon',.9)" index.html | wc -l)" -eq 0
+          grep -Fq "\$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" index.html
+          git diff --check
+          test "$(git diff --name-only | tr -d '\r')" = "index.html"
+      - name: Commit and push only production file
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Supprime les unités fantômes Egnobombe et baisse le Dragon"
+          git push origin HEAD:main
