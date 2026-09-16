@@ -1205,7 +1205,7 @@ function destroyRichDragonTarget(r){
      const b=c.building;removeInPlayCard(b.owner,b.cardId);G.discard.push(b.cardId);c.building=null;
    }
  }
- audioPlaySfx('dragon',.9);
+ audioPlaySfx('dragon',.675);
  log('🐉 Le Dragon ravage '+r+' : toutes les unités et le bâtiment éventuel sont détruits.');
  dragonRichState=null;clearTopBanner();checkDecimations();
  if(s.pausedBattle&&battle){battle.seconds=s.pausedBattleSeconds||15;resumeBattleTimer()}
@@ -1695,6 +1695,13 @@ function noteComplexAnytimeCard(handIndex){
 function egnoEligibleRegions(i){
  return Object.keys(POS).filter(r=>units(r,i)>=5);
 }
+function invalidateMovementOnDestroyedCase(r){
+ // Egnobombe détruit les unités physiques : leurs anciens points de déplacement
+ // ne doivent jamais rester dans movable (sinon unités fantômes déplaçables).
+ movable[r]=[];
+ if(picks&&Object.prototype.hasOwnProperty.call(picks,r))delete picks[r];
+ if(dest===r){dest=null;picks={}}
+}
 function canPlayEgnobombe(i=localViewer()){
  return !!G&&!G.players[i].bot&&egnoEligibleRegions(i).length>0&&!egnoState&&!shadowState&&!choiceState;
 }
@@ -1739,6 +1746,7 @@ function resolveEgnobombe(r){
    const neutralized=neutralizeSurvivingDefensiveBuilding(r);
    c.hostile=neutralized?false:c.originalHostile;
  }
+ invalidateMovementOnDestroyedCase(r);
 
  // Toutes les unités des cases adjacentes sont détruites. Les bâtiments survivent :
  // une Forteresse/Cité dont la garnison est détruite devient donc neutre et récupérable.
@@ -1749,9 +1757,11 @@ function resolveEgnobombe(r){
      const neutralized=neutralizeSurvivingDefensiveBuilding(x);
      c.hostile=neutralized?false:c.originalHostile;
    }
+   invalidateMovementOnDestroyedCase(x);
  });
  seas.forEach(x=>{
    Object.keys(G.sea[x].fleets).forEach(k=>G.sea[x].fleets[k]=0);
+   invalidateMovementOnDestroyedCase(x);
  });
 
  const idx=G.players[actor].hand.indexOf(id);
@@ -4063,7 +4073,7 @@ function destroyDragonRegionAndEnd(){
  if(had){
    G.dragonSixPresentation={seq:Number(G.dragonSixPresentation&&G.dragonSixPresentation.seq||0)+1,victim};
    onlineDragonSixPresentationSeenSeq=Number(G.dragonSixPresentation.seq);
-   audioPlaySfx('dragon',.9);checkDecimations();showDragonSixNotice(victim,()=>advanceTurn('nouveau tour'));render();return
+   audioPlaySfx('dragon',.675);checkDecimations();showDragonSixNotice(victim,()=>advanceTurn('nouveau tour'));render();return
  }
  log('Le Dragon souffle sur '+G.dragon+', mais il n’y avait rien à détruire.');
  checkDecimations();advanceTurn('nouveau tour');
