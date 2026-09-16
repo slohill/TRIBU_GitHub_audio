@@ -1,0 +1,66 @@
+name: Apply Dragon destruction sync fix
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths: ['.github/workflows/apply-dragon-destruction-sync-20260916.yml']
+permissions:
+  contents: write
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: clean-online-sync-from-4034-20260907, path: staging}
+      - uses: actions/checkout@v4
+        with: {ref: main, path: prod, fetch-depth: 0}
+      - name: Verify exact main SHA
+        working-directory: prod
+        run: test "$(git rev-parse HEAD)" = "dfd0f7099a81aa88f15c7f37836158db3e2a5496"
+      - name: Apply focused patch
+        working-directory: prod
+        run: python ../staging/tmp_patch_dragon_destruction_sync_20260916.py
+      - name: Verify syntax and invariants
+        working-directory: prod
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          assert "if(G&&G.online&&G.online.legacySync)onlineLegacyPushDragonDestructionNow();" in s
+          a=s.index('function onlineLegacyPushDragonDestructionNow(){'); b=s.index('function onlineLegacyPushAssassinNow',a); f=s[a:b]
+          assert "const snapshot=onlineLegacySnapshot(),digest=onlineLegacyDigest();" in f
+          assert "return send(onlineLegacyRevision,retries-1);" in f
+          assert 'onlineLegacyApply(err.current)' not in f
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          a=s.rfind('<script>'); b=s.find('</script>',a); Path('/tmp/tribu.js').write_text(s[a+8:b],encoding='utf-8')
+          PY
+          node --check /tmp/tribu.js
+          git diff --check
+          test "$(git status --short | wc -l)" -eq 1
+      - name: Functional regression simulation
+        working-directory: prod
+        run: |
+          node <<'NODE'
+          // Simule le cas observé : D1 a 4 unités, le Dragon les détruit, puis
+          // le premier commit rencontre une révision concurrente contenant encore 4.
+          const local={D1:{owner:1,units:4}};
+          local.D1.owner=null; local.D1.units=0;
+          const destructiveSnapshot=JSON.parse(JSON.stringify(local));
+          let revision=10, attempts=0, canonical={D1:{owner:1,units:4}};
+          function commit(base,snapshot){
+            attempts++;
+            if(attempts===1){revision=11; return {conflict:true,current:{revision,snapshot:canonical}};}
+            canonical=JSON.parse(JSON.stringify(snapshot)); revision=12; return {revision};
+          }
+          let res=commit(10,destructiveSnapshot);
+          if(res.conflict)res=commit(res.current.revision,destructiveSnapshot);
+          if(canonical.D1.units!==0||canonical.D1.owner!==null||attempts!==2)process.exit(1);
+          console.log('OK: un conflit ne restaure pas les unités détruites');
+          NODE
+      - name: Commit production file
+        working-directory: prod
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Sécurise la destruction du Dragon en Online"
+          git push origin HEAD:main
