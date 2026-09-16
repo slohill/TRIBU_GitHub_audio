@@ -1,0 +1,55 @@
+name: Apply battle priority audit fix
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-battle-priority-audit-20260917.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Verify exact main
+        run: |
+          test "$(git rev-parse HEAD)" = "51f28d0e3f4e9ac49e796f5f86ac82de2b53e9b5"
+      - name: Fetch patch script from staging
+        run: |
+          git show origin/clean-online-sync-from-4034-20260907:tmp_patch_battle_priority_audit_20260917.py > /tmp/patch.py
+      - name: Apply patch
+        run: python /tmp/patch.py
+      - name: JavaScript syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(); a=s.index('<script>')+8; b=s.rindex('</script>'); Path('/tmp/tribu.js').write_text(s[a:b])
+          PY
+          node --check /tmp/tribu.js
+      - name: Functional invariants
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text()
+          assert "onlineLegacyPriorityWasActive&&!priorityCardResolutionActive())return" in s
+          assert "clearTimeout(botReactionTimer);botReactionTimer=null;if(!battle)return" in s
+          assert "render();onlineLegacyResumeBattleView();onlineLegacyResumeGoldView()" in s
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          # All audited complex battle-capable priority states remain centrally tracked.
+          for x in ['divinationState','caravanState','egnoState','shadowState','portalMode','choiceState','agentModalState']:
+              assert x in s[s.index('function priorityCardResolutionActive()'):s.index('function pauseGameForPriorityCard()')]
+          print('battle priority audit invariants OK')
+          PY
+      - name: Diff checks
+        run: |
+          git diff --check
+          test "$(git diff --name-only)" = "index.html"
+      - name: Commit and push main
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Sécurise globalement les reprises après cartes en bataille'
+          git push origin HEAD:main
