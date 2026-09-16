@@ -1,6 +1,9 @@
 name: Apply battle Council timer fix
 on:
   workflow_dispatch:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths: [.github/workflows/apply-battle-council-timer-20260917.yml]
 permissions:
   contents: write
 jobs:
@@ -40,12 +43,11 @@ jobs:
           function hideBattle(){clearInterval(battleTick);clearTimeout(botReactionTimer);botReactionTimer=null;}
           hideBattle();
           if(botReactionTimer!==null) throw new Error('stale bot reaction survives battle end');
-          // Conseil: timer stays frozen while active; terminal commit precedes resume at 15 s.
           clearInterval(battleTick); clearTimeout(botReactionTimer); botReactionTimer=null;
           const frozen=battle.seconds;
           if(frozen!==7) throw new Error('Council did not preserve paused seconds');
           battle.seconds=15;
-          Promise.resolve().then(()=>{committed=1}).then(()=>{if(priorityActive) priorityActive=false; if(!priorityActive){resumed=1}}).then(()=>{
+          Promise.resolve().then(()=>{committed=1}).then(()=>{priorityActive=false;if(!priorityActive)resumed=1}).then(()=>{
             if(!committed||!resumed||battle.seconds!==15) throw new Error('Council terminal ordering regression');
             console.log('battle/Council regression OK');
           });
