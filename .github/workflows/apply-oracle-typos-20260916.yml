@@ -1,0 +1,45 @@
+name: Apply Oracle typo fixes
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths: ['.github/workflows/apply-oracle-typos-20260916.yml']
+permissions:
+  contents: write
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: clean-online-sync-from-4034-20260907, path: staging}
+      - uses: actions/checkout@v4
+        with: {ref: main, path: prod, fetch-depth: 0}
+      - name: Verify exact main SHA
+        working-directory: prod
+        run: test "$(git rev-parse HEAD)" = "07dc6f6bb9362de572be85400cfb2acb91f7b84e"
+      - name: Apply focused patch
+        working-directory: prod
+        run: python ../staging/tmp_patch_oracle_typos_20260916.py
+      - name: Verify
+        working-directory: prod
+        run: |
+          grep -F "Tempête de sable activée" index.html
+          grep -F "résultat est impair, les unités sont détruites" index.html
+          grep -F "par-delà les forêts" index.html
+          grep -F "Tant qu’En quête de destruction est active" index.html
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8'); a=s.rfind('<script>'); b=s.find('</script>',a)
+          Path('/tmp/tribu.js').write_text(s[a+8:b],encoding='utf-8')
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          PY
+          node --check /tmp/tribu.js
+          git diff --check
+          test "$(git status --short | wc -l)" -eq 1
+      - name: Commit
+        working-directory: prod
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Corrige les textes des Oracles"
+          git push origin HEAD:main
