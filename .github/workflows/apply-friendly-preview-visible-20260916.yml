@@ -1,0 +1,59 @@
+name: Apply friendly movement preview visibility
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths: ['.github/workflows/apply-friendly-preview-visible-20260916.yml']
+permissions:
+  contents: write
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: clean-online-sync-from-4034-20260907
+          path: staging
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: prod
+      - name: Verify exact main SHA
+        working-directory: prod
+        run: test "$(git rev-parse HEAD)" = "645bcb4158c060e48e900d220926925b1cf2c322"
+      - name: Apply focused patch
+        run: cp staging/tmp_patch_friendly_preview_visible_20260916.py prod/patch.py && cd prod && python patch.py && rm patch.py
+      - name: Verify syntax and invariants
+        working-directory: prod
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text()
+          a=s.index('<script>')+len('<script>'); b=s.rindex('</script>')
+          Path('/tmp/tribu.js').write_text(s[a:b])
+          assert "const ownDestinationPreview=dest===id&&selected()>0&&c.owner===G.active;" in s
+          assert "g.textContent=previewDestinationUnits(id)" in s
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          PY
+          node --check /tmp/tribu.js
+          git diff --check
+      - name: Functional regression simulation
+        working-directory: prod
+        run: |
+          node - <<'JS'
+          function previewDestinationUnits(c,moving){return c.owner===0?c.units+moving:moving}
+          function ownDestinationPreview(dest,id,moving,c){return dest===id&&moving>0&&c.owner===0}
+          const c={owner:0,units:3};
+          if(previewDestinationUnits(c,2)!==5)throw Error('3+2 must preview 5');
+          if(!ownDestinationPreview('B1','B1',2,c))throw Error('friendly destination must suppress physical die');
+          if(ownDestinationPreview('B1','A1',2,c))throw Error('source die must remain visible');
+          console.log('friendly movement preview regression OK');
+          JS
+      - name: Commit production file
+        working-directory: prod
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          test "$(git diff --cached --name-only)" = "index.html"
+          git commit -m "Rend visible le prévisionnel sur destination alliée"
+          git push origin HEAD:main
