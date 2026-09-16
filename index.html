@@ -2130,6 +2130,16 @@ function confirmCouncil(){
    // puis la priorité passe au joueur suivant une fois son effet entièrement résolu.
    advancePriority(true);
    battle.seconds=15;
+   // En Online, publier d'abord l'état terminal du Conseil. Sinon le chrono / la réaction
+   // du joueur suivant (notamment un bot) peut repartir avant que la fermeture du Conseil
+   // soit canonique et entrer en course avec un ancien snapshot.
+   if(G&&G.online&&G.online.legacySync){
+     onlineLegacyPushPriorityTerminalNow(actor).then(()=>{
+       if(!battle||priorityCardResolutionActive())return;
+       resumeBattleTimer();render();
+     });
+     return;
+   }
    resumeBattleTimer();render();return;
  }
  render();if(pausedGold)resumeGoldReactionAfterCard();
@@ -3163,6 +3173,7 @@ function hideBattle(){
   $('battlePanel').classList.add('hidden');
   $('battleBanner').classList.add('hidden');
   clearInterval(battleTick);
+  clearTimeout(botReactionTimer);botReactionTimer=null;
 }
 function buildPriorityOrder(){
   const order=[];
