@@ -1,6 +1,9 @@
 name: Fix Egnobombe ghosts and Dragon volume
 on:
   workflow_dispatch:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths: [.github/workflows/fix-egnobombe-ghost-dragon-volume-20260916.yml]
 permissions:
   contents: write
 jobs:
