@@ -4211,7 +4211,10 @@ function renderMap(){
  }
  else{
    const c=G.b[id];
-   const shown=c.owner!==null?visibleUnitsForSource(id,c.owner,c.units):0;
+   // Sur une destination terrestre déjà alliée, le total prévisionnel doit être
+   // l'unique compteur visible : ne pas laisser le dé physique le masquer/dupliquer.
+   const ownDestinationPreview=dest===id&&selected()>0&&c.owner===G.active;
+   const shown=ownDestinationPreview?0:(c.owner!==null?visibleUnitsForSource(id,c.owner,c.units):0);
    if(!isPvpBattle&&!isPvpPreview&&c.owner!==null&&shown>0)st.appendChild(die(c.owner,shown,id));
  }
  if(st.children.length)b.appendChild(st);
