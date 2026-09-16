@@ -1,0 +1,50 @@
+name: Apply friendly move preview
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths: ['.github/workflows/apply-friendly-move-preview-20260916.yml']
+permissions:
+  contents: write
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: clean-online-sync-from-4034-20260907, path: staging}
+      - uses: actions/checkout@v4
+        with: {ref: main, path: prod, fetch-depth: 0}
+      - name: Verify exact main SHA
+        working-directory: prod
+        run: test "$(git rev-parse HEAD)" = "9fca05a6e786c667748e905111fbdf9b08bd57a1"
+      - name: Apply focused patch
+        working-directory: prod
+        run: python ../staging/tmp_patch_friendly_move_preview_20260916.py
+      - name: Verify
+        working-directory: prod
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          assert "g.textContent=onlineOwnUnits(target)+total" in s
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          a=s.rfind('<script>'); b=s.find('</script>',a); assert a>=0 and b>a
+          Path('/tmp/tribu.js').write_text(s[a+8:b],encoding='utf-8')
+          PY
+          node --check /tmp/tribu.js
+          git diff --check
+          test "$(git status --short | wc -l)" -eq 1
+      - name: Functional preview regression
+        run: |
+          node - <<'JS'
+          function preview(existing,selected){return existing+selected}
+          if(preview(3,2)!==5)throw new Error('friendly destination preview must show final 5');
+          if(preview(0,2)!==2)throw new Error('empty destination preview must remain 2');
+          JS
+      - name: Commit production file
+        working-directory: prod
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Affiche le total prévisionnel des déplacements"
+          git push origin HEAD:main
