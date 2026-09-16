@@ -1,0 +1,59 @@
+name: Apply battle Council timer fix
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Verify expected main
+        run: |
+          test "$(git rev-parse HEAD)" = "dbcc4c43324316f4b82769971191565435e11739"
+      - name: Fetch patch script from staging
+        run: |
+          git show origin/clean-online-sync-from-4034-20260907:tmp_patch_battle_council_timer_20260917.py > /tmp/patch.py
+      - name: Apply patch
+        run: python /tmp/patch.py
+      - name: Verify invariants and syntax
+        run: |
+          grep -F "clearTimeout(botReactionTimer);botReactionTimer=null;" index.html
+          grep -F "onlineLegacyPushPriorityTerminalNow(actor).then" index.html
+          grep -F "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" index.html
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text()
+          a=s.index('<script>')+len('<script>')
+          b=s.rindex('</script>')
+          Path('/tmp/index.js').write_text(s[a:b])
+          PY
+          node --check /tmp/index.js
+          git diff --check
+      - name: Functional regression simulation
+        run: |
+          node <<'JS'
+          let battleTick=1, botReactionTimer=setTimeout(()=>{},10000), battle={seconds:7}, priorityActive=true, resumed=0, committed=0;
+          function hideBattle(){clearInterval(battleTick);clearTimeout(botReactionTimer);botReactionTimer=null;}
+          hideBattle();
+          if(botReactionTimer!==null) throw new Error('stale bot reaction survives battle end');
+          // Conseil: timer stays frozen while active; terminal commit precedes resume at 15 s.
+          clearInterval(battleTick); clearTimeout(botReactionTimer); botReactionTimer=null;
+          const frozen=battle.seconds;
+          if(frozen!==7) throw new Error('Council did not preserve paused seconds');
+          battle.seconds=15;
+          Promise.resolve().then(()=>{committed=1}).then(()=>{if(priorityActive) priorityActive=false; if(!priorityActive){resumed=1}}).then(()=>{
+            if(!committed||!resumed||battle.seconds!==15) throw new Error('Council terminal ordering regression');
+            console.log('battle/Council regression OK');
+          });
+          JS
+      - name: Commit production file only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Sécurise les réactions de bataille et Conseil de guerre"
+          git push origin HEAD:main
