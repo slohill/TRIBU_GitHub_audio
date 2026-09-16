@@ -1,0 +1,55 @@
+name: Apply Oracle texts
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths: ['.github/workflows/apply-oracle-texts-20260916.yml']
+permissions:
+  contents: write
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: clean-online-sync-from-4034-20260907, path: staging}
+      - uses: actions/checkout@v4
+        with: {ref: main, path: prod, fetch-depth: 0}
+      - name: Verify exact main SHA
+        working-directory: prod
+        run: test "$(git rev-parse HEAD)" = "ccddd761d0d1e17a75dda4a92317d2b0020391a3"
+      - name: Apply focused patch
+        working-directory: prod
+        run: python ../staging/tmp_patch_oracle_texts_20260916.py
+      - name: Verify texts and syntax
+        working-directory: prod
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          checks=[
+          'Les Régions tempérées deviennent désertiques et les Régions enneigées deviennent tempérées tant que Canicule est active',
+          'Les Régions tempérées deviennent enneigées et les Régions désertiques deviennent tempérées tant que Vague de froid est active',
+          'Chaque joueur.euse non Reptone sacrifie la moitié (arrondie au supérieur) de ses Régions désertiques',
+          'Chaque joueur.euse non Griffe-Blanche sacrifie la moitié (arrondie au supérieur) de ses Régions enneigées',
+          'Tant que Tempête en mer est activée, pour chaque déplacement d’une ou vers une Aire maritime, lancez un dé, si le résultat est impaire les unités sont détruites.',
+          'Déplacez le dragon de 5 cases différentes ; Tant que En quête de destruction est active, chaque fois que vous faites 4 ou 5 durant la phase Oracle cela active aussi le dragon.',
+          "if(name==='Tempête de sable')return 'Tempêtes de sables activée';",
+          "$('oracleNoticeText').innerHTML=oracleEffectText(name);",
+          "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};"
+          ]
+          for x in checks: assert x in s,x
+          assert s.count("$('oracleNoticeText').innerHTML=oracleEffectText(name);")==2
+          a=s.rfind('<script>'); b=s.find('</script>',a); assert a>=0 and b>a
+          Path('/tmp/tribu.js').write_text(s[a+8:b],encoding='utf-8')
+          PY
+          node --check /tmp/tribu.js
+          git diff --check
+          test "$(git status --short | wc -l)" -eq 1
+          test -n "$(git status --short index.html)"
+      - name: Commit production file
+        working-directory: prod
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Met à jour les textes des Oracles"
+          git push origin HEAD:main
