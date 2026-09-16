@@ -17,7 +17,7 @@ const io = new Server(server, {
 });
 
 const rooms = new Map();
-const DEFAULT_NAMES = ['Aube','Brume','Croc','Dune','Écorce','Faucon','Givre','Lune','Silex','Torrent'];
+const DEFAULT_NAMES = ['Valkor','Xodia','Oldirn','Mundris','Ferna','Dronk','Spoltreg','Nimun','Raenura','Keplet'];
 const COLORS = ['#ff4fc3','#ffd92f','#6ab34c','#7ec8ff','#ff3b30'];
 const PORTRAITS = ['GB_A','GB_B','R_A','R_B','Y_A','Y_B'];
 const PORTRAIT_FACTION = { GB_A:0, GB_B:0, R_A:1, R_B:1, Y_A:2, Y_B:2 };
