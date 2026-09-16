@@ -25,17 +25,7 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           s=Path('index.html').read_text(encoding='utf-8')
-          checks=[
-          'Les Régions tempérées deviennent désertiques et les Régions enneigées deviennent tempérées tant que Canicule est active',
-          'Les Régions tempérées deviennent enneigées et les Régions désertiques deviennent tempérées tant que Vague de froid est active',
-          'Chaque joueur.euse non Reptone sacrifie la moitié (arrondie au supérieur) de ses Régions désertiques',
-          'Chaque joueur.euse non Griffe-Blanche sacrifie la moitié (arrondie au supérieur) de ses Régions enneigées',
-          'Tant que Tempête en mer est activée, pour chaque déplacement d’une ou vers une Aire maritime, lancez un dé, si le résultat est impaire les unités sont détruites.',
-          'Déplacez le dragon de 5 cases différentes ; Tant que En quête de destruction est active, chaque fois que vous faites 4 ou 5 durant la phase Oracle cela active aussi le dragon.',
-          "if(name==='Tempête de sable')return 'Tempêtes de sables activée';",
-          "$('oracleNoticeText').innerHTML=oracleEffectText(name);",
-          "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};"
-          ]
+          checks=['Les Régions tempérées deviennent désertiques et les Régions enneigées deviennent tempérées tant que Canicule est active','Les Régions tempérées deviennent enneigées et les Régions désertiques deviennent tempérées tant que Vague de froid est active','Chaque joueur.euse non Reptone sacrifie la moitié (arrondie au supérieur) de ses Régions désertiques','Chaque joueur.euse non Griffe-Blanche sacrifie la moitié (arrondie au supérieur) de ses Régions enneigées','Tant que Tempête en mer est activée, pour chaque déplacement d’une ou vers une Aire maritime, lancez un dé, si le résultat est impaire les unités sont détruites.','Déplacez le dragon de 5 cases différentes ; Tant que En quête de destruction est active, chaque fois que vous faites 4 ou 5 durant la phase Oracle cela active aussi le dragon.',"if(name==='Tempête de sable')return 'Tempêtes de sables activée';","$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};"]
           for x in checks: assert x in s,x
           assert s.count("$('oracleNoticeText').innerHTML=oracleEffectText(name);")==2
           a=s.rfind('<script>'); b=s.find('</script>',a); assert a>=0 and b>a
