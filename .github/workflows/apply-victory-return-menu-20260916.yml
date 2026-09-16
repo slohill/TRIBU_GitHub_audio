@@ -1,0 +1,53 @@
+name: Apply victory return to main menu
+
+on:
+  push:
+    branches: [clean-online-sync-from-4034-20260907]
+    paths: ['.github/workflows/apply-victory-return-menu-20260916.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: clean-online-sync-from-4034-20260907
+          path: staging
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: prod
+          fetch-depth: 0
+      - name: Verify exact main SHA
+        working-directory: prod
+        run: test "$(git rev-parse HEAD)" = "ee327d0150eba8d7132761bcb13beafe5433dc48"
+      - name: Apply focused patch
+        working-directory: prod
+        run: python ../staging/tmp_patch_victory_return_menu_20260916.py
+      - name: Verify
+        working-directory: prod
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          assert '<button id="victoryRestart">Retour au menu principal</button>' in s
+          assert "$('victoryRestart').onclick=()=>{location.reload()};" in s
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          a=s.rfind('<script>'); b=s.find('</script>',a); assert a>=0 and b>a
+          Path('/tmp/tribu.js').write_text(s[a+8:b],encoding='utf-8')
+          PY
+          node --check /tmp/tribu.js
+          git diff --check
+          test "$(git status --short | wc -l)" -eq 1
+          test -n "$(git status --short index.html)"
+      - name: Commit only index.html
+        working-directory: prod
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Retourne au menu principal après victoire"
+          git push origin HEAD:main
