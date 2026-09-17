@@ -1831,7 +1831,7 @@ function startShadow(handIndex){
  shadowState={stage:'gather',player:actor,cardId:id,handIndex,seconds:20,picks:{},parentBattle:battle||null,parentBattleSeconds:battle?battle.seconds:null};
  pauseGameForPriorityCard();
  log(p(actor).name+' prépare une action secrète.');
- if(!isHotseatMode())shadowTick=setInterval(()=>{if(!shadowState||shadowState.stage!=='gather'){clearInterval(shadowTick);return}shadowState.seconds--;if(shadowState.seconds<=0){cancelShadow(true);return}render()},1000);
+ if(!isHotseatMode())shadowTick=setInterval(()=>{if(!shadowState||shadowState.stage!=='gather'){clearInterval(shadowTick);return}shadowState.seconds--;if(shadowState.seconds<=0){cancelShadow(true);return}const detail=$('battleBanner')&&$('battleBanner').querySelector('.battleDetail');if(detail&&localViewer()===shadowState.player)detail.textContent='Préparation : '+shadowState.seconds+' s — choisissez 1 à 6 unités sur vos régions.'},1000);
  render();
  if(G&&G.online&&G.online.legacySync)onlineLegacyPushPriorityCardNow();
 }
