@@ -636,7 +636,13 @@ io.on('connection', socket => {
       // client dans le snapshot Oracle initial ; ici on fusionne uniquement des
       // sacrifices indépendants de joueurs différents.
       cell.hostile=cell.originalHostile;
-      if(cell.building&&['Forteresse','Icenia, la cité blanche','Sundo, cité du soleil'].includes(cell.building.type))cell.hostile=false;
+      if(cell.building&&['Forteresse','Icenia, la cité blanche','Sundo, cité du soleil'].includes(cell.building.type)){
+        const oldOwner=Number(cell.building.owner),cardId=cell.building.cardId;
+        if(Number.isInteger(oldOwner)&&g.players&&g.players[oldOwner]&&Array.isArray(g.players[oldOwner].inPlay)){
+          const at=g.players[oldOwner].inPlay.indexOf(cardId);if(at>=0)g.players[oldOwner].inPlay.splice(at,1);
+        }
+        cell.building.owner=null;cell.hostile=false;
+      }
     });
     q.chosen=chosen;q.done=true;
     if(!Array.isArray(g.log))g.log=[];
