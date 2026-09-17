@@ -110,7 +110,8 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 .fortressIcon.withUnits{left:calc(50% + 20px)!important;top:50%!important;transform:translate(-50%,-50%)!important}
 .cityIcon{width:18px!important;height:27px!important}
 
-.shadowSrc{box-shadow:0 0 0 4px #111,0 0 14px #000!important}
+.shadowSrc{box-shadow:none!important}
+.shadowSrc::after{content:'';position:absolute;left:50%;top:calc(50% + 21px);transform:translate(-50%,-50%);width:8px;height:8px;border-radius:50%;background:#050505;box-shadow:0 0 0 1px #fff8;z-index:33;pointer-events:none}
 .shadowTarget{box-shadow:0 0 0 4px #8b5cf6,0 0 16px #8b5cf6!important}
 .shadowDie{display:inline-flex;width:31px;height:31px;border-radius:6px;background:#050505;color:#fff;border:2px solid #999;align-items:center;justify-content:center;font-weight:900;font-size:16px;margin-left:8px;vertical-align:middle}
 .shadowControls{display:flex;gap:7px;justify-content:center;margin-top:7px}.shadowControls button{width:auto;padding:5px 10px}
@@ -3068,6 +3069,9 @@ function playMonturesMovement(handIndex){
  const i=localViewer();if(!canUseMonturesMove(i))return;
  const id=G.players[i].hand[handIndex];if(id===undefined||CARDS[id].name!=='Montures')return;
  G.players[i].hand.splice(handIndex,1);G.discard.push(id);
+ // Montures ouvre le second déplacement de chaque destination, sans jamais
+ // autoriser une seconde bataille sur une région déjà attaquée (attacked reste intact).
+ cycle=2;
  // +1 point de déplacement à TOUTES les unités du joueur, y compris celles à 0.
  Object.keys(POS).forEach(r=>{
    if(isSea(r)){
@@ -4267,6 +4271,7 @@ function renderMap(){
    b.appendChild(ci);
  }
  if(movementPreviewHere){const g=document.createElement('span');g.className='ghost';g.textContent=previewDestinationUnits(id);b.appendChild(g)}
+ const shadowGatherHere=!!(shadowState&&shadowState.stage==='gather'&&!isSea(id)&&G.b[id].owner===shadowState.player);
  if(G.phase==='play'&&dest&&legalSources(dest).includes(id)){
    b.classList.add('srcHold');
    const q=picks[id]||0;
@@ -4275,6 +4280,16 @@ function renderMap(){
      minus.className='sourceMinus';minus.textContent='−';minus.title='Remettre 1 unité sur '+id;
      minus.onpointerdown=e=>e.stopPropagation();
      minus.onclick=e=>{e.stopPropagation();adjust(id,-1)};
+     b.appendChild(minus);
+   }
+ }else if(shadowGatherHere){
+   b.classList.add('srcHold');
+   const q=shadowState.picks[id]||0;
+   if(q>0){
+     const minus=document.createElement('button');
+     minus.className='sourceMinus';minus.textContent='−';minus.title='Remettre 1 unité sur '+id;
+     minus.onpointerdown=e=>e.stopPropagation();
+     minus.onclick=e=>{e.stopPropagation();adjustShadow(id,-1)};
      b.appendChild(minus);
    }
  }
@@ -4286,12 +4301,13 @@ function renderMap(){
    const dr=document.createElement('img');
    dr.className='dragon'+(hasUnits?' withUnits':'')+(cellBuilding&&!hasUnits?' withBuildingOnly':'')+(cellBuilding&&hasUnits?' withUnitsAndBuilding':'')+(!hasUnits&&!cellBuilding&&!isSea(id)&&G.b[id].hostile?' withPnjOnly':'');dr.src='assets/images/tokens/dragon.png';dr.alt='Dragon';b.appendChild(dr)}
  let holdTimer=null,longTriggered=false;
- if(G.phase==='play'&&dest&&legalSources(dest).includes(id)){
+ const movementSourceHere=G.phase==='play'&&dest&&legalSources(dest).includes(id);
+ if(movementSourceHere||shadowGatherHere){
    b.onpointerdown=e=>{
      if(e.target!==b)return;
      e.preventDefault();
      longTriggered=false;
-     holdTimer=setTimeout(()=>{longTriggered=true;pickAllFromSource(id)},480);
+     holdTimer=setTimeout(()=>{longTriggered=true;if(shadowGatherHere)shadowAll(id);else pickAllFromSource(id)},480);
    };
    b.onpointerup=()=>{if(holdTimer)clearTimeout(holdTimer)};
    b.onpointerleave=()=>{if(holdTimer)clearTimeout(holdTimer)};
@@ -4305,10 +4321,6 @@ function renderMap(){
    b.onclick=()=>clickSpot(id);
  }
  map.appendChild(b);
- if(shadowState&&shadowState.stage==='gather'&&!isSea(id)&&G.b[id].owner===shadowState.player){
-   const fp=POS[id],ctl=document.createElement('div');ctl.className='floatActions';ctl.style.left=(fp[0]+3)+'%';ctl.style.top=(fp[1]+4)+'%';ctl.innerHTML='<button class="no">−</button><button class="yes">+'+(shadowState.picks[id]||0)+'</button>';
-   const cb=ctl.querySelectorAll('button');cb[0].onclick=e=>{e.stopPropagation();adjustShadow(id,-1)};cb[1].onclick=e=>{e.stopPropagation();shadowAll(id)};map.appendChild(ctl);
- }
 });
  if(G.phase==='play'&&dest&&!shadowState){const xy=POS[dest],box=document.createElement('div');box.className='floatActions';const fp=floatingActionPosition(dest);box.style.left=fp[0]+'%';box.style.top=fp[1]+'%';box.innerHTML='<button class="no">✕</button><button class="yes">✓ '+selected()+'</button>';const bs=box.querySelectorAll('button');bs[0].onclick=()=>{dest=null;picks={};render()};bs[1].onclick=validate;bs[1].disabled=selected()===0;map.appendChild(box)}
 }
