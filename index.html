@@ -5255,6 +5255,14 @@ function onlineApplyPrivatePresentations(me){
 function onlineLegacyApply(packet){
  if(!packet||!packet.snapshot)return;
  if(!G||!G.online||!G.online.legacySync)return;
+ // Pendant son propre recrutement, plusieurs clics rapides peuvent déjà avoir produit
+ // un état local plus récent qu'un snapshot serveur venant juste d'être confirmé.
+ // Ne pas réappliquer visuellement cet état intermédiaire : on avance seulement la
+ // révision, puis le debounce publiera l'état local complet le plus récent.
+ const localRecruitDirty=G.phase==='recruit'&&G.active===G.online.myPlayerIndex&&!priorityCardResolutionActive()&&onlineLegacyCanPublish()&&onlineLegacyDigest()!==onlineLegacyLastDigest;
+ if(localRecruitDirty&&Number.isInteger(packet.revision)&&packet.revision>onlineLegacyRevision){
+   onlineLegacyRevision=packet.revision;G.online.revision=packet.revision;return;
+ }
  oracleSacrificeSyncPending=false;
  const me=packet.youIndex;
  const hadCaravan=!!caravanState;
@@ -5553,12 +5561,19 @@ function onlineLegacyMaybePush(){
    const now=onlineLegacyDigest();if(!now||now===onlineLegacyLastDigest)return;
    const snapshot=onlineLegacySnapshot(),actorIndex=G.online.myPlayerIndex,baseRevision=onlineLegacyRevision;
    onlineLegacyLastDigest=now;
-   onlineAck('legacyCommit',{baseRevision,actorIndex,snapshot}).then(res=>{
+   const send=(revision,retries)=>onlineAck('legacyCommit',{baseRevision:revision,actorIndex,snapshot}).then(res=>{
      onlineLegacyRevision=res.revision;G.online.revision=res.revision;
    }).catch(err=>{
+     // Un conflit de révision pendant le recrutement ne doit jamais réinjecter un
+     // ancien compteur d'unités. Rejouer le snapshot capturé sur la révision reçue.
+     if(snapshot&&snapshot.g&&snapshot.g.phase==='recruit'&&err&&err.current&&retries>0&&Number.isInteger(err.current.revision)){
+       onlineLegacyRevision=Math.max(onlineLegacyRevision,err.current.revision);G.online.revision=onlineLegacyRevision;
+       return send(onlineLegacyRevision,retries-1);
+     }
      onlineLegacyLastDigest='';
      if(err&&err.current)onlineLegacyApply(err.current);else onlineError(err);
    });
+   send(baseRevision,2);
  },90);
 }
 function onlineLegacyViewerNeedsMap(me){
