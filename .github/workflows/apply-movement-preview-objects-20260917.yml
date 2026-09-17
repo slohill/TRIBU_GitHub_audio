@@ -1,0 +1,56 @@
+name: Apply movement preview objects fix
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-movement-preview-objects-20260917.yml'
+permissions:
+  contents: write
+jobs:
+  patch-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout staging patch
+        uses: actions/checkout@v4
+        with:
+          ref: clean-online-sync-from-4034-20260907
+          path: staging
+      - name: Checkout exact main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: prod
+          fetch-depth: 0
+      - name: Verify main SHA
+        working-directory: prod
+        run: |
+          test "$(git rev-parse HEAD)" = "abe3fbf00e50c11a5bdd6cabaf74de9226a42ebb"
+      - name: Apply focused patch
+        working-directory: prod
+        run: python ../staging/tmp_patch_movement_preview_objects_20260917.py
+      - name: Validate JavaScript and invariants
+        working-directory: prod
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text()
+          a=s.index('<script>')+len('<script>')
+          b=s.rindex('</script>')
+          Path('/tmp/tribu.js').write_text(s[a:b])
+          assert "const movementPreviewHere=dest===id&&selected()>0&&!isPvpPreview;" in s
+          assert "st.children.length>0||movementPreviewHere" in s
+          assert "((G.b[id].units||0)>0||movementPreviewHere)" in s
+          assert "g.textContent=previewDestinationUnits(id)" in s
+          assert "$('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};" in s
+          PY
+          node --check /tmp/tribu.js
+          git diff --check
+          git diff -- index.html
+      - name: Commit only production file
+        working-directory: prod
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          test "$(git diff --cached --name-only)" = "index.html"
+          git commit -m "Affiche le prévisionnel avec Dragon et bâtiments"
+          git push origin HEAD:main
