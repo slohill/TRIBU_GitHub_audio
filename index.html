@@ -4111,13 +4111,19 @@ function destroyDragonRegionAndEnd(){
  if(had){
    G.dragonSixPresentation={seq:Number(G.dragonSixPresentation&&G.dragonSixPresentation.seq||0)+1,victim};
    onlineDragonSixPresentationSeenSeq=Number(G.dragonSixPresentation.seq);
-   audioPlaySfx('dragon',.675);checkDecimations();showDragonSixNotice(victim,()=>advanceTurn('nouveau tour'));render();
-  // Online : la destruction du Dragon est un état terminal critique. Un commit
-  // concurrent (par ex. le déplacement du Dragon juste avant le jet) ne doit
-  // jamais restaurer les unités détruites. On republie exactement ce snapshot
-  // et, en cas de conflit de révision, on le rejoue sur la révision courante.
-  if(G&&G.online&&G.online.legacySync)onlineLegacyPushDragonDestructionNow();
-  return
+   audioPlaySfx('dragon',.675);checkDecimations();
+   const finishDragonTurn=()=>{
+     // Online : la destruction doit d'abord être confirmée. Sinon le changement
+     // de joueur peut rester seulement local : le joueur suivant voit "son tour"
+     // dans le journal, mais les contrôles restent verrouillés par le serveur.
+     if(G&&G.online&&G.online.legacySync){
+       onlineLegacyPushDragonDestructionNow().then(res=>{if(res)advanceTurn('nouveau tour')});
+       return;
+     }
+     advanceTurn('nouveau tour');
+   };
+   showDragonSixNotice(victim,finishDragonTurn);render();
+   return
  }
  log('Le Dragon souffle sur '+G.dragon+', mais il n’y avait rien à détruire.');
  checkDecimations();advanceTurn('nouveau tour');
