@@ -5329,6 +5329,9 @@ function onlineLegacyApply(packet){
  onlineLegacyResumeBattleView();
  onlineLegacyResumeGoldView();
  onlineLegacyEnsureBotProgress();
+ // Le dernier sacrifice peut être validé par n'importe quel joueur. Seul le
+ // propriétaire canonique du tour ferme ensuite l'Oracle et publie le passage de tour.
+ if(oracleSacrificeAllDone()&&onlineLegacyCanPublish())setTimeout(()=>{if(oracleSacrificeAllDone()&&onlineLegacyCanPublish())finishSimultaneousOracleSacrifice()},0);
 }
 function onlineLegacyResumeBattleView(){
  clearInterval(battleTick);clearTimeout(botReactionTimer);
