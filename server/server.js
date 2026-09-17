@@ -617,6 +617,36 @@ io.on('connection', socket => {
     socket.to(room.code).emit('legacySfx',{serverSeq:room.legacySfxSeq,clientSeq,name,vol});
   });
 
+  socket.on('legacyOracleSacrifice', (payload = {}, ack = () => {}) => {
+    const room=roomForSocket(socket);
+    if(!room||!room.game||room.game.status!=='playing'||!room.legacyMode)return rejectGameAction(ack,'Synchronisation Oracle indisponible.');
+    const index=humanGameIndex(room,socket.id);if(index<0)return rejectGameAction(ack,'Joueur introuvable.');
+    const snap=room.legacySnapshot,rule=snap&&snap.rule,g=snap&&snap.g,state=rule&&rule.oracleState;
+    if(!snap||!g||!state||state.kind!=='sacrifice'||!Array.isArray(state.queues))return rejectGameAction(ack,'Aucun sacrifice Oracle en cours.');
+    const q=state.queues.find(x=>x&&Number(x.player)===index);
+    if(!q||q.done)return rejectGameAction(ack,'Aucun sacrifice Oracle à valider pour vous.');
+    const chosen=[...new Set((Array.isArray(payload.regions)?payload.regions:[]).map(String))];
+    const eligible=Array.isArray(q.eligible)?q.eligible.map(String):[];
+    const need=Math.max(0,Math.floor(Number(q.need)||0));
+    if(chosen.length!==need||!chosen.every(r=>eligible.includes(r)))return rejectGameAction(ack,'Sélection de sacrifice invalide.');
+    if(!g.b||!chosen.every(r=>g.b[r]&&Number(g.b[r].owner)===index))return rejectGameAction(ack,'Une région sélectionnée ne vous appartient plus.');
+    chosen.forEach(r=>{
+      const cell=g.b[r];cell.units=0;cell.owner=null;
+      // La neutralisation précise des forteresses/cités est déjà calculée côté
+      // client dans le snapshot Oracle initial ; ici on fusionne uniquement des
+      // sacrifices indépendants de joueurs différents.
+      cell.hostile=cell.originalHostile;
+      if(cell.building&&['Forteresse','Icenia, la cité blanche','Sundo, cité du soleil'].includes(cell.building.type))cell.hostile=false;
+    });
+    q.chosen=chosen;q.done=true;
+    if(!Array.isArray(g.log))g.log=[];
+    const name=g.players&&g.players[index]?g.players[index].name:('Joueur '+(index+1));
+    g.log.push(name+' sacrifie '+chosen.join(', ')+'.');
+    room.legacyRevision=(room.legacyRevision||0)+1;
+    ack({ok:true,revision:room.legacyRevision,recovery:roomRecoveryCapsule(room)});
+    emitLegacy(room,socket.id);
+  });
+
   socket.on('legacyCommit', (payload = {}, ack = () => {}) => {
     const room=roomForSocket(socket);
     if(!room||!room.game||room.game.status!=='playing'||!room.legacyMode)return rejectGameAction(ack,'Synchronisation complète indisponible.');
