@@ -3954,7 +3954,7 @@ function beginOracleSacrifices(terrain,name,protectedBuilding){
    const regs=Object.keys(G.b).filter(r=>G.b[r].owner===i&&currentTerrain(r)===terrain);
    const need=Math.ceil(regs.length/2);
    const eligible=regs.filter(r=>!(cityAt(r)&&cityAt(r).type===protectedBuilding));
-   if(need&&eligible.length)queues.push({player:i,name,need:Math.min(need,eligible.length),eligible,chosen:[]});
+   if(need&&eligible.length)queues.push({player:i,name,need:Math.min(need,eligible.length),eligible,chosen:[],done:false});
  });
  if(!queues.length){
    log(name+' : aucune région éligible à sacrifier.');
@@ -3964,53 +3964,82 @@ function beginOracleSacrifices(terrain,name,protectedBuilding){
    completeOracleResolution();
    return;
  }
- oracleState={kind:'sacrifice',queues,index:0};
+ oracleState={kind:'sacrifice',queues,index:0,simultaneous:!!(G&&G.online&&G.online.legacySync)};
+ oracleSacrificeLocalPicks=[];
  advanceOracleSacrifice();
+}
+function oracleSacrificeQueueFor(player){
+ if(!oracleState||oracleState.kind!=='sacrifice')return null;
+ if(oracleState.simultaneous)return oracleState.queues.find(q=>q.player===player&&!q.done)||null;
+ return oracleState.queues[oracleState.index]||null;
+}
+function oracleSacrificeAllDone(){
+ return !!(oracleState&&oracleState.kind==='sacrifice'&&oracleState.simultaneous&&oracleState.queues.every(q=>q.done));
+}
+function finishSimultaneousOracleSacrifice(){
+ if(!oracleSacrificeAllDone())return false;
+ oracleState=null;oracleSacrificeLocalPicks=[];
+ checkDecimations();finishOracleResolution();render();completeOracleResolution();
+ return true;
 }
 function advanceOracleSacrifice(){
  if(!oracleState||oracleState.kind!=='sacrifice')return;
-
+ if(oracleState.simultaneous){
+   oracleState.queues.forEach(q=>{
+     if(!q.done&&G.players[q.player].bot){
+       const picks=q.eligible
+         .filter(r=>G.b[r].owner===q.player&&currentTerrain(r)===(q.name==='Givre mortel'?'e':'d'))
+         .sort((a,b)=>G.b[a].units-G.b[b].units)
+         .slice(0,q.need);
+       picks.forEach(destroyUnitsOnRegion);q.chosen=picks;q.done=true;
+       log(p(q.player).name+' sacrifie '+(picks.length?picks.join(', '):'aucune région')+'.');
+     }
+   });
+   if(oracleSacrificeAllDone()){finishSimultaneousOracleSacrifice();return}
+   render();return;
+ }
  while(oracleState&&oracleState.kind==='sacrifice'&&oracleState.index<oracleState.queues.length){
    const q=oracleState.queues[oracleState.index];
-
-   if(!G.players[q.player].bot){
-     render();
-     return;
-   }
-
+   if(!G.players[q.player].bot){render();return}
    const picks=q.eligible
      .filter(r=>G.b[r].owner===q.player&&currentTerrain(r)===(q.name==='Givre mortel'?'e':'d'))
      .sort((a,b)=>G.b[a].units-G.b[b].units)
      .slice(0,q.need);
-
    picks.forEach(destroyUnitsOnRegion);
    log(p(q.player).name+' sacrifie '+(picks.length?picks.join(', '):'aucune région')+'.');
    oracleState.index++;
  }
-
  if(oracleState&&oracleState.index>=oracleState.queues.length){
-   oracleState=null;
-   checkDecimations();
-   finishOracleResolution();
-   render();
-   completeOracleResolution();
+   oracleState=null;checkDecimations();finishOracleResolution();render();completeOracleResolution();
  }
 }
-let oracleSacrificeSyncPending=false;
+let oracleSacrificeSyncPending=false,oracleSacrificeLocalPicks=[];
 function oracleSacrificeClick(r){
  if(oracleSacrificeSyncPending)return;
- const q=oracleState&&oracleState.kind==='sacrifice'?oracleState.queues[oracleState.index]:null;
- if(!q||q.player!==localViewer()||!q.eligible.includes(r)||q.chosen.includes(r))return;
+ const q=oracleSacrificeQueueFor(localViewer());
+ if(!q||q.player!==localViewer()||!q.eligible.includes(r))return;
+ if(oracleState.simultaneous){
+   if(oracleSacrificeLocalPicks.includes(r))return;
+   oracleSacrificeLocalPicks.push(r);render();
+   if(oracleSacrificeLocalPicks.length<q.need)return;
+   const chosen=oracleSacrificeLocalPicks.slice();
+   oracleSacrificeSyncPending=true;
+   onlineAck('legacyOracleSacrifice',{regions:chosen}).then(()=>onlineAck('requestLegacyState',{})).then(res=>{
+     oracleSacrificeLocalPicks=[];oracleLegacyApplySacrificeState(res);
+   }).catch(onlineError).finally(()=>{oracleSacrificeSyncPending=false});
+   return;
+ }
+ if(q.chosen.includes(r))return;
  q.chosen.push(r);
  if(q.chosen.length>=q.need){
    q.chosen.forEach(destroyUnitsOnRegion);
    log(p(q.player).name+' sacrifie '+q.chosen.join(', ')+'.');
    oracleState.index++;advanceOracleSacrifice();
  }else render();
- if(G&&G.online&&G.online.legacySync){
-   oracleSacrificeSyncPending=true;
-   onlineLegacyPushOracleSacrificeNow().finally(()=>{oracleSacrificeSyncPending=false});
- }
+}
+function oracleLegacyApplySacrificeState(res){
+ if(!res||!res.snapshot)return;
+ onlineLegacyApply({snapshot:res.snapshot,revision:res.revision,youIndex:res.youIndex});
 }
 function dragonSimplePathExists(from,steps,blocked){
  if(steps<=0)return true;
@@ -4059,7 +4088,7 @@ function clickSpot(id){
  if(G&&G.online&&G.online.legacySync){
    const me=G.online.myPlayerIndex;
    if(onlineLegacyPriorityTerminalPending)return;
-   const reactionMap=(oracleState&&oracleState.kind==='sacrifice'&&oracleState.queues&&oracleState.queues[oracleState.index]&&oracleState.queues[oracleState.index].player===me)||(oracleState&&oracleState.kind==='dragon5'&&oracleState.player===me)||(dragonRichState&&dragonRichState.player===me)||(egnoState&&egnoState.player===me)||(shadowState&&shadowState.player===me)||(portalMode&&portalMode.owner===me);
+   const reactionMap=(oracleState&&oracleState.kind==='sacrifice'&&!!oracleSacrificeQueueFor(me))||(oracleState&&oracleState.kind==='dragon5'&&oracleState.player===me)||(dragonRichState&&dragonRichState.player===me)||(egnoState&&egnoState.player===me)||(shadowState&&shadowState.player===me)||(portalMode&&portalMode.owner===me);
    if(me!==G.active&&!reactionMap)return;
    // Pendant une résolution prioritaire, la carte est la seule interaction autorisée.
    // Les cartes qui utilisent réellement la map sont explicitement listées ci-dessus.
@@ -4204,8 +4233,8 @@ function renderMap(){
  }
  if(oracleState&&oracleState.kind==='dragon5'&&oracleState.player===localViewer()&&oracleDragonChoices().includes(id))b.classList.add('oracle');
  if(oracleState&&oracleState.kind==='sacrifice'){
-   const q=oracleState.queues[oracleState.index];
-   if(q&&q.player===localViewer()&&q.eligible.includes(id)&&!q.chosen.includes(id))b.classList.add('shadowTarget');
+   const q=oracleSacrificeQueueFor(localViewer()),chosen=oracleState.simultaneous?oracleSacrificeLocalPicks:(q?q.chosen:[]);
+   if(q&&q.player===localViewer()&&q.eligible.includes(id)&&!chosen.includes(id))b.classList.add('shadowTarget');
  }if(dragonRichState&&dragonRichState.targets.includes(id))b.classList.add('richDragonTarget');if(returnState&&returnRegions(returnState.player).includes(id)){
    b.classList.add('shadowTarget');
    if(returnStrongholds(returnState.player).includes(id))b.classList.add('returnStronghold');
@@ -4842,8 +4871,9 @@ function render(){
    $('hint').innerHTML='<b>En quête de destruction</b> — déplacez le Dragon : '+oracleState.remaining+' case(s) différente(s) restante(s).';
  }
  if(oracleState&&oracleState.kind==='sacrifice'){
-   const q=oracleState.queues[oracleState.index];
-   if(q&&q.player===localViewer())$('hint').innerHTML='<b>'+q.name+'</b> — choisissez '+(q.need-q.chosen.length)+' région(s) à sacrifier.';
+   const q=oracleSacrificeQueueFor(localViewer()),picked=oracleState.simultaneous?oracleSacrificeLocalPicks.length:(q?q.chosen.length:0);
+   if(q&&q.player===localViewer())$('hint').innerHTML='<b>'+q.name+'</b> — choisissez '+(q.need-picked)+' région(s) à sacrifier.';
+   else if(oracleState.simultaneous)$('hint').innerHTML='<b>Oracle</b> — en attente des autres sacrifices.';
  }
  if(battle&&battle.kind==='seaChoice')src.style.display='none';else src.style.display='';
  if(G.phase==='play'&&buildingMode){
