@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
+const path = require('path');
 const crypto = require('crypto');
 const { Server } = require('socket.io');
 
@@ -8,8 +9,10 @@ const PORT = process.env.PORT || 3000;
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || '*';
 const app = express();
 app.use(cors({ origin: CLIENT_ORIGIN }));
-app.get('/', (_req, res) => res.json({ ok: true, service: 'TRIBU Online beta', rooms: rooms.size }));
-app.get('/health', (_req, res) => res.json({ ok: true }));
+const CLIENT_ROOT = path.join(__dirname, '..');
+app.use('/assets', express.static(path.join(CLIENT_ROOT, 'assets')));
+app.get('/', (_req, res) => res.sendFile(path.join(CLIENT_ROOT, 'index.html')));
+app.get('/health', (_req, res) => res.json({ ok: true, service: 'TRIBU Online beta', rooms: rooms.size }));
 
 const server = http.createServer(app);
 const io = new Server(server, {
