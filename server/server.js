@@ -10,7 +10,14 @@ const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || '*';
 const app = express();
 app.use(cors({ origin: CLIENT_ORIGIN }));
 const CLIENT_ROOT = path.join(__dirname, '..');
-app.use('/assets', express.static(path.join(CLIENT_ROOT, 'assets')));
+app.use('/assets', express.static(path.join(CLIENT_ROOT, 'assets'), {
+  maxAge: '7d',
+  etag: true,
+  lastModified: true,
+  setHeaders(res) {
+    res.setHeader('Cache-Control', 'public, max-age=604800');
+  }
+}));
 app.get('/', (_req, res) => res.sendFile(path.join(CLIENT_ROOT, 'index.html')));
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'TRIBU Online beta', rooms: rooms.size }));
 
