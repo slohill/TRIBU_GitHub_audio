@@ -1816,8 +1816,8 @@ function renderEgnobombeBanner(){
 function shadowCardIndex(i){return G.players[i].hand.findIndex(id=>CARDS[id]&&CARDS[id].name==='Section de l’ombre')}
 function shadowTotal(){return shadowState?Object.values(shadowState.picks).reduce((a,b)=>a+b,0):0}
 function shadowSourceMax(r){
- if(!shadowState||isSea(r))return 0;
- const c=G.b[r];return c&&c.owner===shadowState.player?c.units:0;
+ if(!shadowState)return 0;
+ return units(r,shadowState.player);
 }
 function startShadow(handIndex){
  if(goldReaction)pauseGoldReactionForCard();
@@ -1831,7 +1831,7 @@ function startShadow(handIndex){
  shadowState={stage:'gather',player:actor,cardId:id,handIndex,seconds:20,picks:{},parentBattle:battle||null,parentBattleSeconds:battle?battle.seconds:null};
  pauseGameForPriorityCard();
  log(p(actor).name+' prépare une action secrète.');
- if(!isHotseatMode())shadowTick=setInterval(()=>{if(!shadowState||shadowState.stage!=='gather'){clearInterval(shadowTick);return}shadowState.seconds--;if(shadowState.seconds<=0){cancelShadow(true);return}const detail=$('battleBanner')&&$('battleBanner').querySelector('.battleDetail');if(detail&&localViewer()===shadowState.player)detail.textContent='Préparation : '+shadowState.seconds+' s — choisissez 1 à 6 unités sur vos régions.'},1000);
+ if(!isHotseatMode())shadowTick=setInterval(()=>{if(!shadowState||shadowState.stage!=='gather'){clearInterval(shadowTick);return}shadowState.seconds--;if(shadowState.seconds<=0){cancelShadow(true);return}const detail=$('battleBanner')&&$('battleBanner').querySelector('.battleDetail');if(detail&&localViewer()===shadowState.player)detail.textContent='Préparation : '+shadowState.seconds+' s — choisissez 1 à 6 unités sur vos régions ou aires maritimes.'},1000);
  render();
  if(G&&G.online&&G.online.legacySync)onlineLegacyPushPriorityCardNow();
 }
@@ -1875,7 +1875,7 @@ function consumeShadowUnits(){
  const s=shadowState,actor=s.player;
  s.carriedMove=[];
  for(const [r,n] of Object.entries(s.picks)){
-   const c=G.b[r];
+   const c=isSea(r)?null:G.b[r];
 
    // Section de l’ombre ne consomme PAS le déplacement.
    // Si c’est le tour de l’acteur, on transporte l’état exact de mouvement
@@ -1897,8 +1897,14 @@ function consumeShadowUnits(){
      for(let k=0;k<n;k++)s.carriedMove.push(1);
    }
 
-   c.units=Math.max(0,c.units-n);
-   if(c.units===0){const neutralized=neutralizeSurvivingDefensiveBuilding(r);c.owner=null;c.hostile=neutralized?false:c.originalHostile}
+   if(isSea(r)){
+     const fleets=G.sea[r].fleets||{};
+     fleets[actor]=Math.max(0,(fleets[actor]||0)-n);
+     if(fleets[actor]===0)delete fleets[actor];
+   }else{
+     c.units=Math.max(0,c.units-n);
+     if(c.units===0){const neutralized=neutralizeSurvivingDefensiveBuilding(r);c.owner=null;c.hostile=neutralized?false:c.originalHostile}
+   }
  }
  const idx=G.players[actor].hand.indexOf(s.cardId);if(idx>=0)G.players[actor].hand.splice(idx,1);
  G.discard.push(s.cardId);
@@ -1961,7 +1967,7 @@ function renderShadowBanner(){
  const el=$('battleBanner'),viewer=localViewer(),s=shadowState;
  el.classList.remove('hidden');
  if(s.stage==='gather'){
-   if(viewer===s.player){el.innerHTML='<h3>SECTION DE L’OMBRE <span class="shadowDie">'+shadowTotal()+'</span></h3><div class="battleDetail">Préparation : '+(isHotseatMode()?'Sans chrono':s.seconds+' s')+' — choisissez 1 à 6 unités sur vos régions.</div><div class="shadowControls"><button id="shadowCancel">Annuler</button><button id="shadowValidate">Valider '+shadowTotal()+'/6</button></div>';setTimeout(()=>{const a=$('shadowCancel'),v=$('shadowValidate');if(a)a.onclick=()=>cancelShadow(false);if(v){v.disabled=shadowTotal()<1;v.onclick=validateShadowUnits}},0)}
+   if(viewer===s.player){el.innerHTML='<h3>SECTION DE L’OMBRE <span class="shadowDie">'+shadowTotal()+'</span></h3><div class="battleDetail">Préparation : '+(isHotseatMode()?'Sans chrono':s.seconds+' s')+' — choisissez 1 à 6 unités sur vos régions ou aires maritimes.</div><div class="shadowControls"><button id="shadowCancel">Annuler</button><button id="shadowValidate">Valider '+shadowTotal()+'/6</button></div>';setTimeout(()=>{const a=$('shadowCancel'),v=$('shadowValidate');if(a)a.onclick=()=>cancelShadow(false);if(v){v.disabled=shadowTotal()<1;v.onclick=validateShadowUnits}},0)}
    else el.innerHTML='<h3>RÉACTION EN COURS</h3><div class="battleDetail">15 s</div>';
  }else el.innerHTML='<h3>SECTION DE L’OMBRE <span class="shadowDie">'+s.units+'</span></h3><div class="battleDetail">Choisissez une région à conquérir, ou votre région actuellement attaquée pour la renforcer.</div>';
  return true;
@@ -2210,7 +2216,10 @@ function useSpy(preferredIndex=null){
 }
 function resolveSpy(target){
  const actor=localViewer(),hand=G.players[target].hand;if(!hand.length)return;
- const id=hand[Math.floor(Math.random()*hand.length)];
+ const seen=validSeenCards(actor).filter(s=>s.target===target).map(s=>s.cardId);
+ const unseen=hand.filter(id=>!seen.includes(id));
+ const pool=unseen.length?unseen:hand;
+ const id=pool[Math.floor(Math.random()*pool.length)];
  agentDefaults(actor);if(agentModalState&&agentModalState.kind==='spy')markAgentUsed(actor,agentModalState.agentIndex);
  G.players[actor].seenCards.push({target,cardId:id,turn:G.turn,active:G.active});
  openAgentModal('Espion — carte observée','Vous avez vu dans la main de <b>'+p(target).name+'</b> :<br><br><b>'+CARDS[id].name+'</b><br>'+CARDS[id].effect);
@@ -2737,7 +2746,9 @@ function botUseAgentOrAssassin(){
    const targets=opponentIndexes(actor).filter(j=>G.players[j].hand.length);
    if(targets.length){
      const t=targets[Math.floor(Math.random()*targets.length)],hand=G.players[t].hand;
-     const id=hand[Math.floor(Math.random()*hand.length)];
+     const seen=validSeenCards(actor).filter(s=>s.target===t).map(s=>s.cardId);
+     const unseen=hand.filter(id=>!seen.includes(id)),pool=unseen.length?unseen:hand;
+     const id=pool[Math.floor(Math.random()*pool.length)];
      markAgentUsed(actor,ai);
      G.players[actor].seenCards.push({target:t,cardId:id,turn:G.turn,active:G.active});
      log(p(actor).name+' (bot) utilise Espion sur '+p(t).name+'.');
@@ -3195,9 +3206,9 @@ function startReactionWindow(){
   battle.priorityOrder=buildPriorityOrder();
   battle.priorityIndex=0;
   battle.consecutivePasses=0;
-  battle.seconds=15;
+  battle.seconds=battleReactionSeconds();
   clearInterval(battleTick);
-  if(isHotseatMode()){
+  if(isHotseatMode(){
     battle.hotseatFreeReaction=true;
     // On reste sur la main du joueur dont c’est le tour s’il est humain.
     hotseatViewerOverride=null;
@@ -3240,10 +3251,13 @@ function hotseatBotBattleReactions(){
 function currentPriorityPlayer(){
   return battle.priorityOrder[battle.priorityIndex];
 }
+function battleReactionSeconds(player=currentPriorityPlayer()){
+  return player===battle.attacker||player===battle.defender?15:5;
+}
 function advancePriority(resetPasses){
   if(resetPasses) battle.consecutivePasses=0;
   battle.priorityIndex=(battle.priorityIndex+1)%battle.priorityOrder.length;
-  battle.seconds=15;
+  battle.seconds=battleReactionSeconds();
 }
 function passPriority(){
   // Une résolution prioritaire suspend réellement la fenêtre de réaction : son chrono
@@ -3466,7 +3480,7 @@ function pickAllFromSource(s){
  render();
 }
 function visibleUnitsForSource(id,owner,physical){
- if(shadowState&&shadowState.stage==='gather'&&owner===shadowState.player&&!isSea(id))return Math.max(0,physical-(shadowState.picks[id]||0));
+ if(shadowState&&shadowState.stage==='gather'&&owner===shadowState.player)return Math.max(0,physical-(shadowState.picks[id]||0));
  if(G.phase!=='play'||!dest||owner!==G.active)return physical;
  return Math.max(0,physical-(picks[id]||0));
 }
@@ -3920,7 +3934,7 @@ function activateOracle(afterResolution=null,activator=G.active){
  const prev=beginOracleReplacement(nextName);
  if(G.oracleActive!==null)G.oracleDiscard.push(G.oracleActive);
  G.oracleActive=id;const o=ORACLES[id];
- G.oraclePresentation={seq:Number(G.oraclePresentation&&G.oraclePresentation.seq||0)+1,name:o.name};
+ G.oraclePresentation={seq:Number(G.oraclePresentation&&G.oraclePresentation.seq||0)+1,name:o.name,at:Date.now()};
  onlineOraclePresentationSeenSeq=Number(G.oraclePresentation.seq);
  log('🔮 Oracle activé : '+o.name+'.');
  audioPlaySfx('oracle',.82);
@@ -4103,7 +4117,7 @@ function clickSpot(id){
  if(oracleState&&oracleState.kind==='sacrifice'){oracleSacrificeClick(id);return}
  if(divinationState)return;
  if(oracleNoticeState)return;
- if(caravanState||dragonSixState||dragonPublicState||dragonCurseState)return;if(inPlaySelected)hideInPlayPreview();if(dragonRichState){if(dragonRichState.targets.includes(id))return destroyRichDragonTarget(id);return;}if(returnState){if(returnRegions(returnState.player).includes(id))return reformAt(id);return;}if(egnoState){if(egnoTargetLegal(id))return resolveEgnobombe(id);return;}if(shadowState){if(shadowState.stage==='gather'&&!isSea(id)&&G.b[id].owner===shadowState.player)return adjustShadow(id,1);if(shadowState.stage==='target'&&shadowTargetLegal(id))return chooseShadowTarget(id);return;}if(portalMode){if(canPortalRegion(id))return choosePortalRegion(id);return;}if(isBot()||paidDrawState||goldReaction)return;if(buildingMode){if(canPlaceBuilding(id))return placeBuilding(id);return;}if(G.phase==='recruit'&&!isSea(id))return recruitAt(id);if(G.phase==='play'){if(dest&&legalSources(dest).includes(id))return adjust(id,1);return chooseDest(id)}if(G.phase==='oracleMove'&&dragonTargets().includes(id)){G.dragon=id;G.phase='oracleRoll';log(p().name+' place le Dragon sur '+id+'.');render()}}
+ if(caravanState||dragonSixState||dragonPublicState||dragonCurseState)return;if(inPlaySelected)hideInPlayPreview();if(dragonRichState){if(dragonRichState.targets.includes(id))return destroyRichDragonTarget(id);return;}if(returnState){if(returnRegions(returnState.player).includes(id))return reformAt(id);return;}if(egnoState){if(egnoTargetLegal(id))return resolveEgnobombe(id);return;}if(shadowState){if(shadowState.stage==='gather'&&shadowSourceMax(id)>0)return adjustShadow(id,1);if(shadowState.stage==='target'&&shadowTargetLegal(id))return chooseShadowTarget(id);return;}if(portalMode){if(canPortalRegion(id))return choosePortalRegion(id);return;}if(isBot()||paidDrawState||goldReaction)return;if(buildingMode){if(canPlaceBuilding(id))return placeBuilding(id);return;}if(G.phase==='recruit'&&!isSea(id))return recruitAt(id);if(G.phase==='play'){if(dest&&legalSources(dest).includes(id))return adjust(id,1);return chooseDest(id)}if(G.phase==='oracleMove'&&dragonTargets().includes(id)){G.dragon=id;G.phase='oracleRoll';log(p().name+' place le Dragon sur '+id+'.');render()}}
 function showDragonSixNotice(victim,next){
  clearInterval(dragonSixTick);
  const pass=$('dragonSixPass');if(pass)pass.onclick=finishDragonSixNotice;
@@ -4154,7 +4168,6 @@ function destroyDragonRegionAndEnd(){
    showDragonSixNotice(victim,finishDragonTurn);render();
    return
  }
- log('Le Dragon souffle sur '+G.dragon+', mais il n’y avait rien à détruire.');
  checkDecimations();advanceTurn('nouveau tour');
 }
 function roll(){
@@ -4238,7 +4251,7 @@ function renderMap(){
  }if(dragonRichState&&dragonRichState.targets.includes(id))b.classList.add('richDragonTarget');if(returnState&&returnRegions(returnState.player).includes(id)){
    b.classList.add('shadowTarget');
    if(returnStrongholds(returnState.player).includes(id))b.classList.add('returnStronghold');
- }if(egnoState&&egnoTargetLegal(id))b.classList.add('shadowTarget');if(shadowState&&shadowState.stage==='gather'&&!isSea(id)&&G.b[id].owner===shadowState.player)b.classList.add('shadowSrc');if(shadowState&&shadowState.stage==='target'&&shadowTargetLegal(id))b.classList.add('shadowTarget');if(buildingMode&&canPlaceBuilding(id))b.classList.add('buildTarget');if(portalMode&&canPortalRegion(id))b.classList.add('buildTarget');if(portalMode&&portalMode.first===id)b.classList.add('dest');if(G.phase==='play'&&dest&&legalSources(dest).includes(id))b.classList.add('src');if(G.phase==='oracleMove'&&dragonTargets().includes(id))b.classList.add('oracle');if(battle&&battle.target===id&&battle.kind!=='seaChoice')b.classList.add('battleLoc');
+ }if(egnoState&&egnoTargetLegal(id))b.classList.add('shadowTarget');if(shadowState&&shadowState.stage==='gather'&&shadowSourceMax(id)>0)b.classList.add('shadowSrc');if(shadowState&&shadowState.stage==='target'&&shadowTargetLegal(id))b.classList.add('shadowTarget');if(buildingMode&&canPlaceBuilding(id))b.classList.add('buildTarget');if(portalMode&&canPortalRegion(id))b.classList.add('buildTarget');if(portalMode&&portalMode.first===id)b.classList.add('dest');if(G.phase==='play'&&dest&&legalSources(dest).includes(id))b.classList.add('src');if(G.phase==='oracleMove'&&dragonTargets().includes(id))b.classList.add('oracle');if(battle&&battle.target===id&&battle.kind!=='seaChoice')b.classList.add('battleLoc');
  if(!isSea(id)){
    const city=cityAt(id);
    if(city){
@@ -4306,7 +4319,7 @@ function renderMap(){
    b.appendChild(ci);
  }
  if(movementPreviewHere){const g=document.createElement('span');g.className='ghost';g.textContent=previewDestinationUnits(id);b.appendChild(g)}
- const shadowGatherHere=!!(shadowState&&shadowState.stage==='gather'&&!isSea(id)&&G.b[id].owner===shadowState.player);
+ const shadowGatherHere=!!(shadowState&&shadowState.stage==='gather'&&shadowSourceMax(id)>0);
  if(G.phase==='play'&&dest&&legalSources(dest).includes(id)){
    b.classList.add('srcHold');
    const q=picks[id]||0;
@@ -5280,7 +5293,7 @@ function onlineApplyPrivatePresentations(me){
  const pe=G&&G.publicEventPresentation;
  if(pe&&Number(pe.seq)>onlinePublicEventSeenSeq){onlinePublicEventSeenSeq=Number(pe.seq);if(!pe.at||Date.now()-Number(pe.at)<30000)showPublicEventPresentation(pe)}
  const op=G&&G.oraclePresentation;
- if(op&&Number(op.seq)>onlineOraclePresentationSeenSeq){onlineOraclePresentationSeenSeq=Number(op.seq);showOracleRemoteNotice(op.name)}
+ if(op&&Number(op.seq)>onlineOraclePresentationSeenSeq){onlineOraclePresentationSeenSeq=Number(op.seq);if(op.at&&Date.now()-Number(op.at)<30000)showOracleRemoteNotice(op.name)}
  const dp=G&&G.dragonSixPresentation;
  if(dp&&Number(dp.seq)>onlineDragonSixPresentationSeenSeq){onlineDragonSixPresentationSeenSeq=Number(dp.seq);showDragonSixRemoteNotice(dp.victim)}
  const cp=G&&G.dragonCursePresentation;
