@@ -3208,7 +3208,7 @@ function startReactionWindow(){
   battle.consecutivePasses=0;
   battle.seconds=battleReactionSeconds();
   clearInterval(battleTick);
-  if(isHotseatMode(){
+  if(isHotseatMode()){
     battle.hotseatFreeReaction=true;
     // On reste sur la main du joueur dont c’est le tour s’il est humain.
     hotseatViewerOverride=null;
