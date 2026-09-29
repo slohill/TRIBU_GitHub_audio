@@ -417,7 +417,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
     <p class="onlineLead">Préparez votre tribu et rejoignez la partie.</p>
     <div class="onlineField"><label for="onlinePseudo">Pseudo</label><input id="onlinePseudo" maxlength="24" placeholder="Laissez vide pour un nom aléatoire"></div>
     <div class="onlineActions"><button id="onlineCreate" class="onlinePrimary">Créer une partie</button><button id="onlineJoin" class="onlineSecondary">Rejoindre une partie</button></div>
-    <button id="tutorialBtn" class="onlinePrimary">Partie Tutoriel</button>
+    <button id="tutorialBtn" class="localTestBtn">Partie Tutoriel</button>
     <button id="localTestBtn" class="localTestBtn" style="display:none">Mode test local — 2 joueurs vs 3 bots</button>
   </div>
 
@@ -4565,7 +4565,7 @@ function renderInPlay(i){
      const c=CARDS[id],key=i+':'+index+':'+id;
      const b=document.createElement('div');
      b.className='inPlayTitleBtn'+(inPlayCardUsable(i,id,index)?' usable':'')+((['Espion','Voleur'].includes(c.name)&&agentUsed(i,index))?' usedAgent':'')+(key===inPlaySelected?' selected':'');
-     b.dataset.key=key;b.textContent=c.name;b.title=c.effect;
+     b.dataset.key=key;b.textContent=c.name;
 
      b.onclick=e=>{e.stopPropagation();handleInPlayClick(i,id,key,index)};
      b.onpointerdown=e=>{
