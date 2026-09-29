@@ -407,7 +407,8 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 
 /* vOnline UI: Pioche / Défausse utilisent directement .deckCorner, centrée en haut. */
 .oracleCardClickable{cursor:pointer}
-</style></head>
+</style><link rel="stylesheet" href="assets/tutorial.css?v=1">
+</head>
 <body>
 <section id="start"><div class="onlineStartBox">
   <div class="onlineBrand"><img class="onlineBrandLogo" src="assets/tribu-title.webp?v=3" alt="Tribu — Conquest of Myrmigate"><div class="onlineBrandOnline">Online</div><span class="onlineBeta">version bêta</span></div>
@@ -416,7 +417,8 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
     <p class="onlineLead">Préparez votre tribu et rejoignez la partie.</p>
     <div class="onlineField"><label for="onlinePseudo">Pseudo</label><input id="onlinePseudo" maxlength="24" placeholder="Laissez vide pour un nom aléatoire"></div>
     <div class="onlineActions"><button id="onlineCreate" class="onlinePrimary">Créer une partie</button><button id="onlineJoin" class="onlineSecondary">Rejoindre une partie</button></div>
-    <button id="localTestBtn" class="localTestBtn">Mode test local — 2 joueurs vs 3 bots</button>
+    <button id="tutorialBtn" class="onlinePrimary">Partie Tutoriel</button>
+    <button id="localTestBtn" class="localTestBtn" style="display:none">Mode test local — 2 joueurs vs 3 bots</button>
   </div>
 
   <div id="onlineCreateScreen" class="onlineScreen hidden">
@@ -832,6 +834,7 @@ function confirmSetupIdentity(){
  G.players[i].faction=setupState.selectedFaction;
  G.players[i].portrait=setupState.selectedPortrait;
  setupState.configured[i]={color:setupState.selectedColor,faction:setupState.selectedFaction,portrait:setupState.selectedPortrait};
+ if(tutorial.active&&tutorial.step===2){setupState.stage='regions';setupState.selectedRegions=tutorial.regions.slice();confirmSetupRegions();return}
  setupState.stage='regions';setupState.selectedRegions=[];
  render();
  renderSetupRegions();
@@ -853,6 +856,7 @@ function setupRegionClick(r){
  const a=setupState.selectedRegions,at=a.indexOf(r);
  if(at>=0)a.splice(at,1);
  else if(a.length<2)a.push(r);
+ if(tutorial.active&&tutorial.step===1&&a.length===2){tutorialChooseIdentity();return}
  render();renderSetupRegions();
 }
 function confirmSetupRegions(){
@@ -865,6 +869,7 @@ function confirmSetupRegions(){
  setupState.index++;
  if(setupState.index>=G.players.length){finishHumanSetup();return}
  G.active=setupState.index;
+ if(tutorial.active){tutorialConfigureBot();return}
  render();
  renderSetupIdentity();
 }
@@ -874,6 +879,7 @@ function finishHumanSetup(){
  $('setupPanel').classList.add('hidden');
  G.active=0;G.turn=1;G.phase='start';resetMove();
  log('Installation terminée. '+p(0).name+' commence la partie.');
+ if(tutorial.active){onlineSetupLayout(false);tutorial.step=3}
  render();
 }
 
@@ -1084,7 +1090,7 @@ function init(){audioEnterGame();commerceDeals=[];commerceSeq=1;commerceDraft=nu
  }
  Object.entries(R).forEach(([r,v])=>G.b[r]={owner:null,units:0,hostile:!!v[2],originalHostile:!!v[2],building:null});
  Object.keys(SEA).forEach(s=>G.sea[s]={fleets:{}});
- if(!isHumanOnlyMode(mode)){
+ if(!isHumanOnlyMode(mode)&&!tutorial.active){
    const provinces=[...new Set(Object.values(R).map(v=>v[0]))];shuffleInPlace(provinces);
    const chosen=provinces.slice(0,G.players.length);
    chosen.forEach((prov,i)=>{
@@ -1109,6 +1115,7 @@ function init(){audioEnterGame();commerceDeals=[];commerceSeq=1;commerceDraft=nu
    startHumanSetup();
    return;
  }
+ if(tutorial.active){startTutorialSetup();return}
  G.log.unshift('Partie démarrée : provinces de départ aléatoires, 6 unités et 3 cartes par joueur.');
  render();
  queueBot('début de partie');
@@ -2539,7 +2546,7 @@ function resumeGameAfterPriorityCard(reason='reprise après carte prioritaire'){
  if(G&&G.players&&G.players[G.active]&&G.players[G.active].bot)queueBot(reason);
 }
 function queueBot(reason){
- if(gameOverState)return;
+ if(gameOverState||tutorial.active&&tutorial.step===11)return;
  clearTimeout(botTimer);
  const token=++botToken;
  if(!G || !isBot() || battle || shadowState || paidDrawState || goldReaction || priorityCardResolutionActive())return;
@@ -2934,6 +2941,7 @@ function beginReturnChoice(){
 }
 function advanceTurn(reason='nouveau tour'){
  if(gameOverState)return;
+ if(tutorialHoldTurn(reason))return;
  const previousActive=G.active;
  const previousOnlineBotDriver=(G&&G.online&&G.online.legacySync)?onlineLegacyBotDriverIndex:null;
  // Aucun changement de joueur n'est autorisé tant qu'un gain d'Or est encore
@@ -3371,6 +3379,7 @@ function renderBattleBanner(){
 
 function queueBotReaction(){
  clearTimeout(botReactionTimer);
+ if(tutorial.active&&tutorial.step===8)return;
  if(!battle)return;
  if(G&&G.online&&G.online.legacySync&&!onlineLegacyOwnsBattlePriority())return;
  const priority=currentPriorityPlayer();
@@ -3548,6 +3557,7 @@ function commitMovement(n,seaDefender){
  if(moved!==n)log('Sécurité déplacement : '+n+' unité(s) demandée(s), '+moved+' réellement disponible(s).');
  if(moved<=0){dest=null;picks={};render();return}
  n=moved;
+ if(tutorial.active&&tutorial.step===7)tutorial.step=8;
  if(isSea(target)){
    if(seaDefender!==null && seaDefender!==undefined){
      startSeaBattle(target,n,seaDefender,carried);
@@ -4998,6 +5008,7 @@ function render(){
  renderHandBattleState();
  if(portalMode)renderPortalBanner();else if(dragonRichState)renderRichDragonBanner();else if(returnState)renderReturnBanner();else if(egnoState)renderEgnobombeBanner();else if(shadowState)renderShadowBanner();else if(battle && battle.kind!=='seaChoice')renderBattle();else clearTopBanner();
  $('log').innerHTML=G.log.map(x=>'• '+renderLogEntry(x)+'<br>').join('');
+ renderTutorial();
 }
 audioLoadPrefs();audioWireControls();document.addEventListener('pointerdown',()=>audioMaybeWelcome(),{passive:true});
 const ONLINE_RANDOM_NAMES=['Valkor','Xodia','Oldirn','Mundris','Ferna','Dronk','Spoltreg','Nimun','Raenura','Keplet'];
@@ -5855,4 +5866,5 @@ document.addEventListener('click',e=>{
 
 $('commerceClose').onclick=commerceClose;$('commerceNewOffer').onclick=()=>commerceStart('offer');$('commerceNewAsk').onclick=()=>commerceStart('ask');$('commerceShowCard').onclick=()=>commerceStart('show');
 $('hotseatReveal').onclick=revealHotseatHand;$('oracleNoticePass').onclick=finishOracleNotice;$('dragonSixPass').onclick=finishDragonSixNotice;$('dragonPublicPass').onclick=passDragonPublic;$('dragonCurseContinue').onclick=continueDragonCurse;$('discardPile').onclick=openDiscard;$('deckPile').onclick=()=>{};$('discardClose').onclick=closeDiscard;$('restart').onclick=init;$('victoryRestart').onclick=()=>{location.reload()};$('agentClose').onclick=closeAgentModal;$('draw').onclick=doDraw;$('harvest').onclick=doHarvest;$('recruit').onclick=doRecruit;$('resetRecruit').onclick=resetRecruitment;$('endRecruit').onclick=beginPlay;$('toOracle').onclick=toOracle;$('choiceConfirm').onclick=confirmCouncil;$('roll').onclick=roll;
-</script></body></html>
+</script><script src="assets/tutorial.js?v=1"></script>
+</body></html>

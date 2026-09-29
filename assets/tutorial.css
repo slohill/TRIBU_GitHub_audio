@@ -1,0 +1,14 @@
+#tutorialBubble{position:sticky;top:8px;z-index:90;box-sizing:border-box;margin:0 0 12px;padding:14px 18px;border:2px solid #e8ca73;border-radius:14px;background:#19231ff5;box-shadow:0 5px 20px #0006;color:#fff;line-height:1.5;font-size:14px}
+#tutorialBubble strong{color:#f2d785;font-size:15px}
+#tutorialBubble p{margin:8px 0 12px;white-space:pre-line}
+#tutorialBubble button{margin:0 8px 0 0;padding:8px 12px}
+.tutorialHighlight{outline:3px solid #ffe58c!important;box-shadow:0 0 14px #ffe58c!important}
+.tutorialFaction{position:relative;display:inline-block}
+.tutorialLens{animation:tutorialPulse 1s ease-in-out infinite alternate;border:2px solid #ffe58c!important;color:#ffe58c!important;background:#17221e!important}
+.tutorialFaction>.tutorialLens{position:absolute;right:-5px;top:-5px;min-width:30px;width:30px;height:30px;padding:0;border-radius:50%;font-size:23px;z-index:2}
+#tutorialHelp{position:absolute;z-index:280;line-height:1.5}
+#tutorialHelp.tutorialMapHelp img{max-width:none;height:auto}
+#tutorialHelp.tutorialFactionHelp{left:8%!important;top:12%!important;width:75%;box-sizing:border-box;padding:20px;background:#14211ff5;border:2px solid #ffe58c;border-radius:12px;color:#fff;font-size:16px}
+@keyframes tutorialPulse{from{box-shadow:0 0 3px #ffe58c}to{box-shadow:0 0 14px #ffe58c}}
+@media(prefers-reduced-motion:reduce){.tutorialLens{animation:none}}
+@media(max-width:760px){#tutorialBubble{position:relative;top:auto;font-size:13px}}
