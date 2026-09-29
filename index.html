@@ -407,7 +407,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 
 /* vOnline UI: Pioche / Défausse utilisent directement .deckCorner, centrée en haut. */
 .oracleCardClickable{cursor:pointer}
-</style><link rel="stylesheet" href="assets/tutorial.css?v=1">
+</style><link rel="stylesheet" href="assets/tutorial.css?v=2">
 </head>
 <body>
 <section id="start"><div class="onlineStartBox">
@@ -463,7 +463,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
   <button id="startBtn" hidden>DÉMARRER LA PARTIE</button>
 </div></section>
 <div id="game" class="hidden">
-<header><b>TRIBU — audio test v91</b><span class="badge" id="playerCountBadge">mode test</span><button id="restart">Recommencer</button><div class="audioControls"><button id="musicToggle" title="Activer ou couper les musiques">🎵 Musique</button><button id="sfxToggle" title="Activer ou couper les sons et bruitages">🔊 Sons</button></div></header>
+<header><b>TRIBU — audio test v91</b><span class="badge" id="playerCountBadge">mode test</span><button id="gameHelpBtn">Aide de jeu</button><button id="restart">Recommencer</button><div class="audioControls"><button id="musicToggle" title="Activer ou couper les musiques">🎵 Musique</button><button id="sfxToggle" title="Activer ou couper les sons et bruitages">🔊 Sons</button></div></header>
 <main>
 <div class="playerRail" id="playerRail"></div>
 <div class="boardCol">
@@ -804,6 +804,7 @@ function renderSetupIdentity(){
      setupState.selectedColor=c;
      box.querySelectorAll('.setupColorBtn').forEach(x=>x.classList.remove('selected'));b.classList.add('selected');
      updateSetupIdentityConfirm();
+     if(tutorial.active)renderTutorialPlacement();
    };
    box.appendChild(b);
  });
@@ -818,6 +819,7 @@ function renderSetupIdentity(){
      setupState.selectedPortrait=key;setupState.selectedFaction=meta.faction;
      box.querySelectorAll('.setupFactionPortrait').forEach(x=>x.classList.remove('selected'));b.classList.add('selected');
      updateSetupIdentityConfirm();
+     if(tutorial.active)renderTutorialPlacement();
    };
    box.appendChild(b);
  });
@@ -879,7 +881,7 @@ function finishHumanSetup(){
  $('setupPanel').classList.add('hidden');
  G.active=0;G.turn=1;G.phase='start';resetMove();
  log('Installation terminée. '+p(0).name+' commence la partie.');
- if(tutorial.active){onlineSetupLayout(false);tutorial.step=3}
+ if(tutorial.active){onlineSetupLayout(false);tutorial.step=3;audioEnterGame()}
  render();
 }
 
@@ -1029,7 +1031,7 @@ function audioEnterGame(){
  audioBattleActive=false;audioAmbientResume={index:0,time:0};audioStartAmbient(0,0,true);
 }
 function audioMaybeWelcome(){
- if(!audioMusicEnabled||!$('start')||$('start').classList.contains('hidden'))return;
+ if(!audioMusicEnabled||!$('start')||($('start').classList.contains('hidden')&&!(tutorial.active&&tutorial.step<=2)))return;
  const a=audioTrack('welcome');if(!a.paused)return;audioMode='welcome';a.loop=true;a.volume=.42;audioSafePlay(a);
 }
 function audioBattleBegin(){
@@ -1046,7 +1048,7 @@ function audioBattleEnd(){
 function audioSetMusic(on){
  audioMusicEnabled=!!on;try{localStorage.setItem('tribu_music',on?'on':'off')}catch(e){}audioUpdateButtons();
  if(!on){Object.values(audioTracks).forEach(a=>a.pause());return}
- if($('start')&&!$('start').classList.contains('hidden')){audioMaybeWelcome();return}
+ if(($('start')&&!$('start').classList.contains('hidden'))||(tutorial.active&&tutorial.step<=2)){audioMaybeWelcome();return}
  const a=audioTrack(audioAmbientIndex===0?'ambient1':'ambient2');audioStartAmbient(audioAmbientIndex,a.currentTime||0,true);
 }
 function audioSetSfx(on){audioSfxEnabled=!!on;try{localStorage.setItem('tribu_sfx',on?'on':'off')}catch(e){}if(!audioSfxEnabled)stopGoldReactionSfx();else if(goldReaction&&!goldReaction.pausedByCard)startGoldReactionSfx();audioUpdateButtons()}
@@ -1055,7 +1057,7 @@ function audioWireControls(){
  audioUpdateButtons();
 }
 
-function init(){audioEnterGame();commerceDeals=[];commerceSeq=1;commerceDraft=null;commerceBattlePaused=false;
+function init(){if(!tutorial.active)audioEnterGame();commerceDeals=[];commerceSeq=1;commerceDraft=null;commerceBattlePaused=false;
  COLORS.splice(0,COLORS.length,...BASE_COLORS);
  setupState=null;hotseatReaction=null;hotseatViewerOverride=null;
  G={active:0,turn:1,phase:'start',dragon:'E4',victoryTarget:Number($('victoryMode').value)||3,players:[
@@ -5866,5 +5868,5 @@ document.addEventListener('click',e=>{
 
 $('commerceClose').onclick=commerceClose;$('commerceNewOffer').onclick=()=>commerceStart('offer');$('commerceNewAsk').onclick=()=>commerceStart('ask');$('commerceShowCard').onclick=()=>commerceStart('show');
 $('hotseatReveal').onclick=revealHotseatHand;$('oracleNoticePass').onclick=finishOracleNotice;$('dragonSixPass').onclick=finishDragonSixNotice;$('dragonPublicPass').onclick=passDragonPublic;$('dragonCurseContinue').onclick=continueDragonCurse;$('discardPile').onclick=openDiscard;$('deckPile').onclick=()=>{};$('discardClose').onclick=closeDiscard;$('restart').onclick=init;$('victoryRestart').onclick=()=>{location.reload()};$('agentClose').onclick=closeAgentModal;$('draw').onclick=doDraw;$('harvest').onclick=doHarvest;$('recruit').onclick=doRecruit;$('resetRecruit').onclick=resetRecruitment;$('endRecruit').onclick=beginPlay;$('toOracle').onclick=toOracle;$('choiceConfirm').onclick=confirmCouncil;$('roll').onclick=roll;
-</script><script src="assets/tutorial.js?v=1"></script>
+</script><script src="assets/tutorial.js?v=2"></script>
 </body></html>

@@ -104,6 +104,7 @@ function tutorialNext(){
  if(tutorial.step===9&&battle)resumeBattleTimer();
 }
 function renderTutorial(){
+ renderTutorialPlacement();
  document.querySelectorAll('.tutorialHighlight').forEach(e=>e.classList.remove('tutorialHighlight'));
  if(!tutorial.active||gameOverState){tutorialBubble.classList.add('hidden');return}
  if(tutorial.step===3&&G.phase==='play')tutorial.step=4;
@@ -131,6 +132,7 @@ function renderTutorial(){
  if(step===10)highlight(G.phase==='oracleMove'?'.spot.oracle':'#roll');
 }
 function tutorialAllows(target){
+ if(target.closest('#gameHelpBtn,#gameHelpOverlay'))return true;
  if(!tutorial.active||gameOverState)return true;
  if(target.closest('#tutorialBubble'))return true;
  const step=tutorial.step;
@@ -159,3 +161,23 @@ function tutorialCapture(e){
 }
 // Capture all activation routes, including long press and keyboard-generated clicks.
 ['click','pointerdown','mousedown','touchstart','keydown','contextmenu'].forEach(type=>document.addEventListener(type,tutorialCapture,{capture:true,passive:false}));
+
+function renderTutorialPlacement(){
+ document.querySelectorAll('.tutorialPlacementDie').forEach(el=>el.remove());
+ if(!tutorial.active||!setupState||tutorial.step>2)return;
+ const regions=tutorial.step===1?setupState.selectedRegions:tutorial.regions;
+ regions.forEach(region=>{
+   const spot=document.querySelector('.spot[data-region="'+region+'"]');if(!spot)return;
+   const die=document.createElement('span');die.className='onlineSetupPreviewDie tutorialPlacementDie';
+   die.textContent='3';die.style.backgroundColor=setupState.selectedColor||'#fff';spot.appendChild(die);
+ });
+}
+
+const gameHelpOverlay=document.createElement('div');
+gameHelpOverlay.id='gameHelpOverlay';gameHelpOverlay.className='hidden';
+gameHelpOverlay.setAttribute('role','dialog');gameHelpOverlay.setAttribute('aria-label','Aide de jeu');gameHelpOverlay.setAttribute('aria-modal','true');
+const gameHelpImage=document.createElement('img');gameHelpImage.src='assets/images/tutorial/Aidedejeu.jpg';gameHelpImage.alt='Aide de jeu TRIBU : déroulement du tour et points de victoire';
+gameHelpOverlay.appendChild(gameHelpImage);document.body.appendChild(gameHelpOverlay);
+$('gameHelpBtn').onclick=()=>{tutorialCloseHelp();gameHelpOverlay.classList.remove('hidden')};
+gameHelpOverlay.onclick=e=>{if(e.target===gameHelpOverlay){gameHelpOverlay.classList.add('hidden');$('gameHelpBtn').focus()}};
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!gameHelpOverlay.classList.contains('hidden')){gameHelpOverlay.classList.add('hidden');$('gameHelpBtn').focus()}});
