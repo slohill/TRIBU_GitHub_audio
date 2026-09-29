@@ -8,210 +8,210 @@
   },
   {
     "index": 2,
-    "path": "assets/images/cards/main/assassin.png",
+    "path": "assets/images/cards/main/assassin.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 3,
-    "path": "assets/images/cards/main/balistes.png",
+    "path": "assets/images/cards/main/balistes.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 4,
-    "path": "assets/images/cards/main/caravane_de_commerce.png",
+    "path": "assets/images/cards/main/caravane_de_commerce.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 5,
-    "path": "assets/images/cards/main/catapultes.png",
+    "path": "assets/images/cards/main/catapultes.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 6,
-    "path": "assets/images/cards/main/conseil_de_guerre.png",
+    "path": "assets/images/cards/main/conseil_de_guerre.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 7,
-    "path": "assets/images/cards/main/egnobombe.png",
+    "path": "assets/images/cards/main/egnobombe.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 8,
-    "path": "assets/images/cards/main/divination_oracle.png",
+    "path": "assets/images/cards/main/divination_oracle.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 9,
-    "path": "assets/images/cards/main/embuscade.png",
+    "path": "assets/images/cards/main/embuscade.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 10,
-    "path": "assets/images/cards/main/espion.png",
+    "path": "assets/images/cards/main/espion.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 11,
-    "path": "assets/images/cards/main/forteresse.png",
+    "path": "assets/images/cards/main/forteresse.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 12,
-    "path": "assets/images/cards/main/icenia.png",
+    "path": "assets/images/cards/main/icenia.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 13,
-    "path": "assets/images/cards/main/mur_de_pique.png",
+    "path": "assets/images/cards/main/mur_de_pique.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 14,
-    "path": "assets/images/cards/main/montures.png",
+    "path": "assets/images/cards/main/montures.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 15,
-    "path": "assets/images/cards/main/murs_frontaliers.png",
+    "path": "assets/images/cards/main/murs_frontaliers.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 16,
-    "path": "assets/images/cards/main/pluie_de_fleches.png",
+    "path": "assets/images/cards/main/pluie_de_fleches.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 17,
-    "path": "assets/images/cards/main/sundo.png",
+    "path": "assets/images/cards/main/sundo.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 18,
-    "path": "assets/images/cards/main/taxe.png",
+    "path": "assets/images/cards/main/taxe.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 19,
-    "path": "assets/images/cards/main/voleur.png",
+    "path": "assets/images/cards/main/voleur.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 20,
-    "path": "assets/images/cards/main/section_de_l_ombre.png",
+    "path": "assets/images/cards/main/section_de_l_ombre.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 21,
-    "path": "assets/images/cards/main/plan_des_trebuchets.png",
+    "path": "assets/images/cards/main/plan_des_trebuchets.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 22,
-    "path": "assets/images/cards/main/pyrodontes_de_guerre.png",
+    "path": "assets/images/cards/main/pyrodontes_de_guerre.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 23,
-    "path": "assets/images/cards/oracle/canicule.png",
+    "path": "assets/images/cards/oracle/canicule.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 24,
-    "path": "assets/images/cards/oracle/en_quete_de_destruction.png",
+    "path": "assets/images/cards/oracle/en_quete_de_destruction.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 25,
-    "path": "assets/images/cards/oracle/givre_mortel.png",
+    "path": "assets/images/cards/oracle/givre_mortel.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 26,
-    "path": "assets/images/cards/oracle/tempete_de_sable.png",
+    "path": "assets/images/cards/oracle/tempete_de_sable.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 27,
-    "path": "assets/images/cards/oracle/tempete_en_mer.png",
+    "path": "assets/images/cards/oracle/tempete_en_mer.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 28,
-    "path": "assets/images/cards/oracle/vague_de_froid.png",
+    "path": "assets/images/cards/oracle/vague_de_froid.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
   },
   {
     "index": 29,
-    "path": "assets/images/cards/backs/back_tribu.png",
+    "path": "assets/images/cards/backs/back_tribu.webp",
     "width": 496,
     "height": 693,
     "source_mime": "image/webp"
   },
   {
     "index": 30,
-    "path": "assets/images/cards/backs/back_oracle.png",
+    "path": "assets/images/cards/backs/back_oracle.webp",
     "width": 496,
     "height": 693,
     "source_mime": "image/webp"
   },
   {
     "index": 31,
-    "path": "assets/images/cards/main/portails.png",
+    "path": "assets/images/cards/main/portails.webp",
     "width": 1654,
     "height": 2339,
     "source_mime": "image/webp"
