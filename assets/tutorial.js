@@ -132,7 +132,7 @@ function renderTutorial(){
  if(step===10)highlight(G.phase==='oracleMove'?'.spot.oracle':'#roll');
 }
 function tutorialAllows(target){
- if(target.closest('#gameHelpBtn,#gameHelpOverlay'))return true;
+ if(target.closest('#gameHelpBtn,#gameHelpOverlay,#actionConfirmOverlay,#factionInfoOverlay,.factionInfoBtn'))return true;
  if(!tutorial.active||gameOverState)return true;
  if(target.closest('#tutorialBubble'))return true;
  const step=tutorial.step;
@@ -181,3 +181,4 @@ gameHelpOverlay.appendChild(gameHelpImage);document.body.appendChild(gameHelpOve
 $('gameHelpBtn').onclick=()=>{tutorialCloseHelp();gameHelpOverlay.classList.remove('hidden')};
 gameHelpOverlay.onclick=e=>{if(e.target===gameHelpOverlay){gameHelpOverlay.classList.add('hidden');$('gameHelpBtn').focus()}};
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!gameHelpOverlay.classList.contains('hidden')){gameHelpOverlay.classList.add('hidden');$('gameHelpBtn').focus()}});
+

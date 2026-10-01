@@ -409,6 +409,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 /* vOnline UI: Pioche / Défausse utilisent directement .deckCorner, centrée en haut. */
 .oracleCardClickable{cursor:pointer}
 </style><link rel="stylesheet" href="assets/tutorial.css?v=2">
+<link rel="stylesheet" href="assets/interaction-safety.css?v=1">
 </head>
 <body>
 <section id="start"><div class="onlineStartBox">
@@ -816,7 +817,7 @@ function renderSetupIdentity(){
  Object.entries(FACTION_PORTRAIT_META).forEach(([key,meta])=>{
    if(usedPortraits.has(key))return;
    const b=document.createElement('button');b.className='setupFactionPortrait';
-   b.innerHTML='<img src="'+FACTION_PORTRAITS[key]+'" alt="'+meta.label+'"><span>'+meta.label+'</span>';
+   b.innerHTML='<img src="'+FACTION_PORTRAITS[key]+'" alt="'+meta.label+'"><span>'+meta.label+'</span>';addSetupFactionInfo(b,key);
    b.onclick=()=>{
      setupState.selectedPortrait=key;setupState.selectedFaction=meta.faction;
      box.querySelectorAll('.setupFactionPortrait').forEach(x=>x.classList.remove('selected'));b.classList.add('selected');
@@ -1094,7 +1095,7 @@ function audioWireControls(){
  audioUpdateButtons();
 }
 
-function init(){audioResetVictory();if(!tutorial.active)audioEnterGame();commerceDeals=[];commerceSeq=1;commerceDraft=null;commerceBattlePaused=false;
+function init(){closeActionConfirmation();audioResetVictory();if(!tutorial.active)audioEnterGame();commerceDeals=[];commerceSeq=1;commerceDraft=null;commerceBattlePaused=false;
  COLORS.splice(0,COLORS.length,...BASE_COLORS);
  setupState=null;hotseatReaction=null;hotseatViewerOverride=null;
  G={active:0,turn:1,phase:'start',dragon:'E4',victoryTarget:Number($('victoryMode').value)||3,players:[
@@ -3356,8 +3357,7 @@ function playBattleCardForOwner(owner,handIndex){
 
   G.players[owner].hand.splice(handIndex,1);
   if(cardDef(id).name==='Balistes'){
-    if(side==='attacker')G.players[owner].attackTurnBonus+=2;
-    if(side==='defender')G.players[owner].defenseTurnBonus+=2;
+    addBalistesTurnBonus(owner,side);
   }
   battle.stack.push({cardId:id,owner,side,complex:!!legality.complex});
   log(p(owner).name+' joue '+cardDef(id).name+'.');
@@ -3513,6 +3513,7 @@ function renderBattle(){
   // Le rendu de la main doit se mettre à jour quand la priorité change.
   renderCommerceBoard();
  renderHandBattleState();
+ wireCardConfirmations();
 }
 
 function chooseDest(id){if(G.phase!=='play')return;const enemy=enemyRegion(id);if(!enemy&&!destinationAvailable(id)){log(id+' a déjà reçu le nombre maximal de déplacements ce tour'+(cycle===2?' avec Montures':'')+'.');render();return}if(enemy&&!isSea(id)&&attacked.has(id)){log(id+' a déjà été attaquée ce tour : une même région ne peut jamais être attaquée deux fois par les déplacements normaux.');render();return}if(!legalSources(id).length){log('Aucune unité disponible ne peut rejoindre '+id+'.');render();return}dest=id;picks={};render()}
@@ -4282,10 +4283,12 @@ function floatingActionPosition(target){
 }
 
 function renderMap(){
+ const suggestedMoves=new Set(movementSuggestionTargets());
  map.querySelectorAll('.spot,.floatActions,.dragonRestart').forEach(x=>x.remove());
  if(oracleState&&oracleState.kind==='dragon5'&&oracleState.player===localViewer()&&!G.players[oracleState.player].bot){const rb=document.createElement('button');rb.className='dragonRestart';rb.textContent='Recommencer déplacement du Dragon';rb.style.cssText='position:absolute;left:50%;top:1%;transform:translateX(-50%);z-index:35';rb.onclick=restartOracleDragonMovement;map.appendChild(rb)}
  Object.entries(POS).forEach(([id,xy])=>{const b=document.createElement('button');b.className='spot'+(isSea(id)?' sea':'');b.dataset.region=id;b.style.left=xy[0]+'%';b.style.top=xy[1]+'%';
  if(dest===id)b.classList.add('dest');
+ if(suggestedMoves.has(id))b.classList.add('moveAvailable');
  if(setupState&&setupState.stage==='regions'){
    const prov=setupState.assignedProvinces[setupState.index];
    if(setupProvinceRegions(prov).includes(id))b.classList.add(setupState.selectedRegions.includes(id)?'setupRegionChosen':'setupRegionReady');
@@ -5045,6 +5048,7 @@ function render(){
  // on le rend à chaque rendu général, pas seulement pendant une bataille.
  renderCommerceBoard();
  renderHandBattleState();
+ wireCardConfirmations();
  if(portalMode)renderPortalBanner();else if(dragonRichState)renderRichDragonBanner();else if(returnState)renderReturnBanner();else if(egnoState)renderEgnobombeBanner();else if(shadowState)renderShadowBanner();else if(battle && battle.kind!=='seaChoice')renderBattle();else clearTopBanner();
  $('log').innerHTML=G.log.map(x=>'• '+renderLogEntry(x)+'<br>').join('');
  renderTutorial();
@@ -5774,7 +5778,7 @@ function renderOnlineAuthoritativeSetup(state){
  if(!active){const current=state.players[state.setup.activePlayer];$('setupText').innerHTML='En attente de <b>'+(current?current.pseudo:'un autre joueur')+'</b> pendant son installation.'}
  else{$('setupText').innerHTML='Choisissez votre couleur et votre faction, puis cliquez directement sur <b>2 des régions en surbrillance</b> sur la carte.<br>Placement : <b>'+onlineSetupSelectedRegions.length+'/2</b>';
   BASE_COLORS.forEach((color,i)=>{if(state.setup.usedColors.includes(color))return;const b=document.createElement('button');b.className='setupColorBtn'+(onlineSetupDraft.color===color?' selected':'');b.textContent=COLOR_NAMES[i];b.style.borderColor=color;b.style.color=color;b.onclick=()=>{onlineSetupDraft.color=color;renderOnlineAuthoritativeSetup(state)};box.appendChild(b)});const br=document.createElement('div');br.style.flexBasis='100%';box.appendChild(br);
-  Object.entries(FACTION_PORTRAIT_META).forEach(([key,meta])=>{if(state.setup.usedPortraits.includes(key))return;const b=document.createElement('button');b.className='setupFactionPortrait'+(onlineSetupDraft.portrait===key?' selected':'');b.innerHTML='<img src="'+FACTION_PORTRAITS[key]+'" alt="'+meta.label+'"><span>'+meta.label+'</span>';b.onclick=()=>{onlineSetupDraft.portrait=key;renderOnlineAuthoritativeSetup(state)};box.appendChild(b)});const br2=document.createElement('div');br2.style.flexBasis='100%';box.appendChild(br2);
+  Object.entries(FACTION_PORTRAIT_META).forEach(([key,meta])=>{if(state.setup.usedPortraits.includes(key))return;const b=document.createElement('button');b.className='setupFactionPortrait'+(onlineSetupDraft.portrait===key?' selected':'');b.innerHTML='<img src="'+FACTION_PORTRAITS[key]+'" alt="'+meta.label+'"><span>'+meta.label+'</span>';addSetupFactionInfo(b,key);b.onclick=()=>{onlineSetupDraft.portrait=key;renderOnlineAuthoritativeSetup(state)};box.appendChild(b)});const br2=document.createElement('div');br2.style.flexBasis='100%';box.appendChild(br2);
   const ok=document.createElement('button');ok.textContent='Valider mon installation';ok.disabled=!(onlineSetupDraft.color&&onlineSetupDraft.portrait&&onlineSetupSelectedRegions.length===2);ok.onclick=()=>onlineAck('setupComplete',{color:onlineSetupDraft.color,portrait:onlineSetupDraft.portrait,regions:onlineSetupSelectedRegions.slice()}).then(()=>{onlineSetupSelectedRegions=[];onlineSetupDraft={color:null,portrait:null}}).catch(onlineError);box.appendChild(ok);
   const restart=document.createElement('button');restart.textContent='Recommencer le placement';restart.disabled=onlineSetupSelectedRegions.length===0;restart.onclick=()=>{onlineSetupSelectedRegions=[];renderOnlineAuthoritativeSetup(state)};box.appendChild(restart);
 }
@@ -5906,4 +5910,5 @@ document.addEventListener('click',e=>{
 $('commerceClose').onclick=commerceClose;$('commerceNewOffer').onclick=()=>commerceStart('offer');$('commerceNewAsk').onclick=()=>commerceStart('ask');$('commerceShowCard').onclick=()=>commerceStart('show');
 $('hotseatReveal').onclick=revealHotseatHand;$('oracleNoticePass').onclick=finishOracleNotice;$('dragonSixPass').onclick=finishDragonSixNotice;$('dragonPublicPass').onclick=passDragonPublic;$('dragonCurseContinue').onclick=continueDragonCurse;$('discardPile').onclick=openDiscard;$('deckPile').onclick=()=>{};$('discardClose').onclick=closeDiscard;$('restart').onclick=init;$('victoryRestart').onclick=()=>{audioResetVictory();location.reload()};$('agentClose').onclick=closeAgentModal;$('draw').onclick=doDraw;$('harvest').onclick=doHarvest;$('recruit').onclick=doRecruit;$('resetRecruit').onclick=resetRecruitment;$('endRecruit').onclick=beginPlay;$('toOracle').onclick=toOracle;$('choiceConfirm').onclick=confirmCouncil;$('roll').onclick=roll;
 </script><script src="assets/tutorial.js?v=2"></script>
+<script src="assets/interaction-safety.js?v=1"></script>
 </body></html>
