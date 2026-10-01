@@ -13,9 +13,10 @@ const tutorialText=[null,
  'La phase Oracle consiste à déplacer le Dragon d’une case, puis à lancer le dé de 6 :\n6 — le Dragon détruit la case sur laquelle vous l’avez placé.\n1 — la carte Oracle visible sur le dessus de la pioche s’active.\n2 / 3 / 4 / 5 — rien ne se passe, sauf effet d’un Oracle actif. Terminez les éventuels choix demandés par l’Oracle.',
  'Voilà, vous savez jouer à Tribu ! Aux prochains tours, vous pourrez Piocher comme vous l’avez fait, ou Récolter 2 d’or par Région possédée. Quand vous aurez suffisamment d’or et de Régions, cliquez sur Recruter pour renforcer vos armées ! La victoire est à 3 points. Et pour savoir comment gagner des points de victoire, cliquez sur « Aide de jeu » en haut de votre écran. Bonnes parties !'];
 const tutorialFactionHelp={
- 0:'Griffes-Blanches : pour 1 Or, recrutez 2 unités dans la neige ou 1 en terrain tempéré, dans la limite de votre plafond. Pas de recrutement dans le désert. Immunité à Givre mortel.',
- 1:'Reptones : pour 1 Or, recrutez 2 unités dans le désert ou 1 en terrain tempéré, dans la limite de votre plafond. Pas de recrutement dans la neige. Immunité à Tempête de sable.',
- 2:'Yonkaïs : le plafond de recrutement est de 2 × le nombre de Régions possédées, au lieu de 3 ×. En défense, chaque unité vaut 3 points de bataille.'
+ 0:'Les peuples nordiques ont un recrutement facilité en terres enneigées et sont immunisés au givre.',
+ 1:'Les peuples du désert ont un recrutement facilité en régions désertiques et sont immunisés aux tempêtes de sable.',
+ 2:'Le peuple des bâtisseurs, leurs forces valent triple lors de batailles défensives. Cependant, ils ont un plafond de recrutement moins élevé que les autres factions. Ce plafond est égal à 2 × le nombre de Régions possédées, au lieu de 3 × pour les autres.'
+
 };
 const tutorialBubble=document.createElement('section');
 tutorialBubble.id='tutorialBubble';tutorialBubble.className='hidden';

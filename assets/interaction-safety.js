@@ -71,10 +71,10 @@ function bindActionGesture(el,key,title,text,run,available=()=>true,startAction=
  el.onpointerup=el.onpointercancel=el.onpointerleave=el.ondragstart=cancel;
 }
 function wireStartActionGestures(){
- const texts=['Piochez 2 cartes TRIBU, puis passez à la phase de jeu. Cela remplace Récolter ou Recruter pour ce tour.',
- 'Gagnez 2 Or par région contrôlée, plus les bonus de vos cités. Ce gain peut être intercepté par Embuscade. Cela remplace Piocher ou Recruter.',
- 'Recrutez en dépensant votre Or sur vos régions, selon votre faction et votre plafond d’unités. Cela remplace Piocher ou Récolter. Entrer dans cette phase ne dépense pas d’Or.'];
- ['draw','harvest','recruit'].forEach((id,i)=>bindActionGesture($(id),'start:'+G?.active+':'+id,['Piocher','Récolter','Recruter'][i],texts[i],()=>{
+ const texts=['Piochez 2 cartes TRIBU, puis passez à la phase de jeu.',
+ 'Gagnez 2 Or par région contrôlée.',
+ 'Recrutez en dépensant votre Or. Votre plafond de recrutement est égal à 3 × le nombre de Régions que vous possédez (2 × si vous êtes Yonkaï).'];
+ ['draw','harvest','recruit'].forEach((id,i)=>bindActionGesture($(id),'start:'+G?.active+':'+id,['Piocher 2','Récolter','Recruter'][i],texts[i],()=>{
    if(isHotseatMode())hotseatViewerOverride=G.active;
    [doDraw,doHarvest,doRecruit][i]();
  },canUseStartAction,true));
@@ -103,7 +103,7 @@ function wireCardConfirmations(){
    const key='card:'+owner+':'+index+':'+id;
    if(c.name==='Balistes'&&canPlayBalistesOutsideBattle(owner)){
      el.classList.add('playablePermanent');el.title='Balistes : choisir un bonus jusqu’à la fin du tour';
-     const text='Choisissez +2 à chacune de vos attaques OU +2 à chacune de vos défenses jusqu’à la fin du tour actuellement en cours.';
+     const text='Jusqu’à la fin du tour actuellement en cours, choisissez +2 à chacune de vos attaques OU +2 à chacune de vos défenses.';
      bindActionGesture(el,key,'Balistes',text,()=>requestActionConfirmation('Balistes — choisir le bonus',text,[
        {label:'+2 Attaque',run:()=>playBalistesOutsideBattle(index,'attacker')},
        {label:'+2 Défense',run:()=>playBalistesOutsideBattle(index,'defender')}],interactionContextValid()),()=>canPlayBalistesOutsideBattle(owner));return;
@@ -113,7 +113,7 @@ function wireCardConfirmations(){
    const text=c.name==='Taxe'?'Gagnez 1 Or par case occupée par vos unités. Ce gain peut être intercepté par Embuscade.':
      c.name==='Conseil de guerre'?'Piochez 2 cartes TRIBU, puis choisissez 2 cartes de votre main à défausser.':
      c.name==='Montures'?(battle?'Ajoutez +4 Attaque pour cette bataille.':'Toutes vos unités gagnent 1 point de déplacement jusqu’à la fin de votre tour. Une même région ne peut toujours pas être attaquée deux fois par les déplacements normaux.'):
-     '+2 '+(battle&&owner===battle.attacker?'Attaque sur chacune de vos attaques':'Défense sur chacune de vos défenses')+' jusqu’à la fin du tour actuellement en cours.';
+     'Jusqu’à la fin du tour actuellement en cours, choisissez +2 à chacune de vos attaques OU +2 à chacune de vos défenses.';
    bindActionGesture(el,key,c.name,text,event=>action.call(el,event),()=>localViewer()===owner&&!gameOverState&&G.players[owner].hand[index]===id&&(!battle||isHotseatMode()||battle.seconds>0));
  });
 }
@@ -127,7 +127,7 @@ function addSetupFactionInfo(button,key){
  const hint=document.createElement('span');hint.className='factionInfoBtn';hint.textContent='⌕';hint.tabIndex=0;hint.setAttribute('role','button');hint.setAttribute('aria-label','Informations sur '+FACTION_PORTRAIT_META[key].label);
  const open=e=>{e.preventDefault();e.stopPropagation();const f=FACTIONS[FACTION_PORTRAIT_META[key].faction];
    $('factionInfoTitle').textContent=f.name;$('factionInfoImage').src=FACTION_PORTRAITS[key];$('factionInfoImage').alt=f.name;
-   $('factionInfoText').textContent='Plafond : '+f.cap+' unités par région contrôlée. Défense : '+f.def+' par unité. '+(f.name==='Griffes-Blanches'?'Recrutement : 2 unités par Or dans la neige, 1 en terrain tempéré, interdit dans le désert. Immunité à Givre mortel.':f.name==='Reptones'?'Recrutement : 2 unités par Or dans le désert, 1 en terrain tempéré, interdit dans la neige. Immunité à Tempête de sable.':'Recrutement : 1 unité par Or, sur tous les terrains.');
+   $('factionInfoText').textContent=tutorialFactionHelp[FACTION_PORTRAIT_META[key].faction];
    factionInfoOverlay.classList.remove('hidden');$('factionInfoClose').focus();
  };
  hint.onclick=open;hint.onkeydown=e=>{if(e.key==='Enter'||e.key===' ')open(e)};hint.onpointerdown=e=>e.stopPropagation();button.appendChild(hint);
