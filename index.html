@@ -704,9 +704,9 @@ const ORACLES=[
 ];
 function makeOracleDeck(){return shuffleArray(ORACLES.map((_,i)=>i))}
 
-const MAP_NORMAL_SRC='assets/images/maps/map_normal.png';
-const MAP_COLD_SRC='assets/images/maps/map_vague_de_froid.png';
-const MAP_HEAT_SRC='assets/images/maps/map_canicule.png';
+const MAP_NORMAL_SRC='assets/images/maps/map_normal.webp';
+const MAP_COLD_SRC='assets/images/maps/map_vague_de_froid.webp';
+const MAP_HEAT_SRC='assets/images/maps/map_canicule.webp';
 
 
 const FACTION_DICE={"Griffes-Blanches":["assets/images/dice/griffes_blanches_1.png","assets/images/dice/griffes_blanches_2.png","assets/images/dice/griffes_blanches_3.png","assets/images/dice/griffes_blanches_4.png","assets/images/dice/griffes_blanches_5.png"],"Reptones":["assets/images/dice/reptones_1.png","assets/images/dice/reptones_2.png","assets/images/dice/reptones_3.png","assets/images/dice/reptones_4.png","assets/images/dice/reptones_5.png"],"Yonka\u00efs":["assets/images/dice/yonkais_1.png","assets/images/dice/yonkais_2.png","assets/images/dice/yonkais_3.png","assets/images/dice/yonkais_4.png","assets/images/dice/yonkais_5.png"]};
@@ -5778,7 +5778,7 @@ function renderOnlineAuthoritativeSetup(state){
   const ok=document.createElement('button');ok.textContent='Valider mon installation';ok.disabled=!(onlineSetupDraft.color&&onlineSetupDraft.portrait&&onlineSetupSelectedRegions.length===2);ok.onclick=()=>onlineAck('setupComplete',{color:onlineSetupDraft.color,portrait:onlineSetupDraft.portrait,regions:onlineSetupSelectedRegions.slice()}).then(()=>{onlineSetupSelectedRegions=[];onlineSetupDraft={color:null,portrait:null}}).catch(onlineError);box.appendChild(ok);
   const restart=document.createElement('button');restart.textContent='Recommencer le placement';restart.disabled=onlineSetupSelectedRegions.length===0;restart.onclick=()=>{onlineSetupSelectedRegions=[];renderOnlineAuthoritativeSetup(state)};box.appendChild(restart);
 }
- const boardMapImage=$('boardMapImage');if(boardMapImage)boardMapImage.src='assets/images/maps/map_normal.png';renderMap();onlineSetupMapFeedback(state,active);renderPlayerRail()
+ const boardMapImage=$('boardMapImage');if(boardMapImage)boardMapImage.src='assets/images/maps/map_normal.webp';renderMap();onlineSetupMapFeedback(state,active);renderPlayerRail()
 }
 function onlineSetupIdentityReady(box){const b=$('onlineSetupIdentityConfirm');if(b)b.disabled=!(box.dataset.color&&box.dataset.portrait)}
 function onlineSetupRegionClick(r){
