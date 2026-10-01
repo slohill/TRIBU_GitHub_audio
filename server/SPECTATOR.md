@@ -8,6 +8,24 @@ Les clients joueurs doivent actualiser leur page pour transmettre les scores et 
 
 ## Historique et Render
 
+### Solution gratuite : Render Free + Neon Free
+
+Le serveur accepte une base PostgreSQL externe. Neon Free convient pour ces petits résumés ; rester sur le plan Free et surveiller ses quotas. Aucun disque Render payant n’est nécessaire dans cette configuration.
+
+1. Créer un compte sur https://console.neon.tech/signup et un projet `TRIBU` sur le plan **Free**. Choisir si possible une région proche du service Render.
+2. Dans Neon, ouvrir **Connect** et copier la chaîne de connexion PostgreSQL. Garder le paramètre TLS fourni (`sslmode=require`, ou `verify-full`).
+3. Dans Render, ouvrir le service TRIBU puis **Environment**. Ajouter la variable **TRIBU_HISTORY_DATABASE_URL** et coller la chaîne comme valeur. Cette valeur est un secret : ne pas la mettre dans GitHub, dans le navigateur du jeu, ni dans une conversation.
+4. Enregistrer et redéployer. Le serveur crée automatiquement sa seule table, `tribu_public_history`, puis recharge les résultats. Aucun SQL à saisir manuellement.
+5. Terminer une partie en ligne de test, vérifier l’historique, puis redémarrer le service Render et vérifier que le résultat reste présent.
+
+Le serveur lit la base au démarrage et écrit lors d’une nouvelle victoire. L’affichage des spectateurs est servi depuis sa mémoire, sans requête SQL à chaque mouvement. Les connexions inactives sont fermées afin de laisser Neon se mettre en veille. Seuls les 500 derniers résumés sont conservés, dont 100 affichés. La partie ne dépend pas de la disponibilité de la base : en cas d’échec, les résultats attendent en mémoire et dans le cache local, avec nouvelle tentative toutes les 60 secondes. Un arrêt de Render avant une sauvegarde distante réussie peut perdre ces résultats en attente.
+
+La reprise des écritures et la fusion après un chargement retardé sont testées localement. La connexion réelle et la conservation après redémarrage Render doivent être vérifiées après ajout de la variable. Aucun compte externe n’est créé et aucune formule payante n’est activée par le code.
+
+Documentation de l’offre : https://neon.com/docs/introduction/plans
+
+### Stockage local (si aucune base externe n’est configurée)
+
 Par défaut, le serveur écrit les 500 derniers résultats dans `server/data/history.json`. L’interface affiche les 100 plus récents. Ce fichier doit être conservé entre les déploiements. Un redémarrage avec le même fichier recharge l’historique ; aucun historique antérieur à l’activation ne peut être reconstruit.
 
 Sur Render, le système de fichiers ordinaire est temporaire. Pour une conservation durable :

@@ -5,6 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { Server } = require('socket.io');
 const { createPublicActivity } = require('./public-activity');
+const { createPostgresHistory } = require('./history-store');
 
 const PORT = process.env.PORT || 3000;
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || '*';
@@ -28,7 +29,8 @@ const io = new Server(server, {
 });
 
 const rooms = new Map();
-const publicActivity=createPublicActivity();
+const historyDatabase=process.env.TRIBU_HISTORY_DATABASE_URL;
+const publicActivity=createPublicActivity({remote:historyDatabase?createPostgresHistory(historyDatabase):null,onChange:()=>publishPublicActivity()});
 let activityPublishTimer=null;
 function publishPublicActivity(){
  if(activityPublishTimer)return;

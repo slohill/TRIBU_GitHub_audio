@@ -1,7 +1,7 @@
 'use strict';
-const fs=require('fs');
 const path=require('path');
 const crypto=require('crypto');
+const {createHistoryStore}=require('./history-store');
 const REGIONS=[...'ABCDEFGHI'].flatMap(p=>[1,2,3,4,5].map(n=>p+n));
 const SEAS=['U','V','W','X','Y','Z'];
 const LOCATIONS=new Set([...REGIONS,...SEAS]);
@@ -40,10 +40,8 @@ function projectPublicState(room){
    discard:cards(game.discard),deckCount:Array.isArray(game.deck)?game.deck.length:0,winner,
    connectedHumans:players.filter(p=>!p.bot&&p.connected).length};
 }
-function createPublicActivity({file=process.env.TRIBU_HISTORY_FILE||path.join(__dirname,'data','history.json'),now=Date.now,logger=console}={}){
- let history=[],storageError=false;const states=new Map();
- try{const parsed=JSON.parse(fs.readFileSync(file,'utf8'));if(Array.isArray(parsed))history=parsed.slice(-500)}catch(e){if(e.code!=='ENOENT'){storageError=true;logger.error('Historique TRIBU illisible:',e.message)}}
- function save(){try{fs.mkdirSync(path.dirname(file),{recursive:true});const temp=file+'.tmp';fs.writeFileSync(temp,JSON.stringify(history));fs.renameSync(temp,file);storageError=false}catch(e){storageError=true;logger.error('Historique TRIBU non enregistré:',e.message)}}
+function createPublicActivity({file=process.env.TRIBU_HISTORY_FILE||path.join(__dirname,'data','history.json'),now=Date.now,logger=console,remote=null,onChange=()=>{}}={}){
+ const archive=createHistoryStore({file,remote,logger,onChange});const states=new Map();
  function attach(room){if(!/^[a-f0-9-]{36}$/.test(room.activityId||''))room.activityId=crypto.randomUUID();if(!Number.isFinite(room.startedAt)||room.startedAt<=0)room.startedAt=now()}
  function summary(state){return {id:state.id,name:state.name,mode:state.mode,startedAt:state.startedAt,turn:state.turn,status:state.status,humans:state.players.filter(p=>!p.bot).length,bots:state.players.filter(p=>p.bot).length,connectedHumans:state.connectedHumans,victoryTarget:state.victoryTarget}}
  function update(room){if(!room||!room.launched||!room.game)return null;attach(room);const next=projectPublicState(room),previous=states.get(room.activityId),events=previous?previous.events.slice():[];
@@ -58,12 +56,12 @@ function createPublicActivity({file=process.env.TRIBU_HISTORY_FILE||path.join(__
    if(previous&&previous.oracleActive!==next.oracleActive)add('L’Oracle actif a changé.');
    if(next.winner!==null&&previous?.winner!==next.winner)add(next.players[next.winner].name+' remporte la partie !');
    next.events=events.slice(-60);states.set(next.id,next);
-   if(next.winner!==null&&!history.some(h=>h.id===next.id)){
-     history.push({...summary(next),finishedAt:now(),durationSeconds:Math.max(0,Math.round((now()-next.startedAt)/1000)),winner:next.winner,players:next.players.map(p=>({name:p.name,bot:p.bot,faction:p.faction,score:p.score}))});history=history.slice(-500);save();
+   if(next.winner!==null&&previous?.winner!==next.winner){
+     archive.add({...summary(next),finishedAt:now(),durationSeconds:Math.max(0,Math.round((now()-next.startedAt)/1000)),winner:next.winner,players:next.players.map(p=>({name:p.name,bot:p.bot,faction:p.faction,score:p.score}))});
    }
    return next;
  }
- function list(rooms){const active=[];for(const room of rooms.values()){const state=update(room);if(state&&state.winner===null&&state.connectedHumans>0)active.push(summary(state))}return {games:active.sort((a,b)=>b.startedAt-a.startedAt).slice(0,50),recent:history.slice(-100).reverse(),historyAvailable:!storageError}}
- return {update,list,attach,get:id=>states.get(id),history:()=>history.slice()};
+ function list(rooms){const active=[];for(const room of rooms.values()){const state=update(room);if(state&&state.winner===null&&state.connectedHumans>0)active.push(summary(state))}return {games:active.sort((a,b)=>b.startedAt-a.startedAt).slice(0,50),recent:archive.list().slice(-100).reverse(),historyAvailable:archive.available()}}
+ return {update,list,attach,get:id=>states.get(id),history:archive.list,ready:archive.ready,flush:archive.flush,close:archive.close};
 }
 module.exports={projectPublicState,createPublicActivity};
