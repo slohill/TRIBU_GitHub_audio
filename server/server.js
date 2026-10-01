@@ -4,6 +4,7 @@ const http = require('http');
 const path = require('path');
 const crypto = require('crypto');
 const { Server } = require('socket.io');
+const { createPublicActivity } = require('./public-activity');
 
 const PORT = process.env.PORT || 3000;
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || '*';
@@ -27,6 +28,25 @@ const io = new Server(server, {
 });
 
 const rooms = new Map();
+const publicActivity=createPublicActivity();
+let activityPublishTimer=null;
+function publishPublicActivity(){
+ if(activityPublishTimer)return;
+ activityPublishTimer=setTimeout(()=>{
+   activityPublishTimer=null;
+   const listing=publicActivity.list(rooms);
+   io.to('public-activity').emit('publicActivity',listing);
+   for(const room of rooms.values()){
+     const state=publicActivity.get(room.activityId);
+     if(state)io.to('spectators:'+room.activityId).emit('spectatorState',state);
+   }
+ },120);
+}
+function leaveSpectator(socket){
+ if(socket.data.spectatorId)socket.leave('spectators:'+socket.data.spectatorId);
+ socket.data.spectatorId=null;
+}
+
 const DEFAULT_NAMES = ['Valkor','Xodia','Oldirn','Mundris','Ferna','Dronk','Spoltreg','Nimun','Raenura','Keplet'];
 const COLORS = ['#ff4fc3','#ffd92f','#6ab34c','#7ec8ff','#ff3b30'];
 const PORTRAITS = ['GB_A','GB_B','R_A','R_B','Y_A','Y_B'];
@@ -202,7 +222,7 @@ function roomRecoveryCapsule(room){
   if(!room||!room.launched||!room.game||room.game.status!=='playing')return null;
   const game=JSON.parse(JSON.stringify(room.game));
   (game.players||[]).forEach(p=>{if(!p.bot){p.socketId=null;p.connected=false}});
-  return {version:1,code:room.code,name:room.name,mode:room.mode,maxHumans:room.maxHumans,bots:room.bots,victoryPoints:room.victoryPoints,seed:room.seed,hostPlayerId:room.hostPlayerId||((room.players.find(p=>p.id===room.hostId)||{}).playerId)||null,players:room.players.map(p=>({playerId:p.playerId,pseudo:p.pseudo,ready:!!p.ready,tokenHash:p.reconnectTokenHash||tokenHash(p.reconnectToken)})),game,legacyMode:!!room.legacyMode,legacyRevision:room.legacyRevision||0,legacySnapshot:room.legacySnapshot||null};
+  return {version:1,activityId:room.activityId,startedAt:room.startedAt,code:room.code,name:room.name,mode:room.mode,maxHumans:room.maxHumans,bots:room.bots,victoryPoints:room.victoryPoints,seed:room.seed,hostPlayerId:room.hostPlayerId||((room.players.find(p=>p.id===room.hostId)||{}).playerId)||null,players:room.players.map(p=>({playerId:p.playerId,pseudo:p.pseudo,ready:!!p.ready,tokenHash:p.reconnectTokenHash||tokenHash(p.reconnectToken)})),game,legacyMode:!!room.legacyMode,legacyRevision:room.legacyRevision||0,legacySnapshot:room.legacySnapshot||null};
 }
 function restoreRoomFromRecovery(saved){
   const cap=saved&&saved.recovery,code=cleanCode(saved&&saved.code),pid=cleanText(saved&&saved.playerId,80),token=cleanText(saved&&saved.token,120);
@@ -210,6 +230,7 @@ function restoreRoomFromRecovery(saved){
   const seat=cap.players.find(p=>p.playerId===pid&&p.tokenHash===tokenHash(token));if(!seat)return null;
   const room={code,name:cleanText(cap.name,30)||`Partie ${code}`,mode:cleanText(cap.mode,20),maxHumans:Math.max(2,Math.min(5,Number(cap.maxHumans)||2)),bots:Math.max(0,Math.min(4,Number(cap.bots)||0)),victoryPoints:[3,4,5].includes(Number(cap.victoryPoints))?Number(cap.victoryPoints):3,hostId:null,hostPlayerId:cleanText(cap.hostPlayerId,80)||null,launched:true,seed:Number(cap.seed)>>>0,game:cap.game,legacyMode:!!cap.legacyMode,legacyRevision:Math.max(0,Number(cap.legacyRevision)||0),legacySnapshot:cap.legacySnapshot||null,players:cap.players.map(p=>({id:null,playerId:cleanText(p.playerId,80),reconnectToken:null,reconnectTokenHash:String(p.tokenHash||''),pseudo:cleanText(p.pseudo,24),ready:!!p.ready,connected:false}))};
   (room.game.players||[]).forEach(p=>{if(!p.bot){p.socketId=null;p.connected=false}});
+  room.activityId=cap.activityId;room.startedAt=cap.startedAt;publicActivity.attach(room);
   rooms.set(code,room);return room;
 }
 function publicRoom(room) {
@@ -283,6 +304,7 @@ function legacyBootstrapView(room,socketId){
   };
 }
 function emitLegacy(room,exceptSocketId=null){
+  publishPublicActivity();
   if(!room||!room.legacySnapshot)return;
   room.players.forEach(p=>{
     if(p.id===exceptSocketId)return;
@@ -292,9 +314,11 @@ function emitLegacy(room,exceptSocketId=null){
 }
 
 function emitRoom(room) {
+  publishPublicActivity();
   io.to(room.code).emit('roomState', publicRoom(room));
 }
 function emitGame(room) {
+  publishPublicActivity();
   if (!room.game) return;
   room.players.forEach(p => {
     const socket = io.sockets.sockets.get(p.id);
@@ -438,6 +462,34 @@ function rejectGameAction(ack, error) {
 
 io.on('connection', socket => {
   socket.emit('serverReady', { ok: true, authority: 'server' });
+  const publicEvents=new Set(['subscribeActivity','spectateGame','leaveSpectator']);
+  socket.use(([event,...args],next)=>{
+    if(socket.data.publicOnly&&!publicEvents.has(event)){
+      const ack=args.at(-1);if(typeof ack==='function')ack({ok:false,error:'Le mode spectateur est en lecture seule.'});return;
+    }
+    next();
+  });
+  function makePublicOnly(ack){
+    if(socket.data.roomCode){ack({ok:false,error:'Utilisez une connexion spectateur distincte.'});return false}
+    socket.data.publicOnly=true;return true;
+  }
+  socket.on('subscribeActivity',(_payload,ack=()=>{})=>{
+    if(typeof ack!=='function')return;
+    if(!makePublicOnly(ack))return;
+    socket.join('public-activity');ack({ok:true,activity:publicActivity.list(rooms)});
+  });
+  socket.on('spectateGame',(payload={},ack=()=>{})=>{
+    if(typeof ack!=='function')return;
+    if(!makePublicOnly(ack))return;
+    const room=[...rooms.values()].find(r=>r.activityId===payload?.id&&r.launched);
+    if(!room)return ack({ok:false,error:'Cette partie n’est plus disponible.'});
+    const state=publicActivity.update(room);
+    if(!state)return ack({ok:false,error:'La partie n’est pas encore disponible.'});
+    leaveSpectator(socket);socket.data.spectatorId=room.activityId;socket.join('spectators:'+room.activityId);
+    ack({ok:true,state});
+  });
+  socket.on('leaveSpectator',(_payload,ack=()=>{})=>{leaveSpectator(socket);if(typeof ack==='function')ack({ok:true})});
+
 
   socket.on('createRoom', (payload = {}, ack = () => {}) => {
     leaveCurrentRoom(socket);
@@ -522,6 +574,7 @@ io.on('connection', socket => {
     room.seed = Math.floor(Math.random() * 0x100000000) >>> 0;
     room.launched = true;
     room.game = buildAuthoritativeGame(room);
+    publicActivity.attach(room);
     ack({ ok: true });
     io.to(room.code).emit('gameLaunched', publicRoom(room));
     emitGame(room);
@@ -772,7 +825,7 @@ io.on('connection', socket => {
   });
 
   socket.on('leaveRoom', () => leaveCurrentRoom(socket));
-  socket.on('disconnect', () => leaveCurrentRoom(socket));
+  socket.on('disconnect', () => {leaveSpectator(socket);leaveCurrentRoom(socket)});
 });
 
 server.listen(PORT, () => console.log(`TRIBU Online server listening on ${PORT}`));

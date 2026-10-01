@@ -5,10 +5,14 @@
   "description": "Serveur temps reel des salons TRIBU Online beta",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.1"
   },
   "dependencies": {
     "cors": "^2.8.5",

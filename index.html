@@ -410,6 +410,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 .oracleCardClickable{cursor:pointer}
 </style><link rel="stylesheet" href="assets/tutorial.css?v=2">
 <link rel="stylesheet" href="assets/interaction-safety.css?v=2">
+<link rel="stylesheet" href="assets/spectator.css?v=1">
 </head>
 <body>
 <section id="start"><div class="onlineStartBox">
@@ -5249,12 +5250,14 @@ function onlineLegacyRuleState(){
 }
 function onlineLegacySnapshot(){
  const cleanG=onlineLegacyEncode(G);
+ const publicBattle=battle&&Array.isArray(battle.stack)&&Number.isInteger(battle.attacker);
+ const publicFacts={scores:G.players.map((_,i)=>victoryPoints(i)),attackPower:publicBattle?battlePower('attacker'):null,defensePower:publicBattle?battlePower('defender'):null};
  if(cleanG&&cleanG.online){
    delete cleanG.online.mySocketId;
    delete cleanG.online.myPlayerIndex;
    delete cleanG.online.revision;
  }
- return {g:cleanG,rule:onlineLegacyEncode(onlineLegacyRuleState())};
+ return {g:cleanG,rule:onlineLegacyEncode(onlineLegacyRuleState()),public:publicFacts};
 }
 function onlineLegacyDigest(){try{return JSON.stringify(onlineLegacySnapshot())}catch(_){return ''}}
 function onlineLegacyBootstrap(full,state){
@@ -5911,4 +5914,5 @@ $('commerceClose').onclick=commerceClose;$('commerceNewOffer').onclick=()=>comme
 $('hotseatReveal').onclick=revealHotseatHand;$('oracleNoticePass').onclick=finishOracleNotice;$('dragonSixPass').onclick=finishDragonSixNotice;$('dragonPublicPass').onclick=passDragonPublic;$('dragonCurseContinue').onclick=continueDragonCurse;$('discardPile').onclick=openDiscard;$('deckPile').onclick=()=>{};$('discardClose').onclick=closeDiscard;$('restart').onclick=init;$('victoryRestart').onclick=()=>{audioResetVictory();location.reload()};$('agentClose').onclick=closeAgentModal;$('draw').onclick=doDraw;$('harvest').onclick=doHarvest;$('recruit').onclick=doRecruit;$('resetRecruit').onclick=resetRecruitment;$('endRecruit').onclick=beginPlay;$('toOracle').onclick=toOracle;$('choiceConfirm').onclick=confirmCouncil;$('roll').onclick=roll;
 </script><script src="assets/tutorial.js?v=4"></script>
 <script src="assets/interaction-safety.js?v=3"></script>
+<script src="assets/spectator.js?v=1"></script>
 </body></html>
