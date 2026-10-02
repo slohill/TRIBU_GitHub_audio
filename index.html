@@ -2006,7 +2006,7 @@ function resumeBattleTimer(){
  // publier son snapshot terminal. Ne jamais relancer ici le chrono ou la réaction bot
  // avant ce commit : Divination, Caravane, Egnobombe, Section de l'ombre, Conseil, etc.
  if(G&&G.online&&G.online.legacySync&&onlineLegacyPriorityWasActive&&!priorityCardResolutionActive())return;
- if(!isHotseatMode()&&onlineLegacyOwnsBattlePriority())battleTick=setInterval(()=>{if(!battle)return;battle.seconds--;renderBattle();if(battle.seconds<=0)passPriority()},1000);
+ if(!isHotseatMode()&&onlineLegacyOwnsBattlePriority())battleTick=setInterval(()=>{if(!battle)return;battle.seconds--;renderBattle();if(battle.seconds<=0){if(G&&G.online&&G.online.legacySync)clearInterval(battleTick);passPriority()}},1000);
  showBattle();renderBattle();
  if(!isHotseatMode()&&onlineLegacyOwnsBattlePriority())prepareCurrentBattleReaction();
 }
@@ -3269,7 +3269,10 @@ function startReactionWindow(){
     if(!battle)return;
     battle.seconds--;
     renderBattle();
-    if(battle.seconds<=0) passPriority();
+    if(battle.seconds<=0){
+      if(G&&G.online&&G.online.legacySync)clearInterval(battleTick);
+      passPriority();
+    }
   },1000);
   showBattle();
   renderBattle();
@@ -3819,7 +3822,7 @@ function recruitAt(r){
    if(cl==='d')q=2;
  }
  q=Math.min(q,cap()-totalUnits());p().gold--;c.units+=q;
- log(q+' unité(s) recrutée(s) sur '+r+(q===2?' grâce au terrain '+(cl==='e'?'enneigé':'désertique'):'')+'.');render();
+ render();
 }
 function mount(){
  if(cycle===2){log('Montures déjà activé.');render();return}
@@ -4195,7 +4198,26 @@ function finishDragonSixNotice(){
  if(next)next();
 }
 function destroyDragonRegionAndEnd(){
- if(isSea(G.dragon)){checkDecimations();advanceTurn('nouveau tour');return}
+ if(isSea(G.dragon)){
+   const fleets=G.sea[G.dragon]&&G.sea[G.dragon].fleets||{};
+   const had=Object.values(fleets).some(n=>Number(n)>0);
+   destroySeaUnits(G.dragon);
+   if(had){
+     G.dragonSixPresentation={seq:Number(G.dragonSixPresentation&&G.dragonSixPresentation.seq||0)+1,victim:null};
+     onlineDragonSixPresentationSeenSeq=Number(G.dragonSixPresentation.seq);
+     audioPlaySfx('dragon',.675);checkDecimations();
+     const finishDragonSeaTurn=()=>{
+       if(G&&G.online&&G.online.legacySync){
+         onlineLegacyPushDragonDestructionNow().then(res=>{if(res)advanceTurn('nouveau tour')});
+         return;
+       }
+       advanceTurn('nouveau tour');
+     };
+     showDragonSixNotice(null,finishDragonSeaTurn);render();
+     return;
+   }
+   checkDecimations();advanceTurn('nouveau tour');return;
+ }
  const c=G.b[G.dragon],stronghold=fortressAt(G.dragon)||cityAt(G.dragon);
  const had=c.units>0||!!stronghold,victim=c.owner!==null?c.owner:(stronghold?stronghold.owner:null);
  if(c.building&&c.building.type!=='Portail'){
@@ -4780,7 +4802,11 @@ function commerceRenderDraft(){const d=commerceDraft;if(!d)return '';
 function commerceRenderDeal(d,v){
  const left=d.from,right=d.to,remain=d.expires?Math.max(0,Math.ceil((d.expires-Date.now())/1000)):0;
  if(d.type==='show'){
-   const visible=v===d.to||v===d.from;return '<div data-deal-card="'+d.id+'" class="commerceOffer '+(d.closed?'closed':'')+'"><b>Carte montrée — '+p(left).name+' → '+p(right).name+'</b><div class="meta" data-commerce-remain="'+d.id+'">'+(remain?remain+' s restantes':'terminé')+'</div>'+(visible&&remain?'<div class="commerceShown">'+commerceCardName(d.giveCards[0])+'</div>':'<div class="commerceEmpty">Carte masquée ou délai terminé.</div>')+(v===d.to&&remain?'<div class="commerceActions"><button data-seen="'+d.id+'">Vu</button></div>':'')+'<div class="commerceActions"><button data-close-deal="'+d.id+'">Fermer</button></div></div>';
+   const visible=v===d.to||v===d.from,shownId=d.giveCards[0],shown=CARDS[shownId];
+   const shownCard=visible&&remain&&shown
+     ? '<div class="commerceShown">'+commerceVisualCard(shownId,false,'shown',false)+'<div class="commerceHint"><b>'+shown.name+'</b><br>'+shown.effect+'</div></div>'
+     : '<div class="commerceEmpty">Carte masquée ou délai terminé.</div>';
+   return '<div data-deal-card="'+d.id+'" class="commerceOffer '+(d.closed?'closed':'')+'"><b>Carte montrée — '+p(left).name+' → '+p(right).name+'</b><div class="meta" data-commerce-remain="'+d.id+'">'+(remain?remain+' s restantes':'terminé')+'</div>'+shownCard+(v===d.to&&remain?'<div class="commerceActions"><button data-seen="'+d.id+'">Vu</button></div>':'')+'<div class="commerceActions"><button data-close-deal="'+d.id+'">Fermer</button></div></div>';
  }
  const cls=d.status==='pending'?'pending':d.status==='accepted'?'accepted':d.status==='invalid'?'invalid':'';
  let h='<div data-deal-card="'+d.id+'" class="commerceOffer '+cls+(d.closed?' closed':'')+'"><b>Négociation #'+d.id+(d.parent?' — contre-proposition à #'+d.parent:'')+'</b><div class="meta" data-commerce-remain="'+d.id+'">'+p(left).name+' ↔ '+p(right).name+' — '+(d.status==='pending'?(remain+' s'):d.status)+'</div><div class="sides"><div class="side"><b>'+p(left).name+' donne :</b><br>'+commerceDealText(d.giveCards)+(d.giveGold?' + '+d.giveGold+' Or':'')+'</div><div class="side"><b>'+p(right).name+' donne :</b><br>'+commerceDealText(d.wantCards)+(d.wantGold?' + '+d.wantGold+' Or':'')+'</div></div>';
