@@ -12,6 +12,10 @@ const card=v=>Number.isInteger(v)&&v>=0&&v<22?v:null;
 const oracle=v=>Number.isInteger(v)&&v>=0&&v<8?v:null;
 const cards=v=>(Array.isArray(v)?v:[]).slice(0,200).map(card).filter(v=>v!==null);
 const phase=v=>['setup','start','recruit','play','oracleMove','oracleRoll'].includes(v)?v:'play';
+const mapClasses=new Set('spot sea moveAvailable battleLoc stack die battleDicePair battleDie attackerDie defenderDie cityTerrainOverlay snow desert portalIcon buildingIcon fortressIcon cityIcon dragon withUnits withBuildingOnly withUnitsAndBuilding withPnjOnly battleWithDice'.split(' '));
+const classes=value=>String(value||'').split(/\s+/).filter(c=>mapClasses.has(c)).join(' ');
+const asset=value=>typeof value==='string'&&/^assets\/images\/(tokens|dice)\/[a-zA-Z0-9_.-]+\.(png|webp)$/.test(value)?value:null;
+function mapNode(node,depth=0){if(!node||depth>5||!['span','img'].includes(node.tag))return null;return {tag:node.tag,classes:classes(node.classes),text:/^\d{1,6}$/.test(node.text)?node.text:'',src:asset(node.src),background:asset(node.background),children:(Array.isArray(node.children)?node.children:[]).slice(0,16).map(n=>mapNode(n,depth+1)).filter(Boolean)}}
 function projectPublicState(room){
  const snapshot=room.legacySnapshot,legacy=snapshot&&snapshot.g;
  const game=legacy||room.game||{},rule=legacy?(snapshot.rule||{}):{},facts=legacy?(snapshot.public||{}):{};
@@ -21,7 +25,7 @@ function projectPublicState(room){
    connected:!!p.bot||!!room.players.find(x=>x.playerId===(room.game?.players?.[i]||{}).playerId&&x.connected!==false),
    faction:integer(p.faction,4),portrait:['GB_A','GB_B','R_A','R_B','Y_A','Y_B'].includes(p.portrait)?p.portrait:null,
    color:/^#[0-9a-f]{6}$/i.test(p.color||'')?p.color:['#ff4fc3','#ffd92f','#6ab34c','#7ec8ff','#ff3b30'][i],
-   gold:integer(p.gold),handCount:Array.isArray(p.hand)?p.hand.length:0,inPlay:cards(p.inPlay),
+   gold:integer(p.gold),handCount:Array.isArray(p.hand)?p.hand.length:0,inPlay:cards(facts.playerStats?.[i]?.inPlay||p.inPlay),units:Number.isFinite(facts.playerStats?.[i]?.units)?integer(facts.playerStats[i].units):null,cap:Number.isFinite(facts.playerStats?.[i]?.cap)?integer(facts.playerStats[i].cap):null,
    score:Array.isArray(facts.scores)&&Number.isFinite(facts.scores[i])?integer(facts.scores[i],999):null}));
  const publicBoard={};for(const id of REGIONS){const cell=board&&board[id]||{},building=cell.building;
    publicBoard[id]={owner:seat(cell.owner,n),units:integer(cell.units),hostile:!!cell.hostile,building:null};
@@ -34,7 +38,9 @@ function projectPublicState(room){
  const winner=seat(rule.gameOverState&&rule.gameOverState.winner,n);
  return {id:room.activityId,name:clean(room.name,30),mode:clean(room.mode,20),startedAt:room.startedAt,
    status:winner!==null?'finished':room.game&&room.game.status==='setup'?'setup':'playing',turn:integer(game.turn),phase:phase(game.phase),active:seat(game.active,n),victoryTarget:integer(room.victoryPoints,5),
-   players,board:publicBoard,sea,dragon:LOCATIONS.has(game.dragon)?game.dragon:null,battle:visibleBattle,
+   players,board:publicBoard,sea,dragon:LOCATIONS.has(game.dragon)?game.dragon:null,battle:visibleBattle,commercePaused:!!rule.commercePaused,
+   journal:(Array.isArray(facts.journal)?facts.journal:[]).slice(0,80).map(s=>clean(s,600)),
+   mapSpots:(Array.isArray(facts.mapSpots)?facts.mapSpots:[]).slice(0,51).filter(s=>s&&LOCATIONS.has(s.id)).map(s=>({id:s.id,classes:classes(s.classes),children:(Array.isArray(s.children)?s.children:[]).slice(0,16).map(n=>mapNode(n)).filter(Boolean)})),
    oracleActive:oracle(game.oracleActive),oracleNext:rule.divinationState?null:oracle(Array.isArray(game.oracleDeck)?game.oracleDeck.at(-1):null),
    climate:['Canicule','Vague de froid'].includes(rule.oracleClimateVisual)?rule.oracleClimateVisual:null,
    discard:cards(game.discard),deckCount:Array.isArray(game.deck)?game.deck.length:0,winner,
@@ -65,3 +71,4 @@ function createPublicActivity({file=process.env.TRIBU_HISTORY_FILE||path.join(__
  return {update,list,attach,get:id=>states.get(id),history:archive.list,ready:archive.ready,flush:archive.flush,close:archive.close};
 }
 module.exports={projectPublicState,createPublicActivity};
+

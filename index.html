@@ -410,7 +410,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 .oracleCardClickable{cursor:pointer}
 </style><link rel="stylesheet" href="assets/tutorial.css?v=2">
 <link rel="stylesheet" href="assets/interaction-safety.css?v=2">
-<link rel="stylesheet" href="assets/spectator.css?v=1">
+<link rel="stylesheet" href="assets/spectator.css?v=2">
 </head>
 <body>
 <section id="start"><div class="onlineStartBox">
@@ -443,6 +443,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
     <div class="onlineField"><label>Code de la partie</label><input id="onlineRoomCode" maxlength="12" placeholder="Ex. TRIBU42"></div>
     <div class="onlineField"><label>Objectif de victoire</label><select id="onlineVictory"><option value="3">3 points</option><option value="4">4 points</option><option value="5">5 points</option></select></div>
     <div class="onlineField"><label>Version du jeu</label><select id="onlineGameVersion"><option value="base" selected>Tribu : conquest of Mirmygate (jeu de base)</option><option value="corruption" disabled>Extension 1 : Corruption - bientôt disponible</option><option value="sky-ocean" disabled>Extension 1 et 2 : Sky and ocean - bientôt disponible</option><option value="annihilation" disabled>Extension 3 : Annihilation - disponible un jour peut être</option></select></div>
+    <div class="onlineField"><label for="onlineBattleReaction">Temps de réaction bataille</label><select id="onlineBattleReaction"><option value="30">30 sec</option><option value="20">20 sec</option><option value="15" selected>15 sec</option></select></div>
     <div class="onlineActions"><button id="onlineCreateRoom" class="onlinePrimary">Créer le salon</button><button class="onlineBack" data-online-back>← Retour</button></div>
   </div>
 
@@ -467,7 +468,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
   <button id="startBtn" hidden>DÉMARRER LA PARTIE</button>
 </div></section>
 <div id="game" class="hidden">
-<header><b>TRIBU — audio test v91</b><span class="badge" id="playerCountBadge">mode test</span><button id="gameHelpBtn">Aide de jeu</button><button id="restart">Recommencer</button><div class="audioControls"><button id="musicToggle" title="Activer ou couper les musiques">🎵 Musique</button><button id="sfxToggle" title="Activer ou couper les sons et bruitages">🔊 Sons</button></div></header>
+<header><b id="gamePointsTitle">partie à 3 points</b><span class="badge" id="playerCountBadge">mode test</span><button id="gameHelpBtn">Aide de jeu</button><button id="restart">Recommencer</button><div class="audioControls"><button id="musicToggle" title="Activer ou couper les musiques">🎵 Musique</button><button id="sfxToggle" title="Activer ou couper les sons et bruitages">🔊 Sons</button></div></header>
 <main>
 <div class="playerRail" id="playerRail"></div>
 <div class="boardCol">
@@ -1161,11 +1162,11 @@ function init(){closeActionConfirmation();audioResetVictory();if(!tutorial.activ
  render();
  queueBot('début de partie');
 }
-function p(i=G.active){return G.players[i]} function log(s){G.log.unshift(s);G.log=G.log.slice(0,80)}
+function p(i=G.active){return G.players[i]} function log(s,visible=true){G.log.unshift(s);G.log=G.log.slice(0,80);if(visible){G.publicLog=G.publicLog||[];G.publicLog.unshift(s);G.publicLog=G.publicLog.slice(0,80)}}
 function escapeLogHtml(v){return String(v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
-function renderLogEntry(text){
+function renderLogEntry(text,players=G.players,colors=COLORS){
  let parts=[{text:String(text),player:null}];
- const order=G.players.map((pl,i)=>({name:pl.name,i})).filter(x=>x.name).sort((a,b)=>b.name.length-a.name.length);
+ const order=players.map((pl,i)=>({name:pl.name,i})).filter(x=>x.name).sort((a,b)=>b.name.length-a.name.length);
  order.forEach(({name,i})=>{
    const next=[];
    parts.forEach(part=>{
@@ -1179,7 +1180,7 @@ function renderLogEntry(text){
    });
    parts=next;
  });
- return parts.map(part=>part.player===null?escapeLogHtml(part.text):'<span style="color:'+COLORS[part.player]+';font-weight:900">'+escapeLogHtml(part.text)+'</span>').join('');
+ return parts.map(part=>part.player===null?escapeLogHtml(part.text):'<span style="color:'+colors[part.player]+';font-weight:900">'+escapeLogHtml(part.text)+'</span>').join('');
 }
 function embuscadeIndex(i){
  return G.players[i].hand.findIndex(id=>CARDS[id]&&CARDS[id].name==='Embuscade');
@@ -1256,7 +1257,7 @@ function destroyRichDragonTarget(r){
  }
  log('🐉 Le Dragon ravage '+r+' : toutes les unités et le bâtiment éventuel sont détruits.');
  dragonRichState=null;clearTopBanner();checkDecimations();
- if(s.pausedBattle&&battle){battle.seconds=s.pausedBattleSeconds||15;resumeBattleTimer()}
+ if(s.pausedBattle&&battle){battle.seconds=s.pausedBattleSeconds??battleReactionSeconds();resumeBattleTimer()}
  continueAfterGold(s.after);
  queueBot('après Dragon 40 Or');
 }
@@ -1328,7 +1329,7 @@ function continueDragonCurse(){
  dragonCurseState=null;
  if(!s.targets.length){
    log('Aucune région terrestre avec unités : le Dragon ne trouve aucune région à ravager.');
-   if(s.pausedBattle&&battle){battle.seconds=s.pausedBattleSeconds||15;resumeBattleTimer()}
+   if(s.pausedBattle&&battle){battle.seconds=s.pausedBattleSeconds??battleReactionSeconds();resumeBattleTimer()}
    continueAfterGold(s.after);
    return;
  }
@@ -1381,11 +1382,11 @@ function resolveGoldGain(){
  G.players[r.receiver].gold+=r.amount;
  audioPlaySfx('gold',.78);
  log(p(r.receiver).name+' reçoit finalement '+r.amount+' Or'+(r.source?' ('+r.source+')':'')+'.');
- if(r.pausedBattle&&battle)battle.seconds=15;
+ if(r.pausedBattle&&battle)battle.seconds=battleReactionSeconds();
  if(triggerRichDragon(r.receiver,r.after))return;
  if(r.pausedBattle&&battle){
    resumeBattleTimer();
-   log('Gain d’Or résolu : la bataille reprend avec 15 secondes.');
+   log('Gain d’Or résolu : la bataille reprend avec '+battleReactionSeconds()+' secondes.');
  }
  continueAfterGold(r.after);
  queueBot('après gain or');
@@ -1619,7 +1620,7 @@ function pauseForDivination(){
 }
 function resumeAfterDivination(s){
  if(s&&s.parentBattle&&battle){
-   battle.seconds=s.parentSeconds||battle.seconds||15;
+   battle.seconds=s.parentSeconds??battle.seconds??battleReactionSeconds();
    resumeBattleTimer();
  }
  render();
@@ -1747,7 +1748,7 @@ function divinationSetVisible(oracleId){
 function noteComplexAnytimeCard(handIndex){
  const v=localViewer(),id=G.players[v].hand[handIndex];if(id===undefined)return;
  const c=CARDS[id];
- log(c.name+' est jouable maintenant. Sa résolution complète sera intégrée avec son effet.');
+ log(c.name+' est jouable maintenant. Sa résolution complète sera intégrée avec son effet.',false);
  render();
 }
 
@@ -1779,7 +1780,7 @@ function cancelEgnobombe(){
  const s=egnoState;egnoState=null;
  clearTopBanner();
  log('Egnobombe annulée : la carte reste en main.');
- if(s.parentBattle){battle=s.parentBattle;battle.seconds=15;resumeBattleTimer()}
+ if(s.parentBattle){battle=s.parentBattle;battle.seconds=battleReactionSeconds();resumeBattleTimer()}
  render();
  resumeGameAfterPriorityCard('reprise après annulation Egnobombe');
  if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();
@@ -1839,7 +1840,7 @@ function resolveEgnobombe(r){
    parent.defenseBase=(c.hostile?5:(def===null?0:c.units*FACTIONS[p(def).faction].def))+buildingDefense(parent.target);
  }
  if(parent){
-   battle=parent;battle.seconds=15;resumeBattleTimer();
+   battle=parent;battle.seconds=battleReactionSeconds();resumeBattleTimer();
    render();
    if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();
    return;
@@ -1901,7 +1902,7 @@ function cancelShadow(timeout=false){
  const s=shadowState;shadowState=null;
  if(timeout)log('Section de l’ombre annulée après 20 secondes : la carte reste en main et les unités restent en place.');
  else log('Section de l’ombre annulée : la carte reste en main et les unités restent en place.');
- if(s.parentBattle){battle=s.parentBattle;battle.seconds=s.parentBattleSeconds||15;resumeBattleTimer()}render();queueBot('reprise après Section annulée');
+ if(s.parentBattle){battle=s.parentBattle;battle.seconds=s.parentBattleSeconds??battleReactionSeconds();resumeBattleTimer()}render();queueBot('reprise après Section annulée');
 }
 function validateShadowUnits(){
  if(!shadowState||shadowState.stage!=='gather'||shadowTotal()<1)return;
@@ -1969,7 +1970,7 @@ function chooseShadowTarget(r){
  if(parent&&parent.kind==='land'&&parent.target===r&&parent.attacker===actor){
    parent.attackUnits+=n;
    if(Array.isArray(parent.attackMove))for(let k=0;k<n;k++)parent.attackMove.push(0);
-   shadowState=null;battle=parent;battle.seconds=s.parentBattleSeconds||15;
+   shadowState=null;battle=parent;battle.seconds=s.parentBattleSeconds??battleReactionSeconds();
    log('Section de l’ombre renforce l’attaque en '+r+' avec '+n+' unité(s).');
    resumeBattleTimer();render();return;
  }
@@ -1977,7 +1978,7 @@ function chooseShadowTarget(r){
    const coeff=FACTIONS[p(actor).faction].def;
    c.units+=n;parent.defOriginalUnits+=n;parent.defenseBase+=n*coeff;
    restoreShadowMovementAt(r,n);
-   shadowState=null;battle=parent;battle.seconds=s.parentBattleSeconds||15;
+   shadowState=null;battle=parent;battle.seconds=s.parentBattleSeconds??battleReactionSeconds();
    log('Section de l’ombre renforce '+r+' avec '+n+' unité(s) : +'+(n*coeff)+' Défense au siège.');
    resumeBattleTimer();render();return;
  }
@@ -1989,7 +1990,7 @@ function chooseShadowTarget(r){
      const label=c.building.type;transferBuildingCard(c.building,actor);log(p(actor).name+' capture '+label+' grâce à Section de l’ombre en '+r+'.');
    }
    shadowState=null;log('Section de l’ombre conquiert '+r+' avec '+n+' unité(s), sans bataille.');
-   if(parent){battle=parent;battle.seconds=s.parentBattleSeconds||15;resumeBattleTimer()}render();queueBot('reprise après Section');return;
+   if(parent){battle=parent;battle.seconds=s.parentBattleSeconds??battleReactionSeconds();resumeBattleTimer()}render();queueBot('reprise après Section');return;
  }
  // Battle B: pause A until B resolves.
  shadowState=null;
@@ -2001,12 +2002,13 @@ function chooseShadowTarget(r){
  log('Section de l’ombre ouvre une nouvelle bataille en '+r+' : '+n+' Att contre '+defBase+' Déf.');startReactionWindow();render();
 }
 function resumeBattleTimer(){
+ if(commerceBattlePaused)return;
  clearInterval(battleTick);clearTimeout(botReactionTimer);botReactionTimer=null;if(!battle)return;
  // En Online, une résolution prioritaire qui vient juste de se fermer doit d'abord
  // publier son snapshot terminal. Ne jamais relancer ici le chrono ou la réaction bot
  // avant ce commit : Divination, Caravane, Egnobombe, Section de l'ombre, Conseil, etc.
  if(G&&G.online&&G.online.legacySync&&onlineLegacyPriorityWasActive&&!priorityCardResolutionActive())return;
- if(!isHotseatMode()&&onlineLegacyOwnsBattlePriority())battleTick=setInterval(()=>{if(!battle)return;battle.seconds--;renderBattle();if(battle.seconds<=0){if(G&&G.online&&G.online.legacySync)clearInterval(battleTick);passPriority()}},1000);
+ if(!isHotseatMode()&&onlineLegacyOwnsBattlePriority())battleTick=setInterval(()=>{if(!battle||commerceBattlePaused)return;battle.seconds--;renderBattle();if(battle.seconds<=0){if(G&&G.online&&G.online.legacySync)clearInterval(battleTick);passPriority()}},1000);
  showBattle();renderBattle();
  if(!isHotseatMode()&&onlineLegacyOwnsBattlePriority())prepareCurrentBattleReaction();
 }
@@ -2188,7 +2190,7 @@ function confirmCouncil(){
    // Conseil de guerre compte comme une réaction jouée : les passes sont remises à zéro,
    // puis la priorité passe au joueur suivant une fois son effet entièrement résolu.
    advancePriority(true);
-   battle.seconds=15;
+   battle.seconds=battleReactionSeconds();
    // En Online, publier d'abord l'état terminal du Conseil. Sinon le chrono / la réaction
    // du joueur suivant (notamment un bot) peut repartir avant que la fermeture du Conseil
    // soit canonique et entrer en course avec un ancien snapshot.
@@ -2582,7 +2584,7 @@ function pauseGameForPriorityCard(){
 }
 function resumeGameAfterPriorityCard(reason='reprise après carte prioritaire'){
  if(priorityCardResolutionActive())return;
- if(battle&&!goldReaction){battle.seconds=15;resumeBattleTimer()}
+ if(battle&&!goldReaction){battle.seconds=battleReactionSeconds();resumeBattleTimer()}
  if(G&&G.phase==='play')render();
  if(G&&G.players&&G.players[G.active]&&G.players[G.active].bot)queueBot(reason);
 }
@@ -3266,7 +3268,7 @@ function startReactionWindow(){
     return;
   }
   if(onlineLegacyOwnsBattlePriority())battleTick=setInterval(()=>{
-    if(!battle)return;
+    if(!battle||commerceBattlePaused)return;
     battle.seconds--;
     renderBattle();
     if(battle.seconds<=0){
@@ -3283,11 +3285,11 @@ function prepareCurrentBattleReaction(){
  if(G.players[priority].bot)queueBotReaction();
 }
 function hotseatBotBattleReactions(){
- if(!battle||!isHotseatMode())return;
+ if(commerceBattlePaused||!battle||!isHotseatMode())return;
  // Les bots peuvent réagir automatiquement sans imposer de passage Joueur 1/Joueur 2.
  const bots=G.players.map((pl,i)=>pl.bot&&!isDecimated(i)?i:null).filter(i=>i!==null);
  bots.forEach((i,k)=>setTimeout(()=>{
-   if(!battle||!isHotseatMode())return;
+   if(commerceBattlePaused||!battle||!isHotseatMode())return;
    const legal=tacticalIndexes(i).filter(x=>battleCardLegality(x.id,i).ok)
      .filter(x=>['Catapultes','Mur de pique','Pluie de flèches','Pyrodontes de guerre','Montures','Balistes'].includes(CARDS[x.id].name));
    const participant=i===battle.attacker||i===battle.defender;
@@ -3304,7 +3306,8 @@ function currentPriorityPlayer(){
   return battle.priorityOrder[battle.priorityIndex];
 }
 function battleReactionSeconds(player=currentPriorityPlayer()){
-  return player===battle.attacker||player===battle.defender?15:5;
+  const seconds=[15,20,30].includes(G.battleReactionSeconds)?G.battleReactionSeconds:15;
+  return player===battle.attacker||player===battle.defender?seconds:({15:5,20:10,30:15}[seconds]);
 }
 function advancePriority(resetPasses){
   if(resetPasses) battle.consecutivePasses=0;
@@ -3312,6 +3315,7 @@ function advancePriority(resetPasses){
   battle.seconds=battleReactionSeconds();
 }
 function passPriority(){
+ if(commerceBattlePaused)return;
   // Une résolution prioritaire suspend réellement la fenêtre de réaction : son chrono
   // ne doit ni avancer la priorité ni rester bloqué à 0 pendant cette résolution.
   if(priorityCardResolutionActive())return;
@@ -3335,6 +3339,7 @@ function playBattleCard(handIndex){
   return playBattleCardForOwner(owner,handIndex);
 }
 function playBattleCardForOwner(owner,handIndex){
+ if(commerceBattlePaused)return;
   if(caravanState||divinationState||!battle)return;
   // 0 seconde équivaut exactement à « Passer » : aucune carte ne peut être engagée
   // dans l'ancienne fenêtre après son expiration.
@@ -3347,7 +3352,7 @@ function playBattleCardForOwner(owner,handIndex){
 
   const legality=battleCardLegality(id,owner);
   if(!legality.ok){
-    log(cardDef(id).name+' non jouable : '+legality.reason);
+    log(cardDef(id).name+' non jouable : '+legality.reason,false);
     renderBattle();render();
     return;
   }
@@ -3421,6 +3426,7 @@ function renderBattleBanner(){
 
 
 function queueBotReaction(){
+ if(commerceBattlePaused)return;
  clearTimeout(botReactionTimer);
  if(tutorial.active&&tutorial.step===8)return;
  if(!battle)return;
@@ -3430,7 +3436,7 @@ function queueBotReaction(){
  const battleRef=battle;
  const priorityRef=priority;
  botReactionTimer=setTimeout(()=>{
-   if(!battle || battle!==battleRef || currentPriorityPlayer()!==priorityRef)return;
+   if(commerceBattlePaused||!battle || battle!==battleRef || currentPriorityPlayer()!==priorityRef)return;
    if(priorityRef===battle.attacker&&battle.kind==='land'&&playerHasTrebuchets(priorityRef)&&trebuchetBonus()>0&&!battle.trebuchetsUsed){
      battle.trebuchetsUsed=true;
      log(p(priorityRef).name+' (bot) active Plan des trébuchets : +'+trebuchetBonus()+' Attaque.');
@@ -3691,6 +3697,7 @@ function startSeaBattle(target,n,defender,attackMove=[]){
  startReactionWindow();
 }
 function resolveBattle(){
+ if(commerceBattlePaused)return;
  clearHotseatReaction();
  clearInterval(battleTick);
  const a=battlePower('attacker'),d=battlePower('defender'),target=battle.target;
@@ -3768,7 +3775,7 @@ function resolveBattle(){
  const finishedShadow=!!battle.fromShadow;
  battle=null;
  if(finishedShadow&&battleStack.length){
-   const paused=battleStack.pop();battle=paused.battle;battle.seconds=paused.seconds||15;
+   const paused=battleStack.pop();battle=paused.battle;battle.seconds=paused.seconds??battleReactionSeconds();
    log('La bataille précédente reprend en '+battle.target+'.');resumeBattleTimer();render();return;
  }
  audioBattleEnd();
@@ -4739,6 +4746,7 @@ function commerceExecute(d){
 function commerceAccept(id){const d=commerceDeals.find(x=>x.id===id);if(!d||d.status!=='pending')return;d.status='accepted';d.expires=0;log(p(commerceViewer()).name+' accepte la négociation #'+d.id+'.');if(commerceCanExecute(d))commerceExecute(d);else{renderCommerce();render();commerceSyncOnline()}}
 function commerceRefuse(id){const d=commerceDeals.find(x=>x.id===id);if(!d)return;d.status='refused';d.expires=0;log('Commerce : proposition #'+d.id+' refusée.');renderCommerce();commerceSyncOnline()}
 function commerceCounter(id){
+ commerceSetEditor(true);
  const d=commerceDeals.find(x=>x.id===id);if(!d)return;const v=commerceViewer(),other=v===d.from?d.to:d.from;
  // La contre-proposition reprend l'accord affiché, mais du point de vue du joueur qui répond.
  // Il peut retirer ce que l'autre proposait, demander autre chose, et modifier ce qu'il donne lui-même.
@@ -4748,9 +4756,9 @@ function commerceCounter(id){
 }
 function commerceSetClosed(id,closed){const d=commerceDeals.find(x=>x.id===id);if(!d)return;d.closed=!!closed;renderCommerce()}
 function commerceReopenExpired(id){const d=commerceDeals.find(x=>x.id===id);if(!d||d.closed||d.type==='show'||d.status!=='expired')return;d.status='pending';d.expires=Date.now()+120000;log('Commerce : négociation #'+d.id+' réouverte pour 2 minutes.');renderCommerce();render();commerceSyncOnline()}
-function commerceOpen(){if(!G)return;const lv=localViewer(),h=commerceHumans();commerceViewerOverride=(G.online&&G.online.legacySync)?null:(h.includes(lv)?lv:(h[0]??null));$('commerceOverlay').classList.remove('hidden');commerceDraft=null;renderCommerce()}
-function commerceClose(){$('commerceOverlay').classList.add('hidden');commerceDraft=null}
-function commerceStart(mode){const v=commerceViewer(),ps=commercePartners(v);commerceDraft={mode,from:v,to:ps[0],giveCards:[],wantCards:[],giveGold:0,wantGold:0,parent:null};renderCommerce()}
+function commerceOpen(){if(!G)return;const lv=localViewer(),h=commerceHumans();commerceViewerOverride=(G.online&&G.online.legacySync)?null:(h.includes(lv)?lv:(h[0]??null));$('commerceOverlay').classList.remove('hidden');commerceDraft=null;commerceSetEditor(true);renderCommerce()}
+function commerceClose(){$('commerceOverlay').classList.add('hidden');commerceDraft=null;commerceSetEditor(false)}
+function commerceStart(mode){commerceSetEditor(true);const v=commerceViewer(),ps=commercePartners(v);commerceDraft={mode,from:v,to:ps[0],giveCards:[],wantCards:[],giveGold:0,wantGold:0,parent:null};renderCommerce()}
 function commerceToggleCard(side,id,button){if(!commerceDraft)return;const a=commerceDraft[side],k=a.indexOf(id);if(k>=0)a.splice(k,1);else a.push(id);if(button)button.classList.toggle('selected',a.includes(id))}
 function commercePruneUnavailableGiveCards(d){
  const available=p(d.from).hand.slice(),kept=[];
@@ -4766,10 +4774,10 @@ function commerceSubmit(){const d=commerceDraft;if(!d||d.to==null)return;
  if(d.counter)commercePruneUnavailableGiveCards(d);
  if(d.mode==='show'){if(d.giveCards.length!==1)return;commerceDeals.unshift({id:commerceSeq++,type:'show',from:d.from,to:d.to,giveCards:d.giveCards.slice(),status:'shown',expires:Date.now()+60000,closed:false});log(p(d.from).name+' montre une carte à '+p(d.to).name+' pendant 1 minute.');}
  else{commerceDeals.unshift({id:commerceSeq++,type:d.mode,from:d.from,to:d.to,giveCards:d.giveCards.slice(),wantCards:d.wantCards.slice(),giveGold:+d.giveGold||0,wantGold:+d.wantGold||0,status:'pending',expires:Date.now()+120000,parent:d.parent||null,closed:false});log(p(d.from).name+(d.counter?' envoie une contre-proposition à ':' ouvre une négociation avec ')+p(d.to).name+'.');}
- commerceDraft=null;renderCommerce();render();commerceSyncOnline();
+ commerceDraft=null;renderCommerce();render();commerceSyncOnline();commerceSetEditor(false);
 }
 function commerceDemandCatalog(){return CARDS.map((c,id)=>({id,name:c.name}))}
-function commerceDealText(ids){return ids.length?ids.map(commerceCardName).join(', '):'aucune carte'}
+function commerceDealText(ids){return ids.length?ids.map(id=>'<span class="commerceDealCard">'+commerceCardName(id)+' <button type="button" data-commerce-zoom="'+id+'" aria-label="Voir '+commerceCardName(id)+'">⌕</button></span>').join(', '):'aucune carte'}
 function commerceVisualCard(id,selected,side,unavailable){
  const c=CARDS[id],src=c&&OFFICIAL_CARD_ART[c.name];
  if(!c)return '';
@@ -4822,7 +4830,7 @@ function commerceBoardStatus(d){
  return labels[d.status]||d.status;
 }
 function commerceBoardSummary(d,v){
- if(d.type==='show')return p(d.from).name+' montre '+commerceDealText(d.giveCards);
+ if(d.type==='show')return p(d.from).name+' montre '+d.giveCards.map(commerceCardName).join(', ');
  const a=commercialSideText(d.giveCards,d.giveGold),b=commercialSideText(d.wantCards,d.wantGold);
  return p(d.from).name+' donne '+a+' ↔ '+p(d.to).name+' donne '+b;
 }
@@ -4833,6 +4841,7 @@ function commercialSideText(ids,gold){
  return bits.length?bits.join(' + '):'rien';
 }
 function commerceOpenDeal(id,viewer){
+ commerceSetEditor(false);
  if(Number.isInteger(viewer))commerceViewerOverride=viewer;
  commerceDraft=null;
  $('commerceOverlay').classList.remove('hidden');
@@ -4874,7 +4883,7 @@ function commerceBind(){
  document.querySelectorAll('[data-cwant]').forEach(b=>b.onclick=()=>commerceToggleCard('wantCards',+b.dataset.cwant,b));
  const gg=$('commerceGiveGold');if(gg){gg.oninput=()=>commerceDraft.giveGold=Math.max(0,Math.min(p(commerceDraft.from).gold,+gg.value||0));gg.onchange=gg.oninput}
  const wg=$('commerceWantGold');if(wg){wg.oninput=()=>commerceDraft.wantGold=Math.max(0,+wg.value||0);wg.onchange=wg.oninput}
- const sb=$('commerceSubmit');if(sb)sb.onclick=commerceSubmit;const cc=$('commerceDraftCancel');if(cc)cc.onclick=()=>{commerceDraft=null;renderCommerce()};
+ const sb=$('commerceSubmit');if(sb)sb.onclick=commerceSubmit;const cc=$('commerceDraftCancel');if(cc)cc.onclick=()=>{commerceDraft=null;commerceSetEditor(false);renderCommerce()};
  document.querySelectorAll('[data-accept]').forEach(b=>b.onclick=()=>commerceAccept(+b.dataset.accept));document.querySelectorAll('[data-refuse]').forEach(b=>b.onclick=()=>commerceRefuse(+b.dataset.refuse));document.querySelectorAll('[data-counter]').forEach(b=>b.onclick=()=>commerceCounter(+b.dataset.counter));document.querySelectorAll('[data-execute]').forEach(b=>b.onclick=()=>commerceExecute(commerceDeals.find(d=>d.id===+b.dataset.execute)));document.querySelectorAll('[data-seen]').forEach(b=>b.onclick=()=>{const d=commerceDeals.find(x=>x.id===+b.dataset.seen);if(d){d.expires=0;d.status='seen';renderCommerce();render();commerceSyncOnline()}});
  document.querySelectorAll('[data-close-deal]').forEach(b=>b.onclick=()=>commerceSetClosed(+b.dataset.closeDeal,true));document.querySelectorAll('[data-reopen-expired]').forEach(b=>b.onclick=()=>commerceReopenExpired(+b.dataset.reopenExpired));
 }
@@ -4888,14 +4897,15 @@ function renderCommerce(){if(!G)return;renderCommerceBoard();const v=commerceVie
 }
 function commerceUpdateTimers(){document.querySelectorAll('[data-commerce-remain]').forEach(el=>{const d=commerceDeals.find(x=>x.id===+el.dataset.commerceRemain);if(!d)return;const remain=d.expires?Math.max(0,Math.ceil((d.expires-Date.now())/1000)):0;if(d.type==='show')el.textContent=remain?remain+' s restantes':'terminé';else el.textContent=p(d.from).name+' ↔ '+p(d.to).name+' — '+(d.status==='pending'?(remain+' s'):d.status)})}
 function commerceUpdateBoardTimers(){document.querySelectorAll('[data-board-commerce-remain]').forEach(el=>{const d=commerceDeals.find(x=>x.id===+el.dataset.boardCommerceRemain);if(!d)return;const b=el.querySelector('b');if(!b)return;const remain=d.expires?Math.max(0,Math.ceil((d.expires-Date.now())/1000)):0;const counter=d.parent?'Contre-proposition #'+d.id:'Proposition #'+d.id;b.textContent=counter+' — '+commerceBoardStatus(d)+(d.status==='pending'&&remain?' · '+remain+' s':'')})}
-function commerceUpdateBar(){if(!G)return;const timed=!!battle&&!isHotseatMode();document.querySelectorAll('[data-commerce-board-pause]').forEach(pb=>{pb.classList.toggle('hidden',!timed);pb.textContent=commerceBattlePaused?'▶️ Reprendre':'⏸️ Pause'});const bar=$('commerceBar');if(bar)bar.style.display='none'}
-function commerceToggleBattlePause(){if(!battle||isHotseatMode())return;if(!commerceBattlePaused){clearInterval(battleTick);clearTimeout(botReactionTimer);commerceBattlePaused=true;log('Bataille mise en pause pour le Commerce.');}else{commerceBattlePaused=false;resumeBattleTimer();log('Bataille reprise.');}commerceUpdateBar();renderCommerce()}
+function commerceUpdateBar(){if(!G)return;document.querySelectorAll('[data-commerce-board-pause]').forEach(b=>b.classList.add('hidden'));const bar=$('commerceBar');if(bar)bar.style.display='none';document.body.classList.toggle('commerceBattleLocked',!!battle&&commerceBattlePaused);let note=$('commercePauseNotice');if(!note){note=document.createElement('div');note.id='commercePauseNotice';note.className='note';$('playerRail').prepend(note)}note.textContent=battle&&commerceBattlePaused?'commerce en cours - bataille mise en pause':'';note.hidden=!battle||!commerceBattlePaused}
+function commerceToggleBattlePause(){}
 function commerceClock(){if(!G)return;let changed=false;const now=Date.now();commerceDeals.forEach(d=>{if(d.expires&&d.expires<=now){d.expires=0;if(d.status==='pending')d.status='expired';else if(d.status==='shown')d.status='seen';changed=true}});if(changed){render();if(!$('commerceOverlay').classList.contains('hidden'))renderCommerce()}else{commerceUpdateBoardTimers();if(!$('commerceOverlay').classList.contains('hidden'))commerceUpdateTimers()}commerceUpdateBar()}
 setInterval(commerceClock,1000);
 
 function render(){
  applyOracleMapVisual();
  if(!G)return;
+ $('gamePointsTitle').textContent='partie à '+G.victoryTarget+' points';
  commerceUpdateBar();
  if(G.phase!=='setup'&&checkVictory())return;
  const dc=$('deckCount'),xc=$('discardCount');if(dc)dc.textContent=G.deck.length;if(xc)xc.textContent=G.discard.length;
@@ -5185,13 +5195,13 @@ function onlineDisplayGame(state){const topRestart=$('restart');if(topRestart)to
  const board={};Object.entries(state.board||{}).forEach(([r,c])=>board[r]={...c});
  const sea={};Object.keys(SEA).forEach(id=>sea[id]={fleets:{...((state.sea&&state.sea[id]&&state.sea[id].fleets)||{})}});
  const active=Number.isInteger(state.active)?state.active:0;
- G={active,turn:state.turn||0,phase:state.phase||'setup',dragon:state.dragon||'E4',victoryTarget:state.victoryPoints||3,
+ G={active,turn:state.turn||0,phase:state.phase||'setup',dragon:state.dragon||'E4',victoryTarget:state.victoryPoints||3,battleReactionSeconds:state.battleReactionSeconds||15,
    players,b:board,sea,deck:[],discard:[],log:[],oracleDeck:[],oracleDiscard:[],oracleActive:state.oracleActive===null?null:state.oracleActive,
    online:{code:state.code,seed:state.seed,mySocketId:onlineSocket&&onlineSocket.id,myPlayerIndex:state.youIndex,hostId:onlineRoom&&onlineRoom.hostId,revision:state.revision}};
 }
 function onlineApplyStateToDisplay(state){
  if(!G||!G.online){onlineDisplayGame(state);return}
- G.active=Number.isInteger(state.active)?state.active:0;G.turn=state.turn||0;G.phase=state.phase||'setup';G.dragon=state.dragon||'E4';G.victoryTarget=state.victoryPoints||3;G.oracleActive=state.oracleActive===null?null:state.oracleActive;
+ G.active=Number.isInteger(state.active)?state.active:0;G.turn=state.turn||0;G.phase=state.phase||'setup';G.dragon=state.dragon||'E4';G.victoryTarget=state.victoryPoints||3;G.battleReactionSeconds=state.battleReactionSeconds||15;G.oracleActive=state.oracleActive===null?null:state.oracleActive;
  Object.entries(state.board||{}).forEach(([r,c])=>G.b[r]={...c});Object.keys(SEA).forEach(id=>{if(!G.sea[id])G.sea[id]={fleets:{}};G.sea[id].fleets={...((state.sea&&state.sea[id]&&state.sea[id].fleets)||{})}});
  state.players.forEach((sp,i)=>{
    if(!G.players[i])return;
@@ -5270,14 +5280,14 @@ function onlineLegacyRuleState(){
    paidDrawState,goldReaction,goldReactionStack,shadowState,battleStack,egnoState,returnState,dragonRichState,dragonCurseState,
    dragonPublicState,agentModalState,caravanState,oraclePassArmed,oracleState,seaStormState,oracleClimateVisual,
    oraclePendingNormalMap,turnEpoch,divinationState,recruitSnapshot,gameOverState,commerceDeals,commerceSeq,
-   onlineSfxSeq,onlineSfxEvents,
+   commercePaused:commerceBattlePaused,onlineSfxSeq,onlineSfxEvents,
    onlineBotDriverIndex:onlineLegacyBotDriverIndex
  };
 }
 function onlineLegacySnapshot(){
  const cleanG=onlineLegacyEncode(G);
  const publicBattle=battle&&Array.isArray(battle.stack)&&Number.isInteger(battle.attacker);
- const publicFacts={scores:G.players.map((_,i)=>victoryPoints(i)),attackPower:publicBattle?battlePower('attacker'):null,defensePower:publicBattle?battlePower('defender'):null};
+ const publicFacts={journal:(G.publicLog||[]).slice(),mapSpots:typeof publicMapSpots==='function'?publicMapSpots():[],playerStats:G.players.map((_,i)=>({units:totalUnits(i),cap:cap(i),portrait:playerFactionPortrait(i),inPlay:publicInPlay(i)})),scores:G.players.map((_,i)=>victoryPoints(i)),attackPower:publicBattle?battlePower('attacker'):null,defensePower:publicBattle?battlePower('defender'):null};
  if(cleanG&&cleanG.online){
    delete cleanG.online.mySocketId;
    delete cleanG.online.myPlayerIndex;
@@ -5295,7 +5305,7 @@ function onlineLegacyBootstrap(full,state){
  COLORS.splice(0,COLORS.length,...BASE_COLORS);(full.players||[]).forEach((sp,i)=>{if(sp.color)COLORS[i]=sp.color});
  const board={};Object.entries(full.board||{}).forEach(([r,c])=>board[r]={...c});
  const sea={};Object.keys(SEA).forEach(id=>sea[id]={fleets:{...((full.sea&&full.sea[id]&&full.sea[id].fleets)||{})}});
- G={active:Number.isInteger(full.active)?full.active:0,turn:full.turn||1,phase:full.phase||'start',dragon:full.dragon||'E4',victoryTarget:full.victoryPoints||3,
+ G={active:Number.isInteger(full.active)?full.active:0,turn:full.turn||1,phase:full.phase||'start',dragon:full.dragon||'E4',victoryTarget:full.victoryPoints||3,battleReactionSeconds:full.battleReactionSeconds||15,
    players,b:board,sea,deck:(full.deck||[]).slice(),discard:(full.discard||[]).slice(),log:(full.log||[]).slice(),
    oracleDeck:(full.oracleDeck||[]).slice(),oracleDiscard:(full.oracleDiscard||[]).slice(),oracleActive:full.oracleActive===null?null:full.oracleActive,
    online:{code:full.code||state.code,seed:full.seed||state.seed,mySocketId:onlineSocket&&onlineSocket.id,myPlayerIndex:full.youIndex,hostId:onlineRoom&&onlineRoom.hostId,legacySync:true,revision:full.legacyRevision||0}};
@@ -5401,7 +5411,7 @@ function onlineLegacyApply(packet){
  onlineLegacyApplying=true;
  const localOnline={code:G.online.code,seed:G.online.seed,mySocketId:onlineSocket&&onlineSocket.id,myPlayerIndex:me,hostId:onlineRoom&&onlineRoom.hostId,legacySync:true,revision:packet.revision};
  const decoded=onlineLegacyDecode(packet.snapshot),next=decoded.g||{};next.online=localOnline;G=next;
- const r=decoded.rule||{};
+ const r=decoded.rule||{};commerceBattlePaused=!!r.commercePaused||commerceEditorOpen;
  movable=r.movable||{};usedDest=r.usedDest instanceof Set?r.usedDest:new Set(r.usedDest||[]);destinationUseCount=r.destinationUseCount||{};attacked=r.attacked instanceof Set?r.attacked:new Set(r.attacked||[]);cycle=r.cycle||1;
  battle=r.battle||null;buildingMode=r.buildingMode||null;portalMode=r.portalMode||null;choiceState=r.choiceState||null;paidDrawState=r.paidDrawState||null;goldReaction=r.goldReaction||null;goldReactionStack=Array.isArray(r.goldReactionStack)?r.goldReactionStack:[];
  shadowState=r.shadowState||null;battleStack=r.battleStack||[];egnoState=r.egnoState||null;returnState=r.returnState||null;dragonRichState=r.dragonRichState||null;dragonCurseState=r.dragonCurseState||null;
@@ -5430,6 +5440,7 @@ function onlineLegacyApply(packet){
  if(oracleSacrificeAllDone()&&onlineLegacyCanPublish())setTimeout(()=>{if(oracleSacrificeAllDone()&&onlineLegacyCanPublish())finishSimultaneousOracleSacrifice()},0);
 }
 function onlineLegacyResumeBattleView(){
+ if(commerceBattlePaused){clearInterval(battleTick);clearTimeout(botReactionTimer);onlineLegacyBattleViewSeconds=null;if($('priorityTimer'))$('priorityTimer').textContent='En pause — commerce';return;}
  clearInterval(battleTick);clearTimeout(botReactionTimer);
  if(!battle){onlineLegacyBattleViewSeconds=null;hideBattle();return;}
  showBattle();renderBattle();
@@ -5456,6 +5467,7 @@ function onlineLegacyResumeBattleView(){
  if(myHumanPriority){
    battleTick=setInterval(()=>{
      if(!battle){clearInterval(battleTick);hideBattle();return}
+     if(commerceBattlePaused)return;
      battle.seconds=Math.max(0,battle.seconds-1);renderBattle();
      if(battle.seconds<=0){clearInterval(battleTick);passPriority()}
    },1000);
@@ -5469,6 +5481,7 @@ function onlineLegacyResumeBattleView(){
  onlineLegacyBattleViewSeconds=Math.max(0,Number(battle.seconds)||0);
  battleTick=setInterval(()=>{
    if(!battle){clearInterval(battleTick);hideBattle();return}
+   if(commerceBattlePaused)return;
    onlineLegacyBattleViewSeconds=Math.max(0,onlineLegacyBattleViewSeconds-1);
    const pt=$('priorityTimer');
    if(onlineLegacyBattleViewSeconds<=0){
@@ -5849,7 +5862,7 @@ function launchOnlineRoom(room){
 function onlineGameAction(type,payload={}){return onlineAck('gameAction',{type,...payload}).catch(onlineError)}
 function renderOnlineLobby(room){
  onlineRoom=room;onlineSelectedMode=room.mode;
- $('lobbyName').textContent=room.name;$('lobbyCode').textContent=room.code;$('lobbyMode').textContent=onlineModeLabel(room.mode)+' — victoire à '+room.victoryPoints+' points';
+ $('lobbyName').textContent=room.name;$('lobbyCode').textContent=room.code;$('lobbyMode').textContent=onlineModeLabel(room.mode)+' — victoire à '+room.victoryPoints+' points — réactions '+(room.battleReactionSeconds||15)+' sec';
  let h='';room.players.forEach(pl=>{h+='<div class="onlinePlayerRow"><span>'+onlineEscape(pl.pseudo)+(pl.host?' <small>(créateur)</small>':'')+'</span><span class="'+(pl.ready?'readyBadge':'waitingBadge')+'">'+(pl.ready?'Prêt·e':'Pas prêt·e')+'</span></div>'});
  for(let i=room.players.length;i<room.maxHumans;i++)h+='<div class="onlinePlayerRow"><span>Place '+(i+1)+'</span><span class="waitingBadge">En attente</span></div>';
  $('lobbyPlayers').innerHTML=h;
@@ -5870,6 +5883,8 @@ function connectOnline(){
   socket.on('gameState',applyOnlineGameState);
   socket.on('legacyState',packet=>{onlineResumeSaveRecovery(packet&&packet.recovery);onlineLegacyApply(packet)});
   socket.on('legacySfx',onlineReceiveSfx);
+  socket.on('commercePause',commerceReceivePause);
+  socket.on('disconnect',()=>{commerceEditorOpen=false;commerceDraft=null;$('commerceOverlay').classList.add('hidden')});
  });
 }
 function onlineAck(action,payload){return connectOnline().then(socket=>new Promise((resolve,reject)=>socket.emit(action,payload,res=>{if(res&&res.ok){if(res.recovery)onlineResumeSaveRecovery(res.recovery);resolve(res);return}const err=new Error(res&&res.error||'Erreur serveur.');if(res&&res.current)err.current=res.current;reject(err)})))}
@@ -5909,7 +5924,7 @@ $('onlineJoin').onclick=()=>{onlinePseudo();onlineResumeRefresh();showOnlineScre
 $('localTestBtn').onclick=()=>{onlinePseudo();launchLegacyMode('2v3',3)};
 document.querySelectorAll('[data-online-mode]').forEach(b=>b.onclick=()=>{onlineSelectedMode=b.dataset.onlineMode;if(onlineSelectedMode==='1v4'){launchLegacyMode('1v4',3);return}showOnlineScreen('onlineConfigScreen')});
 document.querySelectorAll('[data-online-back]').forEach(b=>b.onclick=()=>{if(onlineSocket&&onlineRoom)onlineSocket.emit('leaveRoom');onlineRoom=null;showOnlineScreen('onlineHome')});
-$('onlineCreateRoom').onclick=async()=>{try{onlinePseudo();if(!$('onlineRoomCode').value.trim())$('onlineRoomCode').value='TRB-'+Math.floor(1000+Math.random()*9000);const res=await onlineAck('createRoom',{pseudo:onlinePseudo(),name:$('onlineRoomName').value,code:$('onlineRoomCode').value,mode:onlineSelectedMode,maxHumans:onlineSeatCount(onlineSelectedMode),bots:onlineBotCount(onlineSelectedMode),victoryPoints:+$('onlineVictory').value});onlineResumeSave(res.resume);renderOnlineLobby(res.room)}catch(e){onlineError(e)}};
+$('onlineCreateRoom').onclick=async()=>{try{onlinePseudo();if(!$('onlineRoomCode').value.trim())$('onlineRoomCode').value='TRB-'+Math.floor(1000+Math.random()*9000);const res=await onlineAck('createRoom',{pseudo:onlinePseudo(),name:$('onlineRoomName').value,code:$('onlineRoomCode').value,mode:onlineSelectedMode,maxHumans:onlineSeatCount(onlineSelectedMode),bots:onlineBotCount(onlineSelectedMode),victoryPoints:+$('onlineVictory').value,battleReactionSeconds:+$('onlineBattleReaction').value});onlineResumeSave(res.resume);renderOnlineLobby(res.room)}catch(e){onlineError(e)}};
 $('onlineReady').onclick=async()=>{try{await onlineAck('setReady',!onlineReadyState)}catch(e){onlineError(e)}};
 $('onlineJoinRoom').onclick=async()=>{try{const code=$('onlineJoinCode').value.trim();if(!code){$('onlineJoinCode').focus();return}const res=await onlineAck('joinRoom',{code,pseudo:onlinePseudo()});onlineResumeSave(res.resume);renderOnlineLobby(res.room)}catch(e){onlineError(e)}};
 $('onlineResumeRoom').onclick=async()=>{const saved=onlineResumeRead();if(!saved)return onlineResumeRefresh();try{const res=await onlineAck('resumeRoom',saved);onlineResumeSave(res.resume);onlineRoom=res.room;onlineSelectedMode=res.room.mode;$('victoryMode').value=String(res.room.victoryPoints||3);applyOnlineGameState(res.game)}catch(e){onlineError(e)}};
@@ -5940,5 +5955,7 @@ $('commerceClose').onclick=commerceClose;$('commerceNewOffer').onclick=()=>comme
 $('hotseatReveal').onclick=revealHotseatHand;$('oracleNoticePass').onclick=finishOracleNotice;$('dragonSixPass').onclick=finishDragonSixNotice;$('dragonPublicPass').onclick=passDragonPublic;$('dragonCurseContinue').onclick=continueDragonCurse;$('discardPile').onclick=openDiscard;$('deckPile').onclick=()=>{};$('discardClose').onclick=closeDiscard;$('restart').onclick=init;$('victoryRestart').onclick=()=>{audioResetVictory();location.reload()};$('agentClose').onclick=closeAgentModal;$('draw').onclick=doDraw;$('harvest').onclick=doHarvest;$('recruit').onclick=doRecruit;$('resetRecruit').onclick=resetRecruitment;$('endRecruit').onclick=beginPlay;$('toOracle').onclick=toOracle;$('choiceConfirm').onclick=confirmCouncil;$('roll').onclick=roll;
 </script><script src="assets/tutorial.js?v=4"></script>
 <script src="assets/interaction-safety.js?v=3"></script>
-<script src="assets/spectator.js?v=1"></script>
+<script src="assets/party-options.js?v=1"></script>
+<script src="assets/spectator.js?v=2"></script>
 </body></html>
+

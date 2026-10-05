@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const { Server } = require('socket.io');
 const { createPublicActivity } = require('./public-activity');
 const { createPostgresHistory } = require('./history-store');
+const {createCommercePause}=require('./commerce-pause');
 
 const PORT = process.env.PORT || 3000;
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || '*';
@@ -29,6 +30,7 @@ const io = new Server(server, {
 });
 
 const rooms = new Map();
+const commercePause=createCommercePause({emit:(room,event,payload)=>io.to(room.code).emit(event,payload),changed:room=>emitLegacy(room)});
 const historyDatabase=process.env.TRIBU_HISTORY_DATABASE_URL;
 const publicActivity=createPublicActivity({remote:historyDatabase?createPostgresHistory(historyDatabase):null,onChange:()=>publishPublicActivity()});
 let activityPublishTimer=null;
@@ -224,14 +226,15 @@ function roomRecoveryCapsule(room){
   if(!room||!room.launched||!room.game||room.game.status!=='playing')return null;
   const game=JSON.parse(JSON.stringify(room.game));
   (game.players||[]).forEach(p=>{if(!p.bot){p.socketId=null;p.connected=false}});
-  return {version:1,activityId:room.activityId,startedAt:room.startedAt,code:room.code,name:room.name,mode:room.mode,maxHumans:room.maxHumans,bots:room.bots,victoryPoints:room.victoryPoints,seed:room.seed,hostPlayerId:room.hostPlayerId||((room.players.find(p=>p.id===room.hostId)||{}).playerId)||null,players:room.players.map(p=>({playerId:p.playerId,pseudo:p.pseudo,ready:!!p.ready,tokenHash:p.reconnectTokenHash||tokenHash(p.reconnectToken)})),game,legacyMode:!!room.legacyMode,legacyRevision:room.legacyRevision||0,legacySnapshot:room.legacySnapshot||null};
+  return {version:1,activityId:room.activityId,startedAt:room.startedAt,code:room.code,name:room.name,mode:room.mode,maxHumans:room.maxHumans,bots:room.bots,victoryPoints:room.victoryPoints,battleReactionSeconds:room.battleReactionSeconds||15,seed:room.seed,hostPlayerId:room.hostPlayerId||((room.players.find(p=>p.id===room.hostId)||{}).playerId)||null,players:room.players.map(p=>({playerId:p.playerId,pseudo:p.pseudo,ready:!!p.ready,tokenHash:p.reconnectTokenHash||tokenHash(p.reconnectToken)})),game,legacyMode:!!room.legacyMode,legacyRevision:room.legacyRevision||0,legacySnapshot:room.legacySnapshot||null};
 }
 function restoreRoomFromRecovery(saved){
   const cap=saved&&saved.recovery,code=cleanCode(saved&&saved.code),pid=cleanText(saved&&saved.playerId,80),token=cleanText(saved&&saved.token,120);
   if(!cap||cap.version!==1||cleanCode(cap.code)!==code||!cap.game||cap.game.status!=='playing'||!Array.isArray(cap.players))return null;
   const seat=cap.players.find(p=>p.playerId===pid&&p.tokenHash===tokenHash(token));if(!seat)return null;
-  const room={code,name:cleanText(cap.name,30)||`Partie ${code}`,mode:cleanText(cap.mode,20),maxHumans:Math.max(2,Math.min(5,Number(cap.maxHumans)||2)),bots:Math.max(0,Math.min(4,Number(cap.bots)||0)),victoryPoints:[3,4,5].includes(Number(cap.victoryPoints))?Number(cap.victoryPoints):3,hostId:null,hostPlayerId:cleanText(cap.hostPlayerId,80)||null,launched:true,seed:Number(cap.seed)>>>0,game:cap.game,legacyMode:!!cap.legacyMode,legacyRevision:Math.max(0,Number(cap.legacyRevision)||0),legacySnapshot:cap.legacySnapshot||null,players:cap.players.map(p=>({id:null,playerId:cleanText(p.playerId,80),reconnectToken:null,reconnectTokenHash:String(p.tokenHash||''),pseudo:cleanText(p.pseudo,24),ready:!!p.ready,connected:false}))};
+  const room={code,name:cleanText(cap.name,30)||`Partie ${code}`,mode:cleanText(cap.mode,20),maxHumans:Math.max(2,Math.min(5,Number(cap.maxHumans)||2)),bots:Math.max(0,Math.min(4,Number(cap.bots)||0)),victoryPoints:[3,4,5].includes(Number(cap.victoryPoints))?Number(cap.victoryPoints):3,battleReactionSeconds:[15,20,30].includes(Number(cap.battleReactionSeconds))?Number(cap.battleReactionSeconds):15,hostId:null,hostPlayerId:cleanText(cap.hostPlayerId,80)||null,launched:true,seed:Number(cap.seed)>>>0,game:cap.game,legacyMode:!!cap.legacyMode,legacyRevision:Math.max(0,Number(cap.legacyRevision)||0),legacySnapshot:cap.legacySnapshot||null,players:cap.players.map(p=>({id:null,playerId:cleanText(p.playerId,80),reconnectToken:null,reconnectTokenHash:String(p.tokenHash||''),pseudo:cleanText(p.pseudo,24),ready:!!p.ready,connected:false}))};
   (room.game.players||[]).forEach(p=>{if(!p.bot){p.socketId=null;p.connected=false}});
+  if(room.legacySnapshot?.rule)room.legacySnapshot.rule.commercePaused=false;
   room.activityId=cap.activityId;room.startedAt=cap.startedAt;publicActivity.attach(room);
   rooms.set(code,room);return room;
 }
@@ -242,7 +245,7 @@ function publicRoom(room) {
     mode: room.mode,
     maxHumans: room.maxHumans,
     bots: room.bots,
-    victoryPoints: room.victoryPoints,
+    victoryPoints: room.victoryPoints,battleReactionSeconds:room.battleReactionSeconds||15,
     hostId: room.hostId,
     launched: room.launched,
     seed: room.launched ? room.seed : null,
@@ -256,7 +259,7 @@ function publicGameView(room, socketId) {
   return {
     code: room.code,
     mode: room.mode,
-    victoryPoints: room.victoryPoints,
+    victoryPoints: room.victoryPoints,battleReactionSeconds:room.battleReactionSeconds||15,
     seed: room.seed,
     revision: game.revision,
     status: game.status,
@@ -299,7 +302,7 @@ function legacyYouIndex(room,socketId){return humanGameIndex(room,socketId)}
 function legacyBootstrapView(room,socketId){
   const game=room.game,youIndex=legacyYouIndex(room,socketId);
   return {
-    code:room.code,mode:room.mode,victoryPoints:room.victoryPoints,seed:room.seed,youIndex,legacyRevision:room.legacyRevision||0,
+    code:room.code,mode:room.mode,victoryPoints:room.victoryPoints,battleReactionSeconds:room.battleReactionSeconds||15,seed:room.seed,youIndex,legacyRevision:room.legacyRevision||0,
     status:game.status,phase:game.phase,turn:game.turn,active:game.active,dragon:game.dragon,
     board:game.board,sea:game.sea,deck:game.deck,discard:game.discard,oracleDeck:game.oracleDeck,oracleDiscard:game.oracleDiscard,oracleActive:game.oracleActive,
     log:[],players:game.players.map((p,i)=>({index:i,pseudo:p.pseudo,bot:p.bot,connected:p.bot?true:p.connected!==false,color:p.color,portrait:p.portrait,faction:p.faction,province:p.province,regions:(p.regions||[]).slice(),gold:p.gold||0,pvPermanent:p.pvPermanent||0,hand:(p.hand||[]).slice(),inPlay:[]}))
@@ -437,6 +440,7 @@ function buildAuthoritativeGame(room) {
 function leaveCurrentRoom(socket) {
   const room = roomForSocket(socket);
   if (!room) return;
+  commercePause.leave(room,socket.id);
   socket.leave(room.code);
   socket.data.roomCode = null;
 
@@ -464,7 +468,7 @@ function rejectGameAction(ack, error) {
 
 io.on('connection', socket => {
   socket.emit('serverReady', { ok: true, authority: 'server' });
-  const publicEvents=new Set(['subscribeActivity','spectateGame','leaveSpectator']);
+  const publicEvents=new Set(['subscribeActivity','spectateGame','leaveSpectator','publicHistory']);
   socket.use(([event,...args],next)=>{
     if(socket.data.publicOnly&&!publicEvents.has(event)){
       const ack=args.at(-1);if(typeof ack==='function')ack({ok:false,error:'Le mode spectateur est en lecture seule.'});return;
@@ -493,6 +497,8 @@ io.on('connection', socket => {
   socket.on('leaveSpectator',(_payload,ack=()=>{})=>{leaveSpectator(socket);if(typeof ack==='function')ack({ok:true})});
 
 
+  socket.on('publicHistory',(payload={},ack=()=>{})=>{if(typeof ack!=='function'||!makePublicOnly(ack))return;const rows=publicActivity.history().slice().reverse();const before=payload?.before;const filtered=before?rows.filter(r=>r.finishedAt<before.at||(r.finishedAt===before.at&&r.id<before.id)):rows;const page=filtered.slice(0,100),last=page.at(-1);ack({ok:true,rows:page,next:filtered.length>100&&last?{at:last.finishedAt,id:last.id}:null})});
+  socket.on('commerceEditing',(payload={},ack=()=>{})=>{const room=roomForSocket(socket);if(!room||!room.legacyMode||humanGameIndex(room,socket.id)<0)return ack({ok:false,error:'Partie indisponible.'});commercePause.set(room,socket.id,payload?.open===true);ack({ok:true})});
   socket.on('createRoom', (payload = {}, ack = () => {}) => {
     leaveCurrentRoom(socket);
     const code = cleanCode(payload.code);
@@ -508,7 +514,7 @@ io.on('connection', socket => {
       mode: cleanText(payload.mode, 20),
       maxHumans,
       bots,
-      victoryPoints,
+      victoryPoints,battleReactionSeconds:[15,20,30].includes(Number(payload.battleReactionSeconds))?Number(payload.battleReactionSeconds):15,
       hostId: socket.id,
       hostPlayerId: null,
       launched: false,
@@ -727,8 +733,10 @@ io.on('connection', socket => {
     if(base!==current){
       return ack({ok:false,error:'État de partie plus récent disponible.',current:room.legacySnapshot?{snapshot:room.legacySnapshot,revision:current,youIndex:index}:null});
     }
-    if(!payload.snapshot||typeof payload.snapshot!=='object')return rejectGameAction(ack,'État de jeu invalide.');
-    room.legacySnapshot=payload.snapshot;room.legacyRevision=current+1;
+    if(!payload.snapshot||typeof payload.snapshot!=='object'||!payload.snapshot.g||!Array.isArray(payload.snapshot.g.players)||!payload.snapshot.rule||typeof payload.snapshot.rule!=='object')return rejectGameAction(ack,'État de jeu invalide.');
+    if(!commercePause.accept(room,payload.snapshot))return ack({ok:false,error:'Commerce en cours : bataille en pause.',current:{snapshot:room.legacySnapshot,revision:current,youIndex:index}});
+    payload.snapshot.g.battleReactionSeconds=room.battleReactionSeconds||15;
+    room.legacySnapshot=payload.snapshot;room.legacyRevision=current+1;commercePause.committed(room);
     ack({ok:true,revision:room.legacyRevision,recovery:roomRecoveryCapsule(room)});emitLegacy(room,socket.id);
   });
 
@@ -831,3 +839,4 @@ io.on('connection', socket => {
 });
 
 server.listen(PORT, () => console.log(`TRIBU Online server listening on ${PORT}`));
+
