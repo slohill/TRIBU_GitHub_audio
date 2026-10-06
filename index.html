@@ -4434,15 +4434,18 @@ function renderMap(){
  if(movementSourceHere||shadowGatherHere){
    b.onpointerdown=e=>{
      if(e.target!==b)return;
-     e.preventDefault();
+     // Le rendu recrée la case après chaque +1 : conserver le clic natif évite
+     // qu'une rafale de clics/pointeurs perde l'événement suivant.
      longTriggered=false;
      holdTimer=setTimeout(()=>{longTriggered=true;if(shadowGatherHere)shadowAll(id);else pickAllFromSource(id)},480);
    };
-   b.onpointerup=()=>{if(holdTimer)clearTimeout(holdTimer)};
-   b.onpointerleave=()=>{if(holdTimer)clearTimeout(holdTimer)};
-   b.onpointercancel=()=>{if(holdTimer)clearTimeout(holdTimer)};
+   const clearHold=()=>{if(holdTimer){clearTimeout(holdTimer);holdTimer=null}};
+   b.onpointerup=clearHold;
+   b.onpointerleave=clearHold;
+   b.onpointercancel=clearHold;
    b.onclick=e=>{
      if(e.target!==b)return;
+     clearHold();
      if(longTriggered){longTriggered=false;return}
      clickSpot(id);
    };
