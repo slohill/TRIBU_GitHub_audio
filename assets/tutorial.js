@@ -177,7 +177,7 @@ function renderTutorialPlacement(){
 const gameHelpOverlay=document.createElement('div');
 gameHelpOverlay.id='gameHelpOverlay';gameHelpOverlay.className='hidden';
 gameHelpOverlay.setAttribute('role','dialog');gameHelpOverlay.setAttribute('aria-label','Aide de jeu');gameHelpOverlay.setAttribute('aria-modal','true');
-const gameHelpImage=document.createElement('img');gameHelpImage.src='assets/images/tutorial/Aidedejeu.jpg';gameHelpImage.alt='Aide de jeu TRIBU : déroulement du tour et points de victoire';
+const gameHelpImage=document.createElement('img');gameHelpImage.src='assets/images/tutorial/Aidedejeu.jpg?v=2';gameHelpImage.alt='Aide de jeu TRIBU : comment gagner des points de victoire';
 gameHelpOverlay.appendChild(gameHelpImage);document.body.appendChild(gameHelpOverlay);
 $('gameHelpBtn').onclick=()=>{tutorialCloseHelp();gameHelpOverlay.classList.remove('hidden')};
 gameHelpOverlay.onclick=e=>{if(e.target===gameHelpOverlay){gameHelpOverlay.classList.add('hidden');$('gameHelpBtn').focus()}};
