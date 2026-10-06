@@ -410,7 +410,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 .oracleCardClickable{cursor:pointer}
 </style><link rel="stylesheet" href="assets/tutorial.css?v=2">
 <link rel="stylesheet" href="assets/interaction-safety.css?v=2">
-<link rel="stylesheet" href="assets/spectator.css?v=2">
+<link rel="stylesheet" href="assets/spectator.css?v=3">
 </head>
 <body>
 <section id="start"><div class="onlineStartBox">
@@ -1162,7 +1162,7 @@ function init(){closeActionConfirmation();audioResetVictory();if(!tutorial.activ
  render();
  queueBot('début de partie');
 }
-function p(i=G.active){return G.players[i]} function log(s,visible=true){G.log.unshift(s);G.log=G.log.slice(0,80);if(visible){G.publicLog=G.publicLog||[];G.publicLog.unshift(s);G.publicLog=G.publicLog.slice(0,80)}}
+function p(i=G.active){return G.players[i]} function log(s,visible=true){G.log.unshift(s);if(visible){G.publicLog=G.publicLog||[];G.publicLog.unshift(s)}}
 function escapeLogHtml(v){return String(v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
 function renderLogEntry(text,players=G.players,colors=COLORS){
  let parts=[{text:String(text),player:null}];
@@ -4856,7 +4856,7 @@ function renderCommerceBoard(){
    return;
  }
  const others=G.players.map((pl,i)=>i===v?null:i).filter(i=>i!==null);
- let html='<div class="commerceBoardHead"><span>🤝 Commerce — '+p(v).name+'</span><div style="display:flex;gap:6px;align-items:center"><button type="button" class="hidden" data-commerce-board-pause>⏸️ Pause</button><button type="button" data-commerce-board-open>Nouvelle proposition</button></div></div><div class="commerceBoardRows">';
+ let html='<div class="commerceBoardHead"><span>🤝 Commerce — '+p(v).name+' <small class="commerceTimingHint">Les échanges ne peuvent être validés que durant la phase de jeu d’un des deux joueur.euse</small></span><div style="display:flex;gap:6px;align-items:center"><button type="button" class="hidden" data-commerce-board-pause>⏸️ Pause</button><button type="button" data-commerce-board-open>Nouvelle proposition</button></div></div><div class="commerceBoardRows">';
  others.forEach(i=>{
    const deals=commerceDeals.filter(d=>!d.closed&&((d.from===v&&d.to===i)||(d.from===i&&d.to===v))).slice().sort((a,b)=>b.id-a.id);
    html+='<div class="commerceBoardRow"><div class="commerceBoardPlayer" style="color:'+COLORS[i]+'">'+p(i).name+(p(i).bot?' 🤖':'')+'</div><div class="commerceBoardDeals">';
@@ -5087,7 +5087,7 @@ function render(){
  renderHandBattleState();
  wireCardConfirmations();
  if(portalMode)renderPortalBanner();else if(dragonRichState)renderRichDragonBanner();else if(returnState)renderReturnBanner();else if(egnoState)renderEgnobombeBanner();else if(shadowState)renderShadowBanner();else if(battle && battle.kind!=='seaChoice')renderBattle();else clearTopBanner();
- $('log').innerHTML=G.log.map(x=>'• '+renderLogEntry(x)+'<br>').join('');
+ renderFullJournal($('log'),G.log,G.players,COLORS);
  renderTutorial();
 }
 audioLoadPrefs();audioWireControls();document.addEventListener('pointerdown',()=>audioMaybeWelcome(),{passive:true});
@@ -5955,7 +5955,7 @@ $('commerceClose').onclick=commerceClose;$('commerceNewOffer').onclick=()=>comme
 $('hotseatReveal').onclick=revealHotseatHand;$('oracleNoticePass').onclick=finishOracleNotice;$('dragonSixPass').onclick=finishDragonSixNotice;$('dragonPublicPass').onclick=passDragonPublic;$('dragonCurseContinue').onclick=continueDragonCurse;$('discardPile').onclick=openDiscard;$('deckPile').onclick=()=>{};$('discardClose').onclick=closeDiscard;$('restart').onclick=init;$('victoryRestart').onclick=()=>{audioResetVictory();location.reload()};$('agentClose').onclick=closeAgentModal;$('draw').onclick=doDraw;$('harvest').onclick=doHarvest;$('recruit').onclick=doRecruit;$('resetRecruit').onclick=resetRecruitment;$('endRecruit').onclick=beginPlay;$('toOracle').onclick=toOracle;$('choiceConfirm').onclick=confirmCouncil;$('roll').onclick=roll;
 </script><script src="assets/tutorial.js?v=4"></script>
 <script src="assets/interaction-safety.js?v=3"></script>
-<script src="assets/party-options.js?v=1"></script>
-<script src="assets/spectator.js?v=2"></script>
+<script src="assets/party-options.js?v=2"></script>
+<script src="assets/spectator.js?v=3"></script>
 </body></html>
 

@@ -39,7 +39,7 @@ function projectPublicState(room){
  return {id:room.activityId,name:clean(room.name,30),mode:clean(room.mode,20),startedAt:room.startedAt,
    status:winner!==null?'finished':room.game&&room.game.status==='setup'?'setup':'playing',turn:integer(game.turn),phase:phase(game.phase),active:seat(game.active,n),victoryTarget:integer(room.victoryPoints,5),
    players,board:publicBoard,sea,dragon:LOCATIONS.has(game.dragon)?game.dragon:null,battle:visibleBattle,commercePaused:!!rule.commercePaused,
-   journal:(Array.isArray(facts.journal)?facts.journal:[]).slice(0,80).map(s=>clean(s,600)),
+   journal:(Array.isArray(facts.journal)?facts.journal:[]).map(s=>clean(s,600)),
    mapSpots:(Array.isArray(facts.mapSpots)?facts.mapSpots:[]).slice(0,51).filter(s=>s&&LOCATIONS.has(s.id)).map(s=>({id:s.id,classes:classes(s.classes),children:(Array.isArray(s.children)?s.children:[]).slice(0,16).map(n=>mapNode(n)).filter(Boolean)})),
    oracleActive:oracle(game.oracleActive),oracleNext:rule.divinationState?null:oracle(Array.isArray(game.oracleDeck)?game.oracleDeck.at(-1):null),
    climate:['Canicule','Vague de froid'].includes(rule.oracleClimateVisual)?rule.oracleClimateVisual:null,
@@ -63,11 +63,11 @@ function createPublicActivity({file=process.env.TRIBU_HISTORY_FILE||path.join(__
    if(next.winner!==null&&previous?.winner!==next.winner)add(next.players[next.winner].name+' remporte la partie !');
    next.events=events.slice(-60);states.set(next.id,next);
    if(next.winner!==null&&previous?.winner!==next.winner){
-     archive.add({...summary(next),finishedAt:now(),durationSeconds:Math.max(0,Math.round((now()-next.startedAt)/1000)),winner:next.winner,players:next.players.map(p=>({name:p.name,bot:p.bot,faction:p.faction,score:p.score}))});
+     archive.add({...summary(next),finishedAt:now(),durationSeconds:Math.max(0,Math.round((now()-next.startedAt)/1000)),winner:next.winner,journal:next.journal.slice(),players:next.players.map(p=>({name:p.name,bot:p.bot,faction:p.faction,score:p.score}))});
    }
    return next;
  }
- function list(rooms){const active=[];for(const room of rooms.values()){const state=update(room);if(state&&state.winner===null&&state.connectedHumans>0)active.push(summary(state))}return {games:active.sort((a,b)=>b.startedAt-a.startedAt).slice(0,50),recent:archive.list().slice(-100).reverse(),historyAvailable:archive.available()}}
+ function list(rooms){const active=[];for(const room of rooms.values()){const state=update(room);if(state&&state.winner===null&&state.connectedHumans>0)active.push(summary(state))}return {games:active.sort((a,b)=>b.startedAt-a.startedAt).slice(0,50),recent:archive.list().slice(-100).reverse().map(({journal,...summary})=>({...summary,hasJournal:!!journal?.length})),historyAvailable:archive.available()}}
  return {update,list,attach,get:id=>states.get(id),history:archive.list,ready:archive.ready,flush:archive.flush,close:archive.close};
 }
 module.exports={projectPublicState,createPublicActivity};

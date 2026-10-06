@@ -32,3 +32,9 @@ function publicMapSpots(){
  };
  return [...document.querySelectorAll('#map>.spot')].map(spot=>({id:spot.dataset.region,classes:spot.className,children:[...spot.children].map(n=>describe(n)).filter(Boolean)}));
 }
+
+function renderFullJournal(root,entries,players,colors){
+ const limit=Number(root.dataset.journalLimit)||80;
+ root.innerHTML=entries.slice(0,limit).map(text=>'• '+renderLogEntry(text,players,colors)+'<br>').join('');
+ if(entries.length>limit){const more=document.createElement('button');more.type='button';more.textContent='Afficher les événements précédents ('+(entries.length-limit)+')';more.onclick=()=>{root.dataset.journalLimit=String(limit+80);renderFullJournal(root,entries,players,colors)};root.appendChild(more)}
+}
