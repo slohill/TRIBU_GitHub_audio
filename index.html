@@ -5238,6 +5238,7 @@ function onlineApplyStateToDisplay(state){
 // The original TRIBU engine remains the only gameplay engine. Online only stores
 // and relays complete committed engine snapshots. UI drafts such as dest/picks are
 // deliberately not synchronized.
+let onlineLegacyPendingPush=null;
 let onlineLegacyRevision=0,onlineLegacyApplying=false,onlineLegacyLastDigest='',onlineLegacyPushTimer=null,onlineLegacyBotDriverIndex=null,onlineLegacyBattleViewSeconds=null,onlineLegacyGoldViewSeconds=null,onlineLegacyGoldTickRender=false,onlineLegacyPriorityWasActive=false,onlineLegacyPriorityTrackedActor=null,onlineLegacyPriorityTerminalPending=false,onlineLegacyRecoveryPending=false,onlineLegacyRecoveryAttempted=false;
 function onlineLegacyDriverIndex(){
  if(!G)return -1;
@@ -5539,6 +5540,7 @@ function onlineLegacyCanCommitPriorityTerminal(owner){
  return false;
 }
 function onlineLegacyPushPriorityTerminalNow(owner){
+ if(onlineLegacyPendingPush)return onlineLegacyPendingPush.then(()=>onlineLegacyPushPriorityTerminalNow(owner));
  // Une fois une résolution prioritaire terminée, son état a déjà disparu des variables
  // de résolution. On conserve donc explicitement l'acteur et on commite le snapshot
  // terminal exact, au lieu de dépendre du joueur actif ou d'un prochain render.
@@ -5592,6 +5594,7 @@ function onlineLegacyCanPublish(){
  return G.active===me;
 }
 function onlineLegacyPushNow(){
+ if(onlineLegacyPendingPush)return onlineLegacyPendingPush.then(()=>onlineLegacyPushNow());
  if(!G||!G.online||!G.online.legacySync||onlineLegacyApplying||!onlineSocket)return;
  const actorIndex=G.online.myPlayerIndex;if(!Number.isInteger(actorIndex)||!G.players[actorIndex]||G.players[actorIndex].bot)return;
  clearTimeout(onlineLegacyPushTimer);
@@ -5605,6 +5608,7 @@ function onlineLegacyPushNow(){
  send(onlineLegacyRevision,true);
 }
 function onlineLegacyPushPriorityCardNow(){
+ if(onlineLegacyPendingPush)return onlineLegacyPendingPush.then(()=>onlineLegacyPushPriorityCardNow());
  if(!G||!G.online||!G.online.legacySync||onlineLegacyApplying||!onlineSocket||!priorityCardResolutionActive())return;
  const actorIndex=G.online.myPlayerIndex;if(!Number.isInteger(actorIndex)||priorityCardResolutionActor()!==actorIndex)return;
  clearTimeout(onlineLegacyPushTimer);
@@ -5621,6 +5625,7 @@ function onlineLegacyPushPriorityCardNow(){
  send(onlineLegacyRevision,2);
 }
 function onlineLegacyPushDragonDestructionNow(){
+ if(onlineLegacyPendingPush)return onlineLegacyPendingPush.then(()=>onlineLegacyPushDragonDestructionNow());
  if(!G||!G.online||!G.online.legacySync||onlineLegacyApplying||!onlineSocket)return Promise.resolve(null);
  const actorIndex=G.online.myPlayerIndex;
  if(!Number.isInteger(actorIndex)||!G.players[actorIndex]||G.players[actorIndex].bot)return Promise.resolve(null);
@@ -5645,6 +5650,7 @@ function onlineLegacyPushAssassinNow(actor){
  return onlineLegacyPushPriorityTerminalNow(actor);
 }
 function onlineLegacyPushCaravanNow(){
+ if(onlineLegacyPendingPush)return onlineLegacyPendingPush.then(()=>onlineLegacyPushCaravanNow());
  if(!G||!G.online||!G.online.legacySync||onlineLegacyApplying||!onlineSocket)return Promise.resolve(null);
  const actorIndex=G.online.myPlayerIndex;if(!Number.isInteger(actorIndex)||!G.players[actorIndex]||G.players[actorIndex].bot)return Promise.resolve(null);
  clearTimeout(onlineLegacyPushTimer);
@@ -5663,6 +5669,7 @@ function onlineLegacyPushCaravanNow(){
  return send(onlineLegacyRevision,2);
 }
 function onlineLegacyPushOracleSacrificeNow(){
+ if(onlineLegacyPendingPush)return onlineLegacyPendingPush.then(()=>onlineLegacyPushOracleSacrificeNow());
  if(!G||!G.online||!G.online.legacySync||onlineLegacyApplying||!onlineSocket)return Promise.resolve(null);
  const actorIndex=G.online.myPlayerIndex;if(!Number.isInteger(actorIndex)||!G.players[actorIndex]||G.players[actorIndex].bot)return Promise.resolve(null);
  clearTimeout(onlineLegacyPushTimer);
@@ -5681,6 +5688,7 @@ function onlineLegacyPushOracleSacrificeNow(){
  return send(onlineLegacyRevision,2);
 }
 function onlineLegacyPushGoldReactionNow(){
+ if(onlineLegacyPendingPush)return onlineLegacyPendingPush.then(()=>onlineLegacyPushGoldReactionNow());
  if(!G||!G.online||!G.online.legacySync||onlineLegacyApplying||!onlineSocket||!goldReaction)return;
  const actorIndex=G.online.myPlayerIndex;if(!Number.isInteger(actorIndex)||!G.players[actorIndex]||G.players[actorIndex].bot)return;
  clearTimeout(onlineLegacyPushTimer);
@@ -5709,6 +5717,7 @@ function onlineLegacyPushBotHandoff(previousActive,previousDriver){
  onlineLegacyPushNow();
 }
 function onlineLegacyPushHumanHandoff(previousActive){
+ if(onlineLegacyPendingPush)return onlineLegacyPendingPush.then(()=>onlineLegacyPushHumanHandoff(previousActive));
  if(!G||!G.online||!G.online.legacySync||onlineLegacyApplying||!onlineSocket)return;
  const me=G.online.myPlayerIndex;
  if(previousActive!==me||G.active===me||!G.players[G.active]||G.players[G.active].bot)return;
@@ -5726,17 +5735,17 @@ function onlineLegacyPushHumanHandoff(previousActive){
  send(onlineLegacyRevision,true);
 }
 function onlineLegacyMaybePush(){
- if(!onlineLegacyCanPublish())return;
+ if(onlineLegacyPendingPush||!onlineLegacyCanPublish())return;
  const digest=onlineLegacyDigest();if(!digest||digest===onlineLegacyLastDigest)return;
  clearTimeout(onlineLegacyPushTimer);
  onlineLegacyPushTimer=setTimeout(()=>{
-   if(!onlineLegacyCanPublish())return;
+   if(onlineLegacyPendingPush||!onlineLegacyCanPublish())return;
    const now=onlineLegacyDigest();if(!now||now===onlineLegacyLastDigest)return;
    const snapshot=onlineLegacySnapshot(),actorIndex=G.online.myPlayerIndex,baseRevision=onlineLegacyRevision;
    onlineLegacyLastDigest=now;
    const send=(revision,retries)=>onlineAck('legacyCommit',{baseRevision:revision,actorIndex,snapshot}).then(res=>{
      onlineLegacyRevision=Math.max(onlineLegacyRevision,res.revision||0);G.online.revision=onlineLegacyRevision;
-     if(onlineLegacyCanPublish()&&onlineLegacyDigest()!==now)onlineLegacyMaybePush();
+
    }).catch(err=>{
      // Un conflit de révision pendant le recrutement ne doit jamais réinjecter un
      // ancien compteur d'unités. Rejouer le snapshot capturé sur la révision reçue.
@@ -5753,7 +5762,12 @@ function onlineLegacyMaybePush(){
        }else onlineLegacyApply(err.current);
      }else onlineError(err);
    });
-   send(baseRevision,2);
+   // Keep one ordinary snapshot in flight. Further clicks remain local and the
+   // next send captures their latest combined state after this acknowledgement.
+   onlineLegacyPendingPush=send(baseRevision,2).finally(()=>{
+     onlineLegacyPendingPush=null;
+     if(onlineLegacyCanPublish()&&onlineLegacyDigest()!==onlineLegacyLastDigest)onlineLegacyMaybePush();
+   });
  },90);
 }
 function onlineLegacyViewerNeedsMap(me){
