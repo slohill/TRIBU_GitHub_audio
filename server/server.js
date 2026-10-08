@@ -713,7 +713,7 @@ io.on('connection', socket => {
         if(Number.isInteger(oldOwner)&&g.players&&g.players[oldOwner]&&Array.isArray(g.players[oldOwner].inPlay)){
           const at=g.players[oldOwner].inPlay.indexOf(cardId);if(at>=0)g.players[oldOwner].inPlay.splice(at,1);
         }
-        cell.building.owner=null;cell.hostile=false;
+        cell.building.owner=null;cell.hostile=!!cell.originalHostile;
       }
     });
     q.chosen=chosen;q.done=true;

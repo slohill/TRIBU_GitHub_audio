@@ -1829,7 +1829,7 @@ function resolveEgnobombe(r){
  invalidateMovementOnDestroyedCase(r);
 
  // Toutes les unités des cases adjacentes sont détruites. Les bâtiments survivent :
- // une Forteresse/Cité dont la garnison est détruite devient donc neutre et récupérable.
+ // le PNJ d’origine reprend sa Forteresse/Cité ; ailleurs elle devient neutre.
  land.forEach(x=>{
    const c=G.b[x];
    if(c.units>0){
@@ -2432,14 +2432,14 @@ function defensiveBuildingAt(r){
 }
 function effectiveHostile(r){
  const c=G.b[r];
- // Une Forteresse/Cité présente signifie qu'il n'y a pas de PNJ sous le bâtiment.
- return !!(c&&c.hostile&&!defensiveBuildingAt(r));
+ // Un PNJ conserve sa présence même sous une Forteresse ou une Cité.
+ return !!(c&&c.hostile);
 }
 function buildingDefense(r){
  const cell=G.b[r],b=cell&&cell.building;
- // Forteresse/Cité : +10 uniquement si une garnison de joueur est réellement présente.
- // Un bâtiment vide/neutre ne défend jamais tout seul.
- let bonus=b&&['Forteresse','Icenia, la cité blanche','Sundo, cité du soleil'].includes(b.type)&&cell.units>0&&cell.owner!==null?10:0;
+ // Forteresse/Cité : +10 avec une garnison de joueur ou un PNJ.
+ // Un bâtiment abandonné hors région PNJ reste neutre.
+ let bonus=b&&['Forteresse','Icenia, la cité blanche','Sundo, cité du soleil'].includes(b.type)&&((cell.units>0&&cell.owner!==null)||effectiveHostile(r))?10:0;
  if(cell&&cell.owner!==null&&cell.units>0)bonus+=wallCount(cell.owner);
  return bonus;
 }
@@ -2482,13 +2482,12 @@ function transferBuildingCard(building,newOwner){
 function neutralizeSurvivingDefensiveBuilding(r){
  const c=G.b[r],b=defensiveBuildingAt(r);
  if(!c||!b||c.units>0)return false;
- // Un bâtiment défensif qui survit à la destruction de sa garnison devient neutre.
- // Il reste physiquement sur la carte, quitte le « En jeu » de son ancien propriétaire,
- // ne génère aucun PNJ et pourra être récupéré sans bataille.
+ // Le bâtiment reste sur la carte et quitte le « En jeu » de son ancien propriétaire.
+ // Sur une région PNJ, le peuple reprend le bâtiment ; ailleurs, il devient neutre.
  transferBuildingCard(b,null);
  c.owner=null;
- c.hostile=false;
- return true;
+ c.hostile=!!c.originalHostile;
+ return !c.hostile;
 }
 function beginBuildingPlacement(handIndex){
  if(isBot()||G.phase!=='play')return;
@@ -3898,8 +3897,7 @@ function destroyUnitsOnRegion(r){
  if(isSea(r))return;
  const c=G.b[r];
  c.units=0;c.owner=null;
- // Oracle : si Forteresse/Cité survit à la perte de sa garnison, elle devient neutre.
- // Sinon seulement, un éventuel PNJ d'origine peut redevenir présent.
+ // Oracle : le PNJ d’origine reprend le bâtiment survivant ; hors région PNJ, il reste neutre.
  const neutralized=neutralizeSurvivingDefensiveBuilding(r);
  c.hostile=neutralized?false:c.originalHostile;
 }
