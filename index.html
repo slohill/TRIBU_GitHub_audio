@@ -4230,7 +4230,7 @@ function destroyDragonRegionAndEnd(){
    const had=Object.values(fleets).some(n=>Number(n)>0);
    destroySeaUnits(G.dragon);
    if(had){
-     G.dragonSixPresentation={seq:Number(G.dragonSixPresentation&&G.dragonSixPresentation.seq||0)+1,victim:null};
+     G.dragonSixPresentation={seq:Number(G.dragonSixPresentation&&G.dragonSixPresentation.seq||0)+1,victim:null,atSea:true};
      onlineDragonSixPresentationSeenSeq=Number(G.dragonSixPresentation.seq);
      audioPlaySfx('dragon',.675);checkDecimations();
      const finishDragonSeaTurn=()=>{
@@ -5346,11 +5346,13 @@ function onlineLegacyBootstrap(full,state){
  // Les bots ne sont pas démarrés depuis un bootstrap distant.
  if(onlineWelcomeShownKey!==String(state.seed||'game'))onlineShowGameWelcome(state);
 }
-function showDragonSixRemoteNotice(victim){
+function showDragonSixRemoteNotice(victim,atSea=false){
  clearInterval(onlineDragonSixRemoteTick);
  const viewer=localViewer();
  $('dragonSixTitle').textContent='LE DRAGON SÈME LA DESTRUCTION';
- $('dragonSixText').textContent=victim!==null&&viewer===victim
+ $('dragonSixText').textContent=atSea
+   ? 'Le dragon fait un carnage dans les mers de Mirmygate, il éradique toute forme de vie à la surface laissant derrière lui débris et désolation'
+   : victim!==null&&viewer===victim
    ? 'Le dragon sème la destruction dans votre empire !\nUne de vos régions a été dévastée par le feu…'
    : (victim!==null?'Le dragon a détruit une région de '+p(victim).name+'.':'Le dragon a dévasté une région.');
  let seconds=5;$('dragonSixTimer').textContent='5 s';$('dragonSixOverlay').classList.remove('hidden');
@@ -5411,7 +5413,7 @@ function onlineApplyPrivatePresentations(me){
  const op=G&&G.oraclePresentation;
  if(op&&Number(op.seq)>onlineOraclePresentationSeenSeq){onlineOraclePresentationSeenSeq=Number(op.seq);if(op.at&&Date.now()-Number(op.at)<30000)showOracleRemoteNotice(op.name)}
  const dp=G&&G.dragonSixPresentation;
- if(dp&&Number(dp.seq)>onlineDragonSixPresentationSeenSeq){onlineDragonSixPresentationSeenSeq=Number(dp.seq);showDragonSixRemoteNotice(dp.victim)}
+ if(dp&&Number(dp.seq)>onlineDragonSixPresentationSeenSeq){onlineDragonSixPresentationSeenSeq=Number(dp.seq);showDragonSixRemoteNotice(dp.victim,!!dp.atSea)}
  const cp=G&&G.dragonCursePresentation;
  if(cp&&Number(cp.seq)>onlineDragonCursePresentationSeenSeq){onlineDragonCursePresentationSeenSeq=Number(cp.seq);if(!cp.at||Date.now()-Number(cp.at)<30000)showDragonCurseRemoteNotice(cp.victim)}
  const an=G&&G.assassinNotice;
