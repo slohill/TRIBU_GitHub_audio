@@ -2299,7 +2299,7 @@ function chooseThiefRandomTarget(){
  const opps=opponentIndexes(actor).filter(j=>G.players[j].hand.length||objectCardsInPlay(j).length);
  openAgentModal('Voleur — vol aléatoire','Choisissez l’adversaire ciblé, puis lancez le dé.');
  if(!opps.length){addAgentChoice('Aucune cible disponible',()=>{},true);return}
- opps.forEach(j=>addAgentChoice(p(j).name,()=>rollThief(j)));
+ opps.forEach(j=>{const count=G.players[j].hand.length;addAgentChoice(p(j).name+' — '+count+' carte'+(count===1?'':'s')+' en main',()=>rollThief(j))});
 }
 function rollThief(target){
  const actor=localViewer();agentDefaults(actor);const usedIndex=agentModalState&&agentModalState.kind==='thief'?agentModalState.agentIndex:availableAgentIndex(actor,'Voleur');if(usedIndex<0)return;markAgentUsed(actor,usedIndex);
@@ -4178,13 +4178,15 @@ function clickSpot(id){
  if(divinationState)return;
  if(oracleNoticeState)return;
  if(caravanState||dragonSixState||dragonPublicState||dragonCurseState)return;if(inPlaySelected)hideInPlayPreview();if(dragonRichState){if(dragonRichState.targets.includes(id))return destroyRichDragonTarget(id);return;}if(returnState){if(returnRegions(returnState.player).includes(id))return reformAt(id);return;}if(egnoState){if(egnoTargetLegal(id))return resolveEgnobombe(id);return;}if(shadowState){if(shadowState.stage==='gather'&&shadowSourceMax(id)>0)return adjustShadow(id,1);if(shadowState.stage==='target'&&shadowTargetLegal(id))return chooseShadowTarget(id);return;}if(portalMode){if(canPortalRegion(id))return choosePortalRegion(id);return;}if(isBot()||paidDrawState||goldReaction)return;if(buildingMode){if(canPlaceBuilding(id))return placeBuilding(id);return;}if(G.phase==='recruit'&&!isSea(id))return recruitAt(id);if(G.phase==='play'){if(dest&&legalSources(dest).includes(id))return adjust(id,1);return chooseDest(id)}if(G.phase==='oracleMove'&&dragonTargets().includes(id)){G.dragon=id;G.phase='oracleRoll';log(p().name+' place le Dragon sur '+id+'.');render()}}
-function showDragonSixNotice(victim,next){
+function showDragonSixNotice(victim,next,atSea=false){
  clearInterval(dragonSixTick);
  const pass=$('dragonSixPass');if(pass)pass.onclick=finishDragonSixNotice;
  const viewer=localViewer();
  dragonSixState={victim,seconds:5,next};
  $('dragonSixTitle').textContent='LE DRAGON SÈME LA DESTRUCTION';
- $('dragonSixText').textContent=victim!==null&&viewer===victim
+ $('dragonSixText').textContent=atSea
+   ? 'Le dragon fait un carnage dans les mers de Mirmygate, il éradique toute forme de vie à la surface laissant derrière lui débris et désolation'
+   : victim!==null&&viewer===victim
    ? 'Le dragon sème la destruction dans votre empire !\nUne de vos régions a été dévastée par le feu…'
    : (victim!==null?'Le dragon a détruit une région de '+p(victim).name+'.':'Le dragon a dévasté une région.');
  $('dragonSixTimer').textContent='5 s';
@@ -4219,7 +4221,7 @@ function destroyDragonRegionAndEnd(){
        }
        advanceTurn('nouveau tour');
      };
-     showDragonSixNotice(null,finishDragonSeaTurn);render();
+     showDragonSixNotice(null,finishDragonSeaTurn,true);render();
      return;
    }
    checkDecimations();advanceTurn('nouveau tour');return;
