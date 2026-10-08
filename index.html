@@ -5424,8 +5424,8 @@ function onlineLegacyApply(packet){
  // un état local plus récent qu'un snapshot serveur venant juste d'être confirmé.
  // Ne pas réappliquer visuellement cet état intermédiaire : on avance seulement la
  // révision, puis le debounce publiera l'état local complet le plus récent.
- const localRecruitDirty=G.phase==='recruit'&&G.active===G.online.myPlayerIndex&&!priorityCardResolutionActive()&&onlineLegacyCanPublish()&&onlineLegacyDigest()!==onlineLegacyLastDigest;
- if(localRecruitDirty&&Number.isInteger(packet.revision)&&packet.revision>onlineLegacyRevision){
+ const localRecruitDirty=(G.phase==='recruit'||G.phase==='play')&&G.active===G.online.myPlayerIndex&&!priorityCardResolutionActive()&&onlineLegacyCanPublish()&&onlineLegacyDigest()!==onlineLegacyLastDigest;
+ if(localRecruitDirty&&Number.isInteger(packet.revision)&&packet.revision>=onlineLegacyRevision){
    onlineLegacyRevision=packet.revision;G.online.revision=packet.revision;return;
  }
  oracleSacrificeSyncPending=false;
@@ -5733,16 +5733,23 @@ function onlineLegacyMaybePush(){
    const snapshot=onlineLegacySnapshot(),actorIndex=G.online.myPlayerIndex,baseRevision=onlineLegacyRevision;
    onlineLegacyLastDigest=now;
    const send=(revision,retries)=>onlineAck('legacyCommit',{baseRevision:revision,actorIndex,snapshot}).then(res=>{
-     onlineLegacyRevision=res.revision;G.online.revision=res.revision;
+     onlineLegacyRevision=Math.max(onlineLegacyRevision,res.revision||0);G.online.revision=onlineLegacyRevision;
+     if(onlineLegacyCanPublish()&&onlineLegacyDigest()!==now)onlineLegacyMaybePush();
    }).catch(err=>{
      // Un conflit de révision pendant le recrutement ne doit jamais réinjecter un
      // ancien compteur d'unités. Rejouer le snapshot capturé sur la révision reçue.
-     if(snapshot&&snapshot.g&&snapshot.g.phase==='recruit'&&err&&err.current&&retries>0&&Number.isInteger(err.current.revision)){
+     if(snapshot&&snapshot.g&&(snapshot.g.phase==='recruit'||snapshot.g.phase==='play')&&err&&err.current&&retries>0&&Number.isInteger(err.current.revision)){
        onlineLegacyRevision=Math.max(onlineLegacyRevision,err.current.revision);G.online.revision=onlineLegacyRevision;
        return send(onlineLegacyRevision,retries-1);
      }
      onlineLegacyLastDigest='';
-     if(err&&err.current)onlineLegacyApply(err.current);else onlineError(err);
+     if(err&&err.current){
+       if(onlineLegacyCanPublish()&&onlineLegacyDigest()!==now){
+         onlineLegacyRevision=Math.max(onlineLegacyRevision,Number(err.current.revision)||0);
+         G.online.revision=onlineLegacyRevision;
+         onlineLegacyMaybePush();
+       }else onlineLegacyApply(err.current);
+     }else onlineError(err);
    });
    send(baseRevision,2);
  },90);
