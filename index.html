@@ -4412,12 +4412,12 @@ function renderMap(){
  }
  if(!isSea(id)&&fortressAt(id)){
    const fi=document.createElement('img');
-   fi.className='buildingIcon fortressIcon'+((G.b[id].units||0)>0?' withUnits':'');fi.src='assets/images/tokens/forteresse.png';fi.title='Forteresse : +10 Défense';
+   fi.className='buildingIcon fortressIcon'+(((G.b[id].units||0)>0||effectiveHostile(id))?' withUnits':'');fi.src='assets/images/tokens/forteresse.png';fi.title='Forteresse : +10 Défense';
    b.appendChild(fi);
  }
  if(!isSea(id)&&cityAt(id)){
    const ci=document.createElement('img');
-   ci.className='buildingIcon cityIcon'+((G.b[id].units||0)>0?' withUnits':'')+(isPvpBattle?' battleWithDice':'');ci.src='assets/images/tokens/cite.png';ci.title=cityAt(id).type+' : +10 Défense';
+   ci.className='buildingIcon cityIcon'+(((G.b[id].units||0)>0||effectiveHostile(id))?' withUnits':'')+(isPvpBattle?' battleWithDice':'');ci.src='assets/images/tokens/cite.png';ci.title=cityAt(id).type+' : +10 Défense';
    b.appendChild(ci);
  }
  if(movementPreviewHere){const g=document.createElement('span');g.className='ghost';g.textContent=previewDestinationUnits(id);b.appendChild(g)}
