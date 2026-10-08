@@ -424,6 +424,8 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
   </div>
 
   <div id="onlineCreateScreen" class="onlineScreen hidden">
+    <div class="onlineSectionTitle">Nombre de joueurs</div>
+    <div class="onlineStatus" id="onlineConfigSummary"></div>
     <div class="onlineSectionTitle">Joueurs vs bots</div>
     <div class="onlineModeGrid">
       <button data-online-mode="1v4"><b>1 joueur vs 4 bots</b><small>Lancement local immédiat — pas de salon.</small></button>
@@ -433,17 +435,18 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
     <div class="onlineSectionTitle">Joueurs vs joueurs</div>
     <div class="onlineModeGrid">
       <button data-online-mode="3h"><b>3 joueurs</b></button><button data-online-mode="4h"><b>4 joueurs</b></button><button data-online-mode="5h"><b>5 joueurs</b></button>
+      <button data-online-mode="6h" class="hidden" disabled><b>6 joueurs</b><small>Extension 1 : Corruption — bientôt disponible.</small></button>
     </div>
-    <button class="onlineBack" data-online-back>← Retour</button>
+    <button id="onlineConfigBack" class="onlineBack">← Modifier les réglages</button>
   </div>
 
   <div id="onlineConfigScreen" class="onlineScreen hidden">
     <div class="onlineField"><label>Nom de la partie</label><input id="onlineRoomName" maxlength="30" placeholder="Ex. Les Loups du Nord"></div>
     <div class="onlineField"><label>Code de la partie</label><input id="onlineRoomCode" maxlength="12" placeholder="Ex. TRIBU42"></div>
-    <div class="onlineField"><label>Objectif de victoire</label><select id="onlineVictory"><option value="3">3 points</option><option value="4">4 points</option><option value="5">5 points</option></select></div>
     <div class="onlineField"><label>Version du jeu</label><select id="onlineGameVersion"><option value="base" selected>Tribu : conquest of Mirmygate (jeu de base)</option><option value="corruption" disabled>Extension 1 : Corruption - bientôt disponible</option><option value="sky-ocean" disabled>Extension 1 et 2 : Sky and ocean - bientôt disponible</option><option value="annihilation" disabled>Extension 3 : Annihilation - disponible un jour peut être</option></select></div>
+    <div class="onlineField"><label>Objectif de victoire</label><select id="onlineVictory"><option value="3">3 points</option><option value="4">4 points</option><option value="5">5 points</option></select></div>
     <div class="onlineField"><label for="onlineBattleReaction">Temps de réaction bataille</label><select id="onlineBattleReaction"><option value="30">30 sec</option><option value="20">20 sec</option><option value="15" selected>15 sec</option></select></div>
-    <div class="onlineActions"><button id="onlineCreateRoom" class="onlinePrimary">Créer le salon</button><button class="onlineBack" data-online-back>← Retour</button></div>
+    <div class="onlineActions"><button id="onlineCreateRoom" class="onlinePrimary">Suivant</button><button class="onlineBack" data-online-back>← Retour</button></div>
   </div>
 
   <div id="onlineJoinScreen" class="onlineScreen hidden">
@@ -5923,11 +5926,35 @@ function onlineError(err){
  alert(err&&err.message?err.message:String(err));
 }
 $('startBtn').onclick=()=>launchLegacyMode($('gameMode').value,+$('victoryMode').value||3);
-$('onlineCreate').onclick=()=>{onlinePseudo();showOnlineScreen('onlineCreateScreen')};
+$('onlineCreate').onclick=()=>{onlinePseudo();showOnlineScreen('onlineConfigScreen')};
 $('onlineJoin').onclick=()=>{onlinePseudo();onlineResumeRefresh();showOnlineScreen('onlineJoinScreen')};
-document.querySelectorAll('[data-online-mode]').forEach(b=>b.onclick=()=>{onlineSelectedMode=b.dataset.onlineMode;if(onlineSelectedMode==='1v4'){launchLegacyMode('1v4',3);return}showOnlineScreen('onlineConfigScreen')});
+let onlineCreatingRoom=false;
+function showOnlinePlayerChoices(){
+ const version=$('onlineGameVersion').value;
+ document.querySelector('[data-online-mode="6h"]').classList.toggle('hidden',version!=='corruption');
+ $('onlineConfigSummary').textContent=$('onlineVictory').value+' points — réactions '+$('onlineBattleReaction').value+' sec';
+ showOnlineScreen('onlineCreateScreen');
+}
+$('onlineCreateRoom').onclick=showOnlinePlayerChoices;
+$('onlineConfigBack').onclick=()=>{if(!onlineCreatingRoom)showOnlineScreen('onlineConfigScreen')};
+document.querySelectorAll('[data-online-mode]').forEach(b=>b.onclick=async()=>{
+ if(onlineCreatingRoom||b.disabled)return;
+ if($('onlineGameVersion').value!=='base'){onlineError(new Error('Cette extension n’est pas encore disponible.'));return}
+ onlineSelectedMode=b.dataset.onlineMode;
+ if(onlineSelectedMode==='1v4'){
+   launchLegacyMode('1v4',+$('onlineVictory').value||3);
+   G.battleReactionSeconds=+$('onlineBattleReaction').value||15;
+   return;
+ }
+ onlineCreatingRoom=true;
+ const choices=[...document.querySelectorAll('[data-online-mode]:not(:disabled)')];choices.forEach(button=>button.disabled=true);$('onlineConfigBack').disabled=true;
+ try{
+   onlinePseudo();if(!$('onlineRoomCode').value.trim())$('onlineRoomCode').value='TRB-'+Math.floor(1000+Math.random()*9000);
+   const res=await onlineAck('createRoom',{pseudo:onlinePseudo(),name:$('onlineRoomName').value,code:$('onlineRoomCode').value,mode:onlineSelectedMode,maxHumans:onlineSeatCount(onlineSelectedMode),bots:onlineBotCount(onlineSelectedMode),victoryPoints:+$('onlineVictory').value,battleReactionSeconds:+$('onlineBattleReaction').value});
+   onlineResumeSave(res.resume);renderOnlineLobby(res.room);
+ }catch(e){onlineError(e)}finally{onlineCreatingRoom=false;choices.forEach(button=>button.disabled=false);$('onlineConfigBack').disabled=false}
+});
 document.querySelectorAll('[data-online-back]').forEach(b=>b.onclick=()=>{if(onlineSocket&&onlineRoom)onlineSocket.emit('leaveRoom');onlineRoom=null;showOnlineScreen('onlineHome')});
-$('onlineCreateRoom').onclick=async()=>{try{onlinePseudo();if(!$('onlineRoomCode').value.trim())$('onlineRoomCode').value='TRB-'+Math.floor(1000+Math.random()*9000);const res=await onlineAck('createRoom',{pseudo:onlinePseudo(),name:$('onlineRoomName').value,code:$('onlineRoomCode').value,mode:onlineSelectedMode,maxHumans:onlineSeatCount(onlineSelectedMode),bots:onlineBotCount(onlineSelectedMode),victoryPoints:+$('onlineVictory').value,battleReactionSeconds:+$('onlineBattleReaction').value});onlineResumeSave(res.resume);renderOnlineLobby(res.room)}catch(e){onlineError(e)}};
 $('onlineReady').onclick=async()=>{try{await onlineAck('setReady',!onlineReadyState)}catch(e){onlineError(e)}};
 $('onlineJoinRoom').onclick=async()=>{try{const code=$('onlineJoinCode').value.trim();if(!code){$('onlineJoinCode').focus();return}const res=await onlineAck('joinRoom',{code,pseudo:onlinePseudo()});onlineResumeSave(res.resume);renderOnlineLobby(res.room)}catch(e){onlineError(e)}};
 $('onlineResumeRoom').onclick=async()=>{const saved=onlineResumeRead();if(!saved)return onlineResumeRefresh();try{const res=await onlineAck('resumeRoom',saved);onlineResumeSave(res.resume);onlineRoom=res.room;onlineSelectedMode=res.room.mode;$('victoryMode').value=String(res.room.victoryPoints||3);applyOnlineGameState(res.game)}catch(e){onlineError(e)}};
