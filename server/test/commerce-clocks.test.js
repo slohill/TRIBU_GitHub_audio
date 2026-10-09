@@ -1,0 +1,20 @@
+const test=require('node:test'),assert=require('node:assert/strict');
+const {createCommercePause}=require('../commerce-pause');
+test('commerce is clock-only, keeps revision and concurrent actions, resumes after last viewer',()=>{
+ let time=1000,changed=0;const events=[];
+ const pause=createCommercePause({now:()=>time,emit:(r,e,v)=>events.push(v),changed:()=>changed++});
+ const room={legacyRevision:7,legacySnapshot:{g:{players:[{gold:20,hand:[]}]},rule:{battle:null,goldReaction:null}}};
+ pause.committed(room);pause.set(room,'A',true);assert.equal(room.legacyRevision,7);assert.equal(changed,0);assert.equal(events.at(-1).paused,false);
+ const recruit=structuredClone(room.legacySnapshot);recruit.g.players[0].gold=19;recruit.g.units=4;assert(pause.accept(room,recruit));room.legacySnapshot=recruit;
+ const draw=structuredClone(recruit);draw.g.players[0].hand=[1,2];assert(pause.accept(room,draw));room.legacySnapshot=draw;
+ const gold=structuredClone(draw);gold.rule.goldReaction={receiver:0,amount:2,source:'Récolte',seconds:10};assert(pause.accept(room,gold));assert(gold.rule.commercePaused);room.legacySnapshot=gold;
+ pause.set(room,'B',true);time=12000;pause.set(room,'A',false);assert(pause.frozen(room));assert.equal(room.legacySnapshot.rule.goldReaction.seconds,10);
+ const card=structuredClone(gold);card.g.players[0].hand.pop();card.rule.choiceState={player:0};assert(pause.accept(room,card));room.legacySnapshot=card;
+ pause.leave(room,'B');assert.equal(events.at(-1).paused,false);assert.equal(events.at(-1).goldSeconds,10);assert.equal(room.legacyRevision,7);assert.equal(changed,0);
+ time=14000;pause.set(room,'A',true);assert.equal(room.legacySnapshot.rule.goldReaction.seconds,8);
+ pause.set(room,'A',true);assert.equal(room.legacySnapshot.rule.goldReaction.seconds,8);
+ pause.leave(room,'A');assert.equal(events.at(-1).goldSeconds,8);
+ room.legacySnapshot.rule.goldReaction=null;room.legacySnapshot.rule.choiceState=null;room.legacySnapshot.rule.battle={attacker:0,defender:1,target:'C4',seconds:20,priorityIndex:0};pause.committed(room);time=17000;pause.set(room,'A',true);assert.equal(room.legacySnapshot.rule.battle.seconds,17);
+ const stale=structuredClone(room.legacySnapshot);stale.rule.battle.seconds=16;assert(pause.accept(room,stale));assert.equal(stale.rule.battle.seconds,17);
+ pause.leave(room,'A');assert.equal(events.at(-1).seconds,17);
+});

@@ -19,7 +19,7 @@ test('reaction settings, multi-player commerce leases, spectators and full histo
  const snapshot={g:{...bootstrap,b:bootstrap.board,players:bootstrap.players.map(p=>({...p,hand:[1],inPlay:[]}))},rule:{battle:{seconds:30,attacker:0,defender:1,priorityIndex:0,stack:[]},commerceDeals:[]},public:{scores:[1,0]}};
  assert((await ack(p1,'legacyCommit',{actorIndex:v1.youIndex,baseRevision:0,snapshot})).ok);
  await ack(p1,'commerceEditing',{open:true});await ack(p2,'commerceEditing',{open:true});let state=await ack(p1,'requestLegacyState');assert.equal(state.snapshot.rule.commercePaused,true);const seconds=state.snapshot.rule.battle.seconds;
- const forged=structuredClone(state.snapshot);forged.rule.battle.stack.push({cardId:1});forged.g.players[0].hand=[];assert.equal((await ack(p1,'legacyCommit',{actorIndex:v1.youIndex,baseRevision:state.revision,snapshot:forged})).ok,false);
+ const forged=structuredClone(state.snapshot);forged.rule.battle.stack.push({cardId:1});forged.g.players[0].hand=[];assert.equal((await ack(p1,'legacyCommit',{actorIndex:v1.youIndex,baseRevision:state.revision,snapshot:forged})).ok,true);
  assert.equal((await ack(spec,'commerceEditing',{open:false})).ok,false);
  await ack(p1,'commerceEditing',{open:false});state=await ack(p1,'requestLegacyState');assert.equal(state.snapshot.rule.commercePaused,true);
  const pauseEnded=new Promise(resolve=>p1.on('commercePause',s=>{if(!s.paused)resolve(s)}));p2.disconnect();assert.equal((await pauseEnded).seconds,seconds);state=await ack(p1,'requestLegacyState');assert.equal(state.snapshot.rule.commercePaused,false);assert.equal(state.recovery.battleReactionSeconds,30);

@@ -133,7 +133,7 @@ function renderTutorial(){
  if(step===10)highlight(G.phase==='oracleMove'?'.spot.oracle':'#roll');
 }
 function tutorialAllows(target){
- if(target.closest('#gameHelpBtn,#gameHelpOverlay,#actionConfirmOverlay,#actionInfoPreview,#factionInfoOverlay,.factionInfoBtn'))return true;
+ if(target.closest('#cardZoomOverlay,#commerceClose,#commerceDraftCancel,#gameHelpBtn,#gameHelpOverlay,#actionConfirmOverlay,#actionInfoPreview,#factionInfoOverlay,.factionInfoBtn'))return true;
  if(!tutorial.active||gameOverState)return true;
  if(target.closest('#tutorialBubble'))return true;
  const step=tutorial.step;

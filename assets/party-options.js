@@ -1,27 +1,24 @@
 // UI-only public rendering facts and commerce editor presence; no game rule duplication.
-let commerceEditorOpen=false;
+let commerceEditorOpen=false,commerceOpenCount=0;
+function commerceClocksPaused(){return commerceBattlePaused=!!(battle||goldReaction)&&(commerceEditorOpen||commerceOpenCount>0)}
 function commerceReceivePause(state){
- commerceBattlePaused=!!state.paused||commerceEditorOpen;
+ if(Number.isInteger(state.editors))commerceOpenCount=state.editors;
+ commerceBattlePaused=!!(battle||goldReaction)&&(!!state.paused||commerceEditorOpen||commerceOpenCount>0);
  if(battle&&Number.isFinite(state.seconds))battle.seconds=state.seconds;
- if(commerceBattlePaused){clearInterval(battleTick);clearTimeout(botReactionTimer);onlineLegacyBattleViewSeconds=null}
+ if(goldReaction&&Number.isFinite(state.goldSeconds))goldReaction.seconds=state.goldSeconds;
+ if(commerceBattlePaused){clearGoldReactionTimer();clearInterval(battleTick);clearTimeout(botReactionTimer);onlineLegacyBattleViewSeconds=null}
  else if(battle){if(G?.online?.legacySync)onlineLegacyResumeBattleView();else if(!priorityCardResolutionActive()&&!goldReaction)resumeBattleTimer()}
+ if(!commerceBattlePaused&&goldReaction&&!goldReaction.pausedByCard){onlineLegacyResumeGoldView();maybeBotAmbush()}
  commerceUpdateBar();if(battle)renderBattle();
 }
 function commerceSetEditor(open){
+ if(commerceEditorOpen===!!open)return;
  commerceEditorOpen=!!open;
  if(G?.online?.legacySync){
    if(open)commerceReceivePause({paused:true});
    onlineAck('commerceEditing',{open:!!open}).catch(e=>{commerceEditorOpen=false;commerceReceivePause({paused:false});onlineError(e)});
  }else commerceReceivePause({paused:!!open});
 }
-// Reject card use while trading, including already scheduled bot callbacks.
-for(const name of ['spendDraw','activateInPlayCard','openDivination','play','playCard','playCouncil','playTax','playAmbush','startAssassin','playAgentFromHand','useSpy','useThief','playMonturesMovement','startCaravan','startDivination','startEgnobombe','startShadow','useAgent','playBattleCard','playBattleCardForOwner','activateTrebuchets','useMonturesMove','playPaidCard']){
- const original=window[name];if(typeof original==='function')window[name]=function(...args){if(battle&&commerceBattlePaused)return;return original.apply(this,args)};
-}
-document.addEventListener('click',event=>{
- if(!battle||!commerceBattlePaused)return;
- if(event.target.closest('#hand,#tacticalButtons,#inPlay,#globalActions,#goldReactionBox,#paidDrawWindow,#buyDraw')){event.preventDefault();event.stopImmediatePropagation()}
-},true);
 function publicMapSpots(){
  const asset=value=>{const match=String(value||'').match(/assets\/images\/(?:tokens|dice)\/[a-zA-Z0-9_.-]+\.(?:png|webp)/);return match?match[0]:null};
  const describe=(node,depth=0)=>{

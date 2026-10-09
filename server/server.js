@@ -234,7 +234,7 @@ function restoreRoomFromRecovery(saved){
   const seat=cap.players.find(p=>p.playerId===pid&&p.tokenHash===tokenHash(token));if(!seat)return null;
   const room={code,name:cleanText(cap.name,30)||`Partie ${code}`,mode:cleanText(cap.mode,20),maxHumans:Math.max(2,Math.min(5,Number(cap.maxHumans)||2)),bots:Math.max(0,Math.min(4,Number(cap.bots)||0)),victoryPoints:[3,4,5].includes(Number(cap.victoryPoints))?Number(cap.victoryPoints):3,battleReactionSeconds:[15,20,30].includes(Number(cap.battleReactionSeconds))?Number(cap.battleReactionSeconds):15,hostId:null,hostPlayerId:cleanText(cap.hostPlayerId,80)||null,launched:true,seed:Number(cap.seed)>>>0,game:cap.game,legacyMode:!!cap.legacyMode,legacyRevision:Math.max(0,Number(cap.legacyRevision)||0),legacySnapshot:cap.legacySnapshot||null,players:cap.players.map(p=>({id:null,playerId:cleanText(p.playerId,80),reconnectToken:null,reconnectTokenHash:String(p.tokenHash||''),pseudo:cleanText(p.pseudo,24),ready:!!p.ready,connected:false}))};
   (room.game.players||[]).forEach(p=>{if(!p.bot){p.socketId=null;p.connected=false}});
-  if(room.legacySnapshot?.rule)room.legacySnapshot.rule.commercePaused=false;
+  if(room.legacySnapshot?.rule){room.legacySnapshot.rule.commercePaused=false;room.legacySnapshot.rule.commerceEditors=0;}
   room.activityId=cap.activityId;room.startedAt=cap.startedAt;publicActivity.attach(room);
   rooms.set(code,room);return room;
 }

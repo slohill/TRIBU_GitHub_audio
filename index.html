@@ -995,7 +995,7 @@ function goldReactionAudio(){
  return goldReactionSfx;
 }
 function startGoldReactionSfx(){
- if(!audioSfxEnabled||!goldReaction||goldReaction.pausedByCard||isHotseatMode())return;
+ if(!audioSfxEnabled||!goldReaction||goldReaction.pausedByCard||commerceBattlePaused||isHotseatMode())return;
  const a=goldReactionAudio();
  try{a.pause();a.currentTime=0}catch(e){}
  a.volume=.78;goldReactionSfxActive=true;
@@ -1228,7 +1228,7 @@ function continueAfterGold(after){
 
 function startGoldReactionTimer(){
  clearGoldReactionTimer();
- if(!goldReaction)return;
+ if(!goldReaction||commerceClocksPaused())return;
  if(G&&G.online&&G.online.legacySync&&!onlineLegacyOwnsGoldTimer()){onlineLegacyStartGoldViewTimer();return}
  if(G&&G.online&&G.online.legacySync)onlineLegacyGoldViewSeconds=null;
  if(isHotseatMode()){
@@ -1240,7 +1240,7 @@ function startGoldReactionTimer(){
  startGoldReactionSfx();
  goldReactionTick=setInterval(()=>{
    if(!goldReaction){clearGoldReactionTimer();return}
-   if(goldReaction.pausedByCard)return;
+   if(goldReaction.pausedByCard||commerceBattlePaused)return;
    goldReaction.seconds--;
    if(goldReaction.seconds<=0){resolveGoldGain();return}
    onlineLegacyGoldTickRender=!!(G&&G.online&&G.online.legacySync);
@@ -1437,7 +1437,7 @@ function playAmbush(playerIndex){
  maybeBotAmbush();
 }
 function maybeBotAmbush(){
- if(!goldReaction)return false;
+ if(!goldReaction||commerceBattlePaused)return false;
  const bots=eligibleAmbushers(goldReaction.receiver).filter(i=>G.players[i].bot&&G.players[i].gold+goldReaction.amount<40);
  if(!bots.length)return false;
  // Un bot ne joue jamais Embuscade si le gain le ferait atteindre 40 Or.
@@ -2022,7 +2022,7 @@ function chooseShadowTarget(r){
  log('Section de l’ombre ouvre une nouvelle bataille en '+r+' : '+n+' Att contre '+defBase+' Déf.');startReactionWindow();render();
 }
 function resumeBattleTimer(){
- if(commerceBattlePaused)return;
+ if(commerceClocksPaused())return;
  clearInterval(battleTick);clearTimeout(botReactionTimer);botReactionTimer=null;if(!battle)return;
  // En Online, une résolution prioritaire qui vient juste de se fermer doit d'abord
  // publier son snapshot terminal. Ne jamais relancer ici le chrono ou la réaction bot
@@ -3273,6 +3273,7 @@ function buildPriorityOrder(){
   return order;
 }
 function startReactionWindow(){
+  commerceClocksPaused();
   battle.priorityOrder=buildPriorityOrder();
   battle.priorityIndex=0;
   battle.consecutivePasses=0;
@@ -3334,7 +3335,6 @@ function advancePriority(resetPasses){
   battle.seconds=battleReactionSeconds();
 }
 function passPriority(){
- if(commerceBattlePaused)return;
   // Une résolution prioritaire suspend réellement la fenêtre de réaction : son chrono
   // ne doit ni avancer la priorité ni rester bloqué à 0 pendant cette résolution.
   if(priorityCardResolutionActive())return;
@@ -3358,7 +3358,6 @@ function playBattleCard(handIndex){
   return playBattleCardForOwner(owner,handIndex);
 }
 function playBattleCardForOwner(owner,handIndex){
- if(commerceBattlePaused)return;
   if(caravanState||divinationState||!battle)return;
   // 0 seconde équivaut exactement à « Passer » : aucune carte ne peut être engagée
   // dans l'ancienne fenêtre après son expiration.
@@ -3716,7 +3715,6 @@ function startSeaBattle(target,n,defender,attackMove=[]){
  startReactionWindow();
 }
 function resolveBattle(){
- if(commerceBattlePaused)return;
  clearHotseatReaction();
  clearInterval(battleTick);
  const a=battlePower('attacker'),d=battlePower('defender'),target=battle.target;
@@ -4769,15 +4767,14 @@ function commerceExecute(d){
 function commerceAccept(id){const d=commerceDeals.find(x=>x.id===id);if(!d||d.status!=='pending')return;d.status='accepted';d.expires=0;log(p(commerceViewer()).name+' accepte la négociation #'+d.id+'.');if(commerceCanExecute(d))commerceExecute(d);else{renderCommerce();render();commerceSyncOnline()}}
 function commerceRefuse(id){const d=commerceDeals.find(x=>x.id===id);if(!d)return;d.status='refused';d.expires=0;log('Commerce : proposition #'+d.id+' refusée.');renderCommerce();commerceSyncOnline()}
 function commerceCounter(id){
- commerceSetEditor(true);
- const d=commerceDeals.find(x=>x.id===id);if(!d)return;const v=commerceViewer(),other=v===d.from?d.to:d.from;
+ const d=commerceDeals.find(x=>x.id===id);if(!d)return;commerceSetEditor(true);const v=commerceViewer(),other=v===d.from?d.to:d.from;
  // La contre-proposition reprend l'accord affiché, mais du point de vue du joueur qui répond.
  // Il peut retirer ce que l'autre proposait, demander autre chose, et modifier ce qu'il donne lui-même.
  if(v===d.to) commerceDraft={mode:'offer',from:v,to:other,giveCards:d.wantCards.slice(),wantCards:d.giveCards.slice(),giveGold:d.wantGold||0,wantGold:d.giveGold||0,parent:id,counter:true};
  else commerceDraft={mode:'offer',from:v,to:other,giveCards:d.giveCards.slice(),wantCards:d.wantCards.slice(),giveGold:d.giveGold||0,wantGold:d.wantGold||0,parent:id,counter:true};
  renderCommerce();
 }
-function commerceSetClosed(id,closed){const d=commerceDeals.find(x=>x.id===id);if(!d)return;d.closed=!!closed;renderCommerce()}
+function commerceSetClosed(id,closed){const d=commerceDeals.find(x=>x.id===id);if(!d)return;d.closed=!!closed;renderCommerce();commerceSyncOnline()}
 function commerceReopenExpired(id){const d=commerceDeals.find(x=>x.id===id);if(!d||d.closed||d.type==='show'||d.status!=='expired')return;d.status='pending';d.expires=Date.now()+120000;log('Commerce : négociation #'+d.id+' réouverte pour 2 minutes.');renderCommerce();render();commerceSyncOnline()}
 function commerceOpen(){if(!G)return;const lv=localViewer(),h=commerceHumans();commerceViewerOverride=(G.online&&G.online.legacySync)?null:(h.includes(lv)?lv:(h[0]??null));$('commerceOverlay').classList.remove('hidden');commerceDraft=null;commerceSetEditor(true);renderCommerce()}
 function commerceClose(){$('commerceOverlay').classList.add('hidden');commerceDraft=null;commerceSetEditor(false)}
@@ -4797,7 +4794,7 @@ function commerceSubmit(){const d=commerceDraft;if(!d||d.to==null)return;
  if(d.counter)commercePruneUnavailableGiveCards(d);
  if(d.mode==='show'){if(d.giveCards.length!==1)return;commerceDeals.unshift({id:commerceSeq++,type:'show',from:d.from,to:d.to,giveCards:d.giveCards.slice(),status:'shown',expires:Date.now()+60000,closed:false});log(p(d.from).name+' montre une carte à '+p(d.to).name+' pendant 1 minute.');}
  else{commerceDeals.unshift({id:commerceSeq++,type:d.mode,from:d.from,to:d.to,giveCards:d.giveCards.slice(),wantCards:d.wantCards.slice(),giveGold:+d.giveGold||0,wantGold:+d.wantGold||0,status:'pending',expires:Date.now()+120000,parent:d.parent||null,closed:false});log(p(d.from).name+(d.counter?' envoie une contre-proposition à ':' ouvre une négociation avec ')+p(d.to).name+'.');}
- commerceDraft=null;renderCommerce();render();commerceSyncOnline();commerceSetEditor(false);
+ commerceDraft=null;renderCommerce();render();commerceSyncOnline();
 }
 function commerceDemandCatalog(){return CARDS.map((c,id)=>({id,name:c.name}))}
 function commerceDealText(ids){return ids.length?ids.map(id=>'<span class="commerceDealCard">'+commerceCardName(id)+' <button type="button" data-commerce-zoom="'+id+'" aria-label="Voir '+commerceCardName(id)+'">⌕</button></span>').join(', '):'aucune carte'}
@@ -4864,7 +4861,7 @@ function commercialSideText(ids,gold){
  return bits.length?bits.join(' + '):'rien';
 }
 function commerceOpenDeal(id,viewer){
- commerceSetEditor(false);
+ commerceSetEditor(true);
  if(Number.isInteger(viewer))commerceViewerOverride=viewer;
  commerceDraft=null;
  $('commerceOverlay').classList.remove('hidden');
@@ -4906,7 +4903,7 @@ function commerceBind(){
  document.querySelectorAll('[data-cwant]').forEach(b=>b.onclick=()=>commerceToggleCard('wantCards',+b.dataset.cwant,b));
  const gg=$('commerceGiveGold');if(gg){gg.oninput=()=>commerceDraft.giveGold=Math.max(0,Math.min(p(commerceDraft.from).gold,+gg.value||0));gg.onchange=gg.oninput}
  const wg=$('commerceWantGold');if(wg){wg.oninput=()=>commerceDraft.wantGold=Math.max(0,+wg.value||0);wg.onchange=wg.oninput}
- const sb=$('commerceSubmit');if(sb)sb.onclick=commerceSubmit;const cc=$('commerceDraftCancel');if(cc)cc.onclick=()=>{commerceDraft=null;commerceSetEditor(false);renderCommerce()};
+ const sb=$('commerceSubmit');if(sb)sb.onclick=commerceSubmit;const cc=$('commerceDraftCancel');if(cc)cc.onclick=()=>{commerceDraft=null;renderCommerce()};
  document.querySelectorAll('[data-accept]').forEach(b=>b.onclick=()=>commerceAccept(+b.dataset.accept));document.querySelectorAll('[data-refuse]').forEach(b=>b.onclick=()=>commerceRefuse(+b.dataset.refuse));document.querySelectorAll('[data-counter]').forEach(b=>b.onclick=()=>commerceCounter(+b.dataset.counter));document.querySelectorAll('[data-execute]').forEach(b=>b.onclick=()=>commerceExecute(commerceDeals.find(d=>d.id===+b.dataset.execute)));document.querySelectorAll('[data-seen]').forEach(b=>b.onclick=()=>{const d=commerceDeals.find(x=>x.id===+b.dataset.seen);if(d){d.expires=0;d.status='seen';renderCommerce();render();commerceSyncOnline()}});
  document.querySelectorAll('[data-close-deal]').forEach(b=>b.onclick=()=>commerceSetClosed(+b.dataset.closeDeal,true));document.querySelectorAll('[data-reopen-expired]').forEach(b=>b.onclick=()=>commerceReopenExpired(+b.dataset.reopenExpired));
 }
@@ -4920,7 +4917,7 @@ function renderCommerce(){if(!G)return;renderCommerceBoard();const v=commerceVie
 }
 function commerceUpdateTimers(){document.querySelectorAll('[data-commerce-remain]').forEach(el=>{const d=commerceDeals.find(x=>x.id===+el.dataset.commerceRemain);if(!d)return;const remain=d.expires?Math.max(0,Math.ceil((d.expires-Date.now())/1000)):0;if(d.type==='show')el.textContent=remain?remain+' s restantes':'terminé';else el.textContent=p(d.from).name+' ↔ '+p(d.to).name+' — '+(d.status==='pending'?(remain+' s'):d.status)})}
 function commerceUpdateBoardTimers(){document.querySelectorAll('[data-board-commerce-remain]').forEach(el=>{const d=commerceDeals.find(x=>x.id===+el.dataset.boardCommerceRemain);if(!d)return;const b=el.querySelector('b');if(!b)return;const remain=d.expires?Math.max(0,Math.ceil((d.expires-Date.now())/1000)):0;const counter=d.parent?'Contre-proposition #'+d.id:'Proposition #'+d.id;b.textContent=counter+' — '+commerceBoardStatus(d)+(d.status==='pending'&&remain?' · '+remain+' s':'')})}
-function commerceUpdateBar(){if(!G)return;document.querySelectorAll('[data-commerce-board-pause]').forEach(b=>b.classList.add('hidden'));const bar=$('commerceBar');if(bar)bar.style.display='none';document.body.classList.toggle('commerceBattleLocked',!!battle&&commerceBattlePaused);let note=$('commercePauseNotice');if(!note){note=document.createElement('div');note.id='commercePauseNotice';note.className='note';$('playerRail').prepend(note)}note.textContent=battle&&commerceBattlePaused?'commerce en cours - bataille mise en pause':'';note.hidden=!battle||!commerceBattlePaused}
+function commerceUpdateBar(){if(!G)return;document.querySelectorAll('[data-commerce-board-pause]').forEach(b=>b.classList.add('hidden'));const bar=$('commerceBar');if(bar)bar.style.display='none';document.body.classList.remove('commerceBattleLocked');let note=$('commercePauseNotice');if(!note){note=document.createElement('div');note.id='commercePauseNotice';note.className='note';$('playerRail').prepend(note)}note.textContent=commerceBattlePaused?(goldReaction?'commerce en cours - gain d’Or mis en pause':'commerce en cours - bataille mise en pause'):'';note.hidden=!(battle||goldReaction)||!commerceBattlePaused}
 function commerceToggleBattlePause(){}
 function commerceClock(){if(!G)return;let changed=false;const now=Date.now();commerceDeals.forEach(d=>{if(d.expires&&d.expires<=now){d.expires=0;if(d.status==='pending')d.status='expired';else if(d.status==='shown')d.status='seen';changed=true}});if(changed){render();if(!$('commerceOverlay').classList.contains('hidden'))renderCommerce()}else{commerceUpdateBoardTimers();if(!$('commerceOverlay').classList.contains('hidden'))commerceUpdateTimers()}commerceUpdateBar()}
 setInterval(commerceClock,1000);
@@ -5259,11 +5256,11 @@ function onlineLegacyStartGoldViewTimer(){
  clearGoldReactionTimer();
  if(!goldReaction){onlineLegacyGoldViewSeconds=null;return}
  onlineLegacyGoldViewSeconds=Math.max(0,Number(goldReaction.seconds)||0);
- if(goldReaction.pausedByCard)return;
+ if(goldReaction.pausedByCard||commerceBattlePaused)return;
  startGoldReactionSfx();
  goldReactionTick=setInterval(()=>{
    if(!goldReaction){clearGoldReactionTimer();onlineLegacyGoldViewSeconds=null;return}
-   if(goldReaction.pausedByCard)return;
+   if(goldReaction.pausedByCard||commerceBattlePaused)return;
    onlineLegacyGoldViewSeconds=Math.max(0,onlineLegacyGoldViewSeconds-1);
    render();
    if(onlineLegacyGoldViewSeconds<=0)clearGoldReactionTimer();
@@ -5437,7 +5434,7 @@ function onlineLegacyApply(packet){
  onlineLegacyApplying=true;
  const localOnline={code:G.online.code,seed:G.online.seed,mySocketId:onlineSocket&&onlineSocket.id,myPlayerIndex:me,hostId:onlineRoom&&onlineRoom.hostId,legacySync:true,revision:packet.revision};
  const decoded=onlineLegacyDecode(packet.snapshot),next=decoded.g||{};next.online=localOnline;G=next;
- const r=decoded.rule||{};commerceBattlePaused=!!r.commercePaused||commerceEditorOpen;
+ const r=decoded.rule||{};commerceOpenCount=Number(r.commerceEditors)||0;commerceBattlePaused=!!r.commercePaused||((commerceEditorOpen||commerceOpenCount>0)&&!!(r.battle||r.goldReaction));
  movable=r.movable||{};usedDest=r.usedDest instanceof Set?r.usedDest:new Set(r.usedDest||[]);destinationUseCount=r.destinationUseCount||{};attacked=r.attacked instanceof Set?r.attacked:new Set(r.attacked||[]);cycle=r.cycle||1;
  battle=r.battle||null;buildingMode=r.buildingMode||null;portalMode=r.portalMode||null;choiceState=r.choiceState||null;paidDrawState=r.paidDrawState||null;goldReaction=r.goldReaction||null;goldReactionStack=Array.isArray(r.goldReactionStack)?r.goldReactionStack:[];
  shadowState=r.shadowState||null;battleStack=r.battleStack||[];egnoState=r.egnoState||null;returnState=r.returnState||null;dragonRichState=r.dragonRichState||null;dragonCurseState=r.dragonCurseState||null;
@@ -5930,7 +5927,7 @@ function connectOnline(){
   socket.on('legacyState',packet=>{onlineResumeSaveRecovery(packet&&packet.recovery);onlineLegacyApply(packet)});
   socket.on('legacySfx',onlineReceiveSfx);
   socket.on('commercePause',commerceReceivePause);
-  socket.on('disconnect',()=>{commerceEditorOpen=false;commerceDraft=null;$('commerceOverlay').classList.add('hidden')});
+  socket.on('disconnect',()=>{commerceEditorOpen=false;commerceOpenCount=0;commerceBattlePaused=false;commerceDraft=null;$('commerceOverlay').classList.add('hidden')});
  });
 }
 function onlineAck(action,payload){return connectOnline().then(socket=>new Promise((resolve,reject)=>socket.emit(action,payload,res=>{if(res&&res.ok){if(res.recovery)onlineResumeSaveRecovery(res.recovery);resolve(res);return}const err=new Error(res&&res.error||'Erreur serveur.');if(res&&res.current)err.current=res.current;reject(err)})))}
@@ -6012,7 +6009,7 @@ document.addEventListener('pointerdown',e=>{
 });
 
 const cardZoomCloseBtn=$('cardZoomClose');if(cardZoomCloseBtn)cardZoomCloseBtn.onclick=closeOfficialCard;const cardZoomOv=$('cardZoomOverlay');if(cardZoomOv)cardZoomOv.onclick=e=>{if(e.target===cardZoomOv)closeOfficialCard()};
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeOfficialCard()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('cardZoomOverlay').classList.contains('hidden'))closeOfficialCard();else commerceClose()}});
 document.addEventListener('click',e=>{
  const el=e.target.closest('[id*=oracle],[class*=oracle]');if(!el||!G)return;
  const t=(el.textContent||'').toLowerCase();
@@ -6020,11 +6017,12 @@ document.addEventListener('click',e=>{
  else if(t.includes('oracle prochain')){const id=nextOracle();if(id!==null){e.stopPropagation();openOracleCardById(id)}}
 });
 
+$('commerceOverlay').onclick=e=>{if(e.target===$('commerceOverlay'))commerceClose()};
 $('commerceClose').onclick=commerceClose;$('commerceNewOffer').onclick=()=>commerceStart('offer');$('commerceNewAsk').onclick=()=>commerceStart('ask');$('commerceShowCard').onclick=()=>commerceStart('show');
 $('hotseatReveal').onclick=revealHotseatHand;$('oracleNoticePass').onclick=finishOracleNotice;$('dragonSixPass').onclick=finishDragonSixNotice;$('dragonPublicPass').onclick=passDragonPublic;$('dragonCurseContinue').onclick=continueDragonCurse;$('discardPile').onclick=openDiscard;$('deckPile').onclick=()=>{};$('discardClose').onclick=closeDiscard;$('restart').onclick=init;$('victoryRestart').onclick=()=>{audioResetVictory();location.reload()};$('agentClose').onclick=closeAgentModal;$('draw').onclick=doDraw;$('harvest').onclick=doHarvest;$('recruit').onclick=doRecruit;$('resetRecruit').onclick=resetRecruitment;$('endRecruit').onclick=beginPlay;$('toOracle').onclick=toOracle;$('choiceConfirm').onclick=confirmCouncil;$('roll').onclick=roll;
-</script><script src="assets/tutorial.js?v=5"></script>
+</script><script src="assets/tutorial.js?v=6"></script>
 <script src="assets/interaction-safety.js?v=3"></script>
-<script src="assets/party-options.js?v=2"></script>
+<script src="assets/party-options.js?v=3"></script>
 <script src="assets/spectator.js?v=3"></script>
 </body></html>
 
