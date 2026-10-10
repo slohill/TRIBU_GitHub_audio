@@ -12,7 +12,7 @@ const card=v=>Number.isInteger(v)&&v>=0&&v<22?v:null;
 const oracle=v=>Number.isInteger(v)&&v>=0&&v<8?v:null;
 const cards=v=>(Array.isArray(v)?v:[]).slice(0,200).map(card).filter(v=>v!==null);
 const phase=v=>['setup','start','recruit','play','oracleMove','oracleRoll'].includes(v)?v:'play';
-const mapClasses=new Set('spot sea moveAvailable battleLoc stack die battleDicePair battleDie attackerDie defenderDie cityTerrainOverlay snow desert portalIcon buildingIcon fortressIcon cityIcon dragon withUnits withBuildingOnly withUnitsAndBuilding withPnjOnly battleWithDice'.split(' '));
+const mapClasses=new Set('spot sea moveAvailable battleLoc stack die walledDie battleDicePair battleDie attackerDie defenderDie cityTerrainOverlay snow desert portalIcon buildingIcon fortressIcon cityIcon dragon withUnits withBuildingOnly withUnitsAndBuilding withPnjOnly battleWithDice'.split(' '));
 const classes=value=>String(value||'').split(/\s+/).filter(c=>mapClasses.has(c)).join(' ');
 const asset=value=>typeof value==='string'&&/^assets\/images\/(tokens|dice)\/[a-zA-Z0-9_.-]+\.(png|webp)$/.test(value)?value:null;
 function mapNode(node,depth=0){if(!node||depth>5||!['span','img'].includes(node.tag))return null;return {tag:node.tag,classes:classes(node.classes),text:/^\d{1,6}$/.test(node.text)?node.text:'',src:asset(node.src),background:asset(node.background),children:(Array.isArray(node.children)?node.children:[]).slice(0,16).map(n=>mapNode(n,depth+1)).filter(Boolean)}}
@@ -63,11 +63,11 @@ function createPublicActivity({file=process.env.TRIBU_HISTORY_FILE||path.join(__
    if(next.winner!==null&&previous?.winner!==next.winner)add(next.players[next.winner].name+' remporte la partie !');
    next.events=events.slice(-60);states.set(next.id,next);
    if(next.winner!==null&&previous?.winner!==next.winner){
-     archive.add({...summary(next),finishedAt:now(),durationSeconds:Math.max(0,Math.round((now()-next.startedAt)/1000)),winner:next.winner,journal:next.journal.slice(),players:next.players.map(p=>({name:p.name,bot:p.bot,faction:p.faction,score:p.score}))});
+     archive.add({...summary(next),finishedAt:now(),durationSeconds:Math.max(0,Math.round((now()-next.startedAt)/1000)),winner:next.winner,players:next.players.map(p=>({name:p.name,bot:p.bot,faction:p.faction,score:p.score}))});
    }
    return next;
  }
- function list(rooms){const active=[];for(const room of rooms.values()){const state=update(room);if(state&&state.winner===null&&state.connectedHumans>0)active.push(summary(state))}return {games:active.sort((a,b)=>b.startedAt-a.startedAt).slice(0,50),recent:archive.list().slice(-100).reverse().map(({journal,...summary})=>({...summary,hasJournal:!!journal?.length})),historyAvailable:archive.available()}}
+ function list(rooms){const active=[];for(const room of rooms.values()){const state=update(room);if(state&&state.winner===null&&state.connectedHumans>0)active.push(summary(state))}return {games:active.sort((a,b)=>b.startedAt-a.startedAt).slice(0,50),recent:archive.list().slice(-100).reverse(),historyAvailable:archive.available()}}
  return {update,list,attach,get:id=>states.get(id),history:archive.list,ready:archive.ready,flush:archive.flush,close:archive.close};
 }
 module.exports={projectPublicState,createPublicActivity};

@@ -468,7 +468,7 @@ function rejectGameAction(ack, error) {
 
 io.on('connection', socket => {
   socket.emit('serverReady', { ok: true, authority: 'server' });
-  const publicEvents=new Set(['subscribeActivity','spectateGame','leaveSpectator','publicHistory','publicJournal']);
+  const publicEvents=new Set(['subscribeActivity','spectateGame','leaveSpectator','publicHistory']);
   socket.use(([event,...args],next)=>{
     if(socket.data.publicOnly&&!publicEvents.has(event)){
       const ack=args.at(-1);if(typeof ack==='function')ack({ok:false,error:'Le mode spectateur est en lecture seule.'});return;
@@ -497,8 +497,7 @@ io.on('connection', socket => {
   socket.on('leaveSpectator',(_payload,ack=()=>{})=>{leaveSpectator(socket);if(typeof ack==='function')ack({ok:true})});
 
 
-  socket.on('publicJournal',(payload={},ack=()=>{})=>{if(typeof ack!=='function'||!makePublicOnly(ack))return;const record=publicActivity.history().find(r=>r.id===payload?.id);if(!record)return ack({ok:false,error:'Journal introuvable.'});const journal=Array.isArray(record.journal)?record.journal:[],offset=Math.max(0,Math.floor(Number(payload.offset)||0)),rows=journal.slice(offset,offset+100);ack({ok:true,rows,next:offset+rows.length<journal.length?offset+rows.length:null})});
-  socket.on('publicHistory',(payload={},ack=()=>{})=>{if(typeof ack!=='function'||!makePublicOnly(ack))return;const rows=publicActivity.history().slice().reverse();const before=payload?.before;const filtered=before?rows.filter(r=>r.finishedAt<before.at||(r.finishedAt===before.at&&r.id<before.id)):rows;const page=filtered.slice(0,100),last=page.at(-1);ack({ok:true,rows:page.map(({journal,...summary})=>({...summary,hasJournal:!!journal?.length})),next:filtered.length>100&&last?{at:last.finishedAt,id:last.id}:null})});
+  socket.on('publicHistory',(payload={},ack=()=>{})=>{if(typeof ack!=='function'||!makePublicOnly(ack))return;const rows=publicActivity.history().slice().reverse();const before=payload?.before;const filtered=before?rows.filter(r=>r.finishedAt<before.at||(r.finishedAt===before.at&&r.id<before.id)):rows;const page=filtered.slice(0,100),last=page.at(-1);ack({ok:true,rows:page,next:filtered.length>100&&last?{at:last.finishedAt,id:last.id}:null})});
   socket.on('commerceEditing',(payload={},ack=()=>{})=>{const room=roomForSocket(socket);if(!room||!room.legacyMode||humanGameIndex(room,socket.id)<0)return ack({ok:false,error:'Partie indisponible.'});commercePause.set(room,socket.id,payload?.open===true);ack({ok:true})});
   socket.on('createRoom', (payload = {}, ack = () => {}) => {
     leaveCurrentRoom(socket);
