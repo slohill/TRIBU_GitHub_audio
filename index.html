@@ -408,7 +408,6 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 
 /* vOnline UI: Pioche / Défausse utilisent directement .deckCorner, centrée en haut. */
 .oracleCardClickable{cursor:pointer}
-.walledDie{position:relative;overflow:visible!important}.walledDie::before{content:"";position:absolute;pointer-events:none;left:4px;right:4px;top:-3px;height:7px;background:#e4d5ad;border-bottom:2px solid #493b27;filter:drop-shadow(0 -1px 1px #17130c);clip-path:polygon(0 0,20% 0,20% 45%,40% 45%,40% 0,60% 0,60% 45%,80% 45%,80% 0,100% 0,100% 100%,0 100%)}
 .spot .buildingPreview{pointer-events:auto!important;cursor:pointer}.buildingPreview:focus-visible{outline:2px solid #fff;outline-offset:3px}
 </style><link rel="stylesheet" href="assets/tutorial.css?v=2">
 <link rel="stylesheet" href="assets/interaction-safety.css?v=2">
@@ -4307,7 +4306,6 @@ function die(owner,count,region=null){
  const walls=(region!==null&&owner!==G.active)?wallCount(owner):0;
  const shown=(y?count*3:count)+walls;
  d.textContent=shown;
- if(region!==null&&wallCount(owner)>0)d.classList.add('walledDie');
  d.title=(region!==null?'Valeur sur région : ':'Unités : ')+shown+(walls?' (Murs frontaliers +'+walls+')':'');
  return d
 }
@@ -4399,7 +4397,7 @@ function renderMap(){
    const ad=document.createElement('span');ad.className='battleDie attackerDie previewAttacker';ad.style.backgroundImage='url("'+factionDieImage(G.active)+'")';ad.textContent=previewBattleAttackerUnits(id);ad.title=p(G.active).name+' : '+previewBattleAttackerUnits(id)+' unité(s) sélectionnée(s) — choix en cours';
    pair.appendChild(ad);
    previewDefenders.forEach(e=>{
-     const dd=document.createElement('span');dd.className='battleDie defenderDie';if(!isSea(id)&&wallCount(e.owner)>0)dd.classList.add('walledDie');dd.style.backgroundImage='url("'+factionDieImage(e.owner)+'")';
+     const dd=document.createElement('span');dd.className='battleDie defenderDie';dd.style.backgroundImage='url("'+factionDieImage(e.owner)+'")';
      const defUnitValue=e.units*FACTIONS[p(e.owner).faction].def+(isSea(id)?0:wallCount(e.owner));
      dd.textContent=defUnitValue;dd.title=p(e.owner).name+' : '+defUnitValue+' Défense affichée';pair.appendChild(dd);
    });
@@ -4408,7 +4406,7 @@ function renderMap(){
  if(isPvpBattle){
    const pair=document.createElement('span');pair.className='battleDicePair';
    const ad=document.createElement('span');ad.className='battleDie attackerDie';ad.style.backgroundImage='url("'+factionDieImage(battle.attacker)+'")';ad.textContent=battle.attackUnits;ad.title=p(battle.attacker).name+' : '+battle.attackUnits+' unité(s) attaquante(s)';
-   const dd=document.createElement('span');dd.className='battleDie defenderDie';if(wallCount(battle.defender)>0)dd.classList.add('walledDie');dd.style.backgroundImage='url("'+factionDieImage(battle.defender)+'")';
+   const dd=document.createElement('span');dd.className='battleDie defenderDie';dd.style.backgroundImage='url("'+factionDieImage(battle.defender)+'")';
    const defUnitValue=battle.defOriginalUnits*FACTIONS[p(battle.defender).faction].def+wallCount(battle.defender);
    dd.textContent=defUnitValue;dd.title=p(battle.defender).name+' : '+defUnitValue+' Défense affichée';
    pair.appendChild(ad);pair.appendChild(dd);b.appendChild(pair);

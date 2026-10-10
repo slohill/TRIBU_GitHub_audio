@@ -12,7 +12,7 @@ const card=v=>Number.isInteger(v)&&v>=0&&v<22?v:null;
 const oracle=v=>Number.isInteger(v)&&v>=0&&v<8?v:null;
 const cards=v=>(Array.isArray(v)?v:[]).slice(0,200).map(card).filter(v=>v!==null);
 const phase=v=>['setup','start','recruit','play','oracleMove','oracleRoll'].includes(v)?v:'play';
-const mapClasses=new Set('spot sea moveAvailable battleLoc stack die walledDie battleDicePair battleDie attackerDie defenderDie cityTerrainOverlay snow desert portalIcon buildingIcon fortressIcon cityIcon dragon withUnits withBuildingOnly withUnitsAndBuilding withPnjOnly battleWithDice'.split(' '));
+const mapClasses=new Set('spot sea moveAvailable battleLoc stack die battleDicePair battleDie attackerDie defenderDie cityTerrainOverlay snow desert portalIcon buildingIcon fortressIcon cityIcon dragon withUnits withBuildingOnly withUnitsAndBuilding withPnjOnly battleWithDice'.split(' '));
 const classes=value=>String(value||'').split(/\s+/).filter(c=>mapClasses.has(c)).join(' ');
 const asset=value=>typeof value==='string'&&/^assets\/images\/(tokens|dice)\/[a-zA-Z0-9_.-]+\.(png|webp)$/.test(value)?value:null;
 function mapNode(node,depth=0){if(!node||depth>5||!['span','img'].includes(node.tag))return null;return {tag:node.tag,classes:classes(node.classes),text:/^\d{1,6}$/.test(node.text)?node.text:'',src:asset(node.src),background:asset(node.background),children:(Array.isArray(node.children)?node.children:[]).slice(0,16).map(n=>mapNode(n,depth+1)).filter(Boolean)}}
