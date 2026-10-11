@@ -984,10 +984,13 @@ function audioPrimeSfx(){
  ['gold','oracle','dragon','assassin','thief','fail','drums','horn','cardMove','construction'].forEach(name=>{
    audioSfxPool(name).forEach(a=>{try{a.load()}catch(e){}});
  });
- // Ces trois sons peuvent être déclenchés sans geste local : fenêtre d'Or reçue
- // par snapshot, Egnobombe et bataille épique publiques. On déverrouille donc leur
- // premier lecteur pendant le premier geste réel du joueur.
- ['dragon','egnobombe','epicbattle'].forEach(name=>audioUnlockElement(audioSfxPool(name)[0]));
+ // Sur iPad, charger un son ne suffit pas à autoriser sa lecture ultérieure.
+ // Amorcer les lecteurs des effets de bataille et du Dragon lors du premier geste
+ // utilisateur : leurs événements peuvent ensuite arriver depuis le réseau.
+ // Garder les trois lecteurs disponibles pour les sons rapprochés/simultanés.
+ ['drums','horn','dragon'].forEach(name=>audioSfxPool(name).forEach(audioUnlockElement));
+ // Les autres effets asynchrones utilisent leur premier lecteur.
+ ['egnobombe','epicbattle'].forEach(name=>audioUnlockElement(audioSfxPool(name)[0]));
  audioUnlockElement(goldReactionAudio());
  audioUnlockElement(audioTrack('victory'));
 }
