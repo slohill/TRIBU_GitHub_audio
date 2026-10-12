@@ -1275,13 +1275,10 @@ function destroyRichDragonTarget(r){
  const s=dragonRichState,c=G.b[r],owner=s.player;
  G.dragon=r;
  c.units=0;c.owner=null;c.hostile=c.originalHostile;
- if(c.building){
-   if(c.building.type==='Portail')destroyPortalPairAt(r);
-   else{
-     const b=c.building;removeInPlayCard(b.owner,b.cardId);G.discard.push(b.cardId);c.building=null;
-   }
+ if(c.building&&c.building.type!=='Portail'){
+   const b=c.building;removeInPlayCard(b.owner,b.cardId);G.discard.push(b.cardId);c.building=null;
  }
- log('🐉 Le Dragon ravage '+r+' : toutes les unités et le bâtiment éventuel sont détruits.');
+ log('🐉 Le Dragon ravage '+r+' : toutes les unités, forteresses et cités sont détruites. Les Portails sont préservés.');
  dragonRichState=null;clearTopBanner();checkDecimations();
  if(s.pausedBattle&&battle){battle.seconds=s.pausedBattleSeconds??battleReactionSeconds();resumeBattleTimer()}
  continueAfterGold(s.after);
