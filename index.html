@@ -4310,7 +4310,7 @@ function die(owner,count,region=null){
  const y=FACTIONS[G.players[owner].faction].name==='Yonkaïs'&&defending;
  const walls=(region!==null&&owner!==G.active)?wallCount(owner):0;
  if(walls>0)d.classList.add('walledDie');
- const shown=(y?count*3:count)+walls;
+ const shown=(y?count*3:count);
  d.textContent=shown;
  d.title=(region!==null?'Valeur sur région : ':'Unités : ')+shown+(walls?' (Murs frontaliers +'+walls+')':'');
  return d
@@ -4404,7 +4404,7 @@ function renderMap(){
    pair.appendChild(ad);
    previewDefenders.forEach(e=>{
      const dd=document.createElement('span');dd.className='battleDie defenderDie';dd.style.backgroundImage='url("'+factionDieImage(e.owner)+'")';
-     const defUnitValue=e.units*FACTIONS[p(e.owner).faction].def+(isSea(id)?0:wallCount(e.owner));
+     const defUnitValue=e.units*FACTIONS[p(e.owner).faction].def;
      if(!isSea(id)&&wallCount(e.owner)>0)dd.classList.add('walledDie');
      dd.textContent=defUnitValue;dd.title=p(e.owner).name+' : '+defUnitValue+' Défense affichée';pair.appendChild(dd);
    });
@@ -4414,7 +4414,7 @@ function renderMap(){
    const pair=document.createElement('span');pair.className='battleDicePair';
    const ad=document.createElement('span');ad.className='battleDie attackerDie';ad.style.backgroundImage='url("'+factionDieImage(battle.attacker)+'")';ad.textContent=battle.attackUnits;ad.title=p(battle.attacker).name+' : '+battle.attackUnits+' unité(s) attaquante(s)';
    const dd=document.createElement('span');dd.className='battleDie defenderDie';dd.style.backgroundImage='url("'+factionDieImage(battle.defender)+'")';
-   const defUnitValue=battle.defOriginalUnits*FACTIONS[p(battle.defender).faction].def+wallCount(battle.defender);
+   const defUnitValue=battle.defOriginalUnits*FACTIONS[p(battle.defender).faction].def;
    if(wallCount(battle.defender)>0)dd.classList.add('walledDie');
    dd.textContent=defUnitValue;dd.title=p(battle.defender).name+' : '+defUnitValue+' Défense affichée';
    pair.appendChild(ad);pair.appendChild(dd);b.appendChild(pair);
