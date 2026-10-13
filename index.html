@@ -409,6 +409,8 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 /* vOnline UI: Pioche / Défausse utilisent directement .deckCorner, centrée en haut. */
 .oracleCardClickable{cursor:pointer}
 .spot .buildingPreview{pointer-events:auto!important;cursor:pointer}.buildingPreview:focus-visible{outline:2px solid #fff;outline-offset:3px}
+.die.walledDie,.battleDie.walledDie{position:relative;overflow:visible}
+.walledDie::after{content:"";position:absolute;pointer-events:none;left:-25%;top:-15%;width:150%;height:150%;background:url("assets/images/tokens/murs_frontaliers.webp") center/contain no-repeat}
 </style><link rel="stylesheet" href="assets/tutorial.css?v=2">
 <link rel="stylesheet" href="assets/interaction-safety.css?v=2">
 <link rel="stylesheet" href="assets/spectator.css?v=3">
@@ -4306,6 +4308,7 @@ function die(owner,count,region=null){
  const defending=region!==null&&owner!==G.active;
  const y=FACTIONS[G.players[owner].faction].name==='Yonkaïs'&&defending;
  const walls=(region!==null&&owner!==G.active)?wallCount(owner):0;
+ if(walls>0)d.classList.add('walledDie');
  const shown=(y?count*3:count)+walls;
  d.textContent=shown;
  d.title=(region!==null?'Valeur sur région : ':'Unités : ')+shown+(walls?' (Murs frontaliers +'+walls+')':'');
@@ -4401,6 +4404,7 @@ function renderMap(){
    previewDefenders.forEach(e=>{
      const dd=document.createElement('span');dd.className='battleDie defenderDie';dd.style.backgroundImage='url("'+factionDieImage(e.owner)+'")';
      const defUnitValue=e.units*FACTIONS[p(e.owner).faction].def+(isSea(id)?0:wallCount(e.owner));
+     if(!isSea(id)&&wallCount(e.owner)>0)dd.classList.add('walledDie');
      dd.textContent=defUnitValue;dd.title=p(e.owner).name+' : '+defUnitValue+' Défense affichée';pair.appendChild(dd);
    });
    b.appendChild(pair);
@@ -4410,6 +4414,7 @@ function renderMap(){
    const ad=document.createElement('span');ad.className='battleDie attackerDie';ad.style.backgroundImage='url("'+factionDieImage(battle.attacker)+'")';ad.textContent=battle.attackUnits;ad.title=p(battle.attacker).name+' : '+battle.attackUnits+' unité(s) attaquante(s)';
    const dd=document.createElement('span');dd.className='battleDie defenderDie';dd.style.backgroundImage='url("'+factionDieImage(battle.defender)+'")';
    const defUnitValue=battle.defOriginalUnits*FACTIONS[p(battle.defender).faction].def+wallCount(battle.defender);
+   if(wallCount(battle.defender)>0)dd.classList.add('walledDie');
    dd.textContent=defUnitValue;dd.title=p(battle.defender).name+' : '+defUnitValue+' Défense affichée';
    pair.appendChild(ad);pair.appendChild(dd);b.appendChild(pair);
  }
