@@ -700,7 +700,8 @@ io.on('connection', socket => {
     const eligible=Array.isArray(q.eligible)?q.eligible.map(String):[];
     const need=Math.max(0,Math.floor(Number(q.need)||0));
     if(chosen.length!==need||!chosen.every(r=>eligible.includes(r)))return rejectGameAction(ack,'Sélection de sacrifice invalide.');
-    if(!g.b||!chosen.every(r=>g.b[r]&&Number(g.b[r].owner)===index))return rejectGameAction(ack,'Une région sélectionnée ne vous appartient plus.');
+    const engagedOrigin=r=>[rule.battle,...(rule.battleStack||[]).map(x=>x.battle)].some(b=>b&&!b.environmentResolved&&b.attacker===index&&(b.attackOrigins||[]).some(o=>o.region===r&&Array.isArray(o.moves)&&o.moves.length));
+    if(!g.b||!chosen.every(r=>g.b[r]&&(g.b[r].owner===index||engagedOrigin(r))))return rejectGameAction(ack,'Une région sélectionnée ne vous appartient plus.');
     chosen.forEach(r=>{
       const cell=g.b[r];cell.units=0;cell.owner=null;
       // La neutralisation précise des forteresses/cités est déjà calculée côté

@@ -1645,6 +1645,7 @@ function pauseForDivination(){
  if(battle){clearInterval(battleTick);clearTimeout(botReactionTimer)}
 }
 function resumeAfterDivination(s){
+ if(s&&s.parentBattle&&!battle){checkDecimations();if(isDecimated(G.active)){advanceTurn('joueur décimé après Oracle');return}}
  if(s&&s.parentBattle&&battle){
    battle.seconds=s.parentSeconds??battle.seconds??battleReactionSeconds();
    resumeBattleTimer();
@@ -1779,7 +1780,7 @@ function noteComplexAnytimeCard(handIndex){
 }
 
 function egnoEligibleRegions(i){
- return Object.keys(POS).filter(r=>units(r,i)>=5);
+ return Object.keys(POS).filter(r=>unitsAtOrigin(r,i)>=5);
 }
 function invalidateMovementOnDestroyedCase(r){
  // Egnobombe détruit les unités physiques : leurs anciens points de déplacement
@@ -1812,7 +1813,7 @@ function cancelEgnobombe(){
  if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();
 }
 function egnoTargetLegal(r){
- return !!egnoState&&localViewer()===egnoState.player&&units(r,egnoState.player)>=5;
+ return !!egnoState&&localViewer()===egnoState.player&&unitsAtOrigin(r,egnoState.player)>=5;
 }
 function resolveEgnobombe(r){
  if(!egnoTargetLegal(r))return;
@@ -1823,7 +1824,7 @@ function resolveEgnobombe(r){
 
  // La case choisie peut désormais être terrestre OU maritime.
  // Egnobombe détruit toutes les unités présentes sur la case sacrifiée.
- let sacrificed=units(r,actor);
+ let sacrificed=unitsAtOrigin(r,actor);
  if(isSea(r)){
    Object.keys(G.sea[r].fleets).forEach(k=>G.sea[r].fleets[k]=0);
  }else{
@@ -1856,17 +1857,21 @@ function resolveEgnobombe(r){
  egnoState=null;
  clearTopBanner();
 
+ applyBattleRegionDestruction([r,...affected],parent);
  log(p(actor).name+' déclenche Egnobombe en '+r+' : '+sacrificed+' unité(s) sacrifiée(s), unités détruites sur '+affected.join(', ')+'.');checkDecimations();
  announcePublicEvent('egnobombe',actor);
 
  // If a paused battle's defending region was hit, refresh its board-based defense.
- if(parent&&parent.kind==='land'&&affected.includes(parent.target)){
+ if(parent&&!parent.environmentResolved&&parent.kind==='land'&&affected.includes(parent.target)){
    const c=G.b[parent.target],def=parent.defender;
    parent.defOriginalUnits=c.units;
    parent.defenseBase=(c.hostile?5:(def===null?0:c.units*FACTIONS[p(def).faction].def))+buildingDefense(parent.target);
  }
  if(parent){
-   battle=parent;battle.seconds=battleReactionSeconds();resumeBattleTimer();
+   battle=parent;if(!finishDestroyedBattle()){battle.seconds=battleReactionSeconds();resumeBattleTimer()}
+   checkDecimations();
+   if(!battle&&isDecimated(G.active)){advanceTurn('joueur décimé après Egnobombe');return}
+   if(!battle)queueBot('après Egnobombe');
    render();
    if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();
    return;
@@ -1948,7 +1953,7 @@ function shadowTargetLegal(r){
 }
 function consumeShadowUnits(){
  const s=shadowState,actor=s.player;
- s.carriedMove=[];
+ s.carriedMove=[];s.attackOrigins=[];
  for(const [r,n] of Object.entries(s.picks)){
    const c=isSea(r)?null:G.b[r];
 
@@ -1972,6 +1977,7 @@ function consumeShadowUnits(){
      for(let k=0;k<n;k++)s.carriedMove.push(1);
    }
 
+   s.attackOrigins.push({region:r,moves:s.carriedMove.slice(-n)});
    if(isSea(r)){
      const fleets=G.sea[r].fleets||{};
      fleets[actor]=Math.max(0,(fleets[actor]||0)-n);
@@ -1995,6 +2001,7 @@ function chooseShadowTarget(r){
  consumeShadowUnits();
  if(parent&&parent.kind==='land'&&parent.target===r&&parent.attacker===actor){
    parent.attackUnits+=n;
+   parent.attackOrigins=(parent.attackOrigins||[]).concat(s.attackOrigins.map(o=>({region:o.region,moves:o.moves.map(()=>0)})));
    if(Array.isArray(parent.attackMove))for(let k=0;k<n;k++)parent.attackMove.push(0);
    shadowState=null;battle=parent;battle.seconds=s.parentBattleSeconds??battleReactionSeconds();
    log('Section de l’ombre renforce l’attaque en '+r+' avec '+n+' unité(s).');
@@ -2024,7 +2031,7 @@ function chooseShadowTarget(r){
  const hostile=effectiveHostile(r),db=defensiveBuildingAt(r);
  const defender=hostile?null:(c.owner!==null?c.owner:(db&&db.owner!==null?db.owner:null));
  const defBase=(hostile?5:(defender===null?0:c.units*FACTIONS[p(defender).faction].def))+buildingDefense(r);
- battle={kind:'land',target:r,attacker:actor,defender,attackUnits:n,defenseBase:defBase,defOriginalUnits:c.units,epicDefenderUnits:c.units,hostile:hostile,stack:[],seconds:15,reactionSide:'defender',fromShadow:true,shadowMove:(s.carriedMove||[]).slice()};
+ battle={kind:'land',target:r,attacker:actor,defender,attackUnits:n,defenseBase:defBase,defOriginalUnits:c.units,epicDefenderUnits:c.units,hostile:hostile,stack:[],seconds:15,reactionSide:'defender',fromShadow:true,attackOrigins:s.attackOrigins,shadowMove:(s.carriedMove||[]).slice()};
  log('Section de l’ombre ouvre une nouvelle bataille en '+r+' : '+n+' Att contre '+defBase+' Déf.');startReactionWindow();render();
 }
 function resumeBattleTimer(){
@@ -2967,6 +2974,62 @@ function botForceNextTurn(){advanceTurn('failsafe');}
 
 function ownRegs(i=G.active){return Object.values(G.b).filter(c=>c.owner===i).length}
 
+function engagedBattles(){
+ const list=[battle,...battleStack.map(x=>x.battle),egnoState&&egnoState.parentBattle];
+ return [...new Set(list.filter(Boolean))];
+}
+function unitsAtOrigin(region,player){
+ return units(region,player)+engagedBattles().filter(b=>!b.environmentResolved&&b.attacker===player).reduce((n,b)=>n+(b.attackOrigins||[]).filter(o=>o.region===region).reduce((v,o)=>v+o.moves.length,0),0);
+}
+function engagedAt(region,player){
+ return engagedBattles().some(b=>!b.environmentResolved&&b.attacker===player&&(b.attackOrigins||[]).some(o=>o.region===region&&o.moves.length));
+}
+function engagedUnitCount(player){
+ return engagedBattles().filter(b=>!b.environmentResolved&&b.attacker===player).reduce((n,b)=>n+(b.attackUnits||0),0);
+}
+function applyBattleRegionDestruction(regions,onlyBattle=null){
+ const hit=new Set(regions);
+ const list=onlyBattle?[onlyBattle,...battleStack.map(x=>x.battle)]:engagedBattles();
+ for(const b of new Set(list)){
+   if(!b||b.environmentResolved||b.kind==='seaChoice')continue;
+   const origins=b.attackOrigins||[];
+   const lost=origins.filter(o=>hit.has(o.region)).reduce((n,o)=>n+o.moves.length,0);
+   if(lost){
+     b.attackOrigins=origins.filter(o=>!hit.has(o.region));
+     b.attackUnits=Math.max(0,b.attackUnits-lost);
+     const moves=b.attackOrigins.flatMap(o=>o.moves);
+     if(b.fromShadow)b.shadowMove=moves;else b.attackMove=moves;
+     log(lost+' unité(s) attaquante(s) détruite(s) dans leur région d’origine.');
+   }
+   if(b.attackUnits>0&&!hit.has(b.target))continue;
+   if(b.attackUnits>0){
+     if(b.kind==='land'){
+       const c=G.b[b.target];c.owner=b.attacker;c.units=b.attackUnits;c.hostile=false;
+       if(c.building&&['Forteresse','Icenia, la cité blanche','Sundo, cité du soleil'].includes(c.building.type))transferBuildingCard(c.building,b.attacker);
+     }else G.sea[b.target].fleets[b.attacker]=(G.sea[b.target].fleets[b.attacker]||0)+b.attackUnits;
+     if(b.attacker===G.active)movable[b.target]=(movable[b.target]||[]).concat((b.fromShadow?b.shadowMove:b.attackMove)||[]);
+     log(p(b.attacker).name+' conquiert '+b.target+' avec '+b.attackUnits+' survivant(s) après la destruction.');
+   }else log('Bataille en '+b.target+' annulée : aucun attaquant survivant.');
+   (b.stack||[]).forEach(x=>G.discard.push(x.cardId));b.stack=[];
+   b.environmentResolved=true;
+ }
+}
+function finishDestroyedBattle(){
+ if(!battle||!battle.environmentResolved)return false;
+ clearInterval(battleTick);clearHotseatReaction();recordDestinationUse(battle.target);hideBattle();
+ const shadow=!!battle.fromShadow;battle=null;
+ if(shadow&&battleStack.length){
+   const paused=battleStack.pop();battle=paused.battle;battle.seconds=paused.seconds??battleReactionSeconds();
+   if(!finishDestroyedBattle())resumeBattleTimer();
+ }else audioBattleEnd();
+ return true;
+}
+function finishOracleBattleDestruction(state){
+ if(!state||state.battleDestructionApplied)return;
+ state.battleDestructionApplied=true;
+ applyBattleRegionDestruction(state.queues.flatMap(q=>q.chosen||[]));
+ finishDestroyedBattle();
+}
 function isDecimated(i){return !!G.players[i].decimated}
 function discardPlayerAssets(i){
  const pl=G.players[i],keep=new Set();
@@ -2977,7 +3040,7 @@ function discardPlayerAssets(i){
 }
 function checkDecimations(){
  G.players.forEach((pl,i)=>{
-   if(!pl.decimated&&totalUnits(i)===0){
+   if(!pl.decimated&&totalUnits(i)===0&&engagedUnitCount(i)===0){
      pl.decimated=true;discardPlayerAssets(i);
      log('☠ '+pl.name+' a été décimé !');
    }
@@ -3598,8 +3661,8 @@ function validate(){
  commitMovement(n,null);
 }
 function consumePickedSources(){
- const carried=[];
- for(const [s,q] of Object.entries(picks))carried.push(...takeMovers(s,q));
+ const carried=[];carried.origins=[];
+ for(const [s,q] of Object.entries(picks)){const moves=takeMovers(s,q);carried.push(...moves);if(moves.length)carried.origins.push({region:s,moves:moves.slice()})}
  return carried;
 }
 function commitMovement(n,seaDefender){
@@ -3634,7 +3697,7 @@ function commitMovement(n,seaDefender){
  if(tutorial.active&&tutorial.step===7)tutorial.step=8;
  if(isSea(target)){
    if(seaDefender!==null && seaDefender!==undefined){
-     startSeaBattle(target,n,seaDefender,carried);
+     startSeaBattle(target,n,seaDefender,carried,carried.origins);
      dest=null;picks={};render();return;
    }
    G.sea[target].fleets[G.active]=(G.sea[target].fleets[G.active]||0)+n;
@@ -3651,7 +3714,7 @@ function commitMovement(n,seaDefender){
    log(p().name+' récupère '+label+' vide en '+target+', sans bataille.');
    log(n+' unité(s) rejoignent '+target+'.');
  }else if(enemyRegion(target)){
-   startLandBattle(target,n,carried);
+   startLandBattle(target,n,carried,carried.origins);
    dest=null;picks={};render();return;
  }else{
    const c=G.b[target];
@@ -3700,22 +3763,22 @@ function openSeaChoice(n){
  cancel.onclick=()=>{hideBattle();battle=null};
  actions.appendChild(cancel);
 }
-function startLandBattle(target,n,attackMove=[]){
+function startLandBattle(target,n,attackMove=[],attackOrigins=[]){
  const c=G.b[target],hostile=effectiveHostile(target),db=defensiveBuildingAt(target);
  const defender=hostile?null:(c.owner!==null?c.owner:(db&&db.owner!==null?db.owner:null));
  const defBase=(hostile?5:(defender===null?0:c.units*FACTIONS[p(defender).faction].def))+buildingDefense(target);
  attacked.add(target);
- battle={kind:'land',target,attacker:G.active,defender,attackUnits:n,defenseBase:defBase,defOriginalUnits:c.units,epicDefenderUnits:c.units,hostile:hostile,stack:[],seconds:15,reactionSide:'defender',attackMove:attackMove.slice()};
+ battle={kind:'land',target,attacker:G.active,defender,attackUnits:n,defenseBase:defBase,defOriginalUnits:c.units,epicDefenderUnits:c.units,hostile:hostile,stack:[],seconds:15,reactionSide:'defender',attackOrigins,attackMove:attackMove.slice()};
  log('Bataille terrestre en '+target+' : '+n+' Att contre '+defBase+' Déf.');
  audioBattleBegin();
  startReactionWindow();
 }
-function startSeaBattle(target,n,defender,attackMove=[]){
+function startSeaBattle(target,n,defender,attackMove=[],attackOrigins=[]){
  const defUnits=G.sea[target].fleets[defender]||0;
  const defCoeff=FACTIONS[p(defender).faction].def;
  const defBase=defUnits*defCoeff;
  attacked.add(target);
- battle={kind:'sea',target,attacker:G.active,defender,attackUnits:n,defenseBase:defBase,defOriginalUnits:defUnits,epicDefenderUnits:defUnits,hostile:false,stack:[],seconds:15,reactionSide:'defender',attackMove:attackMove.slice()};
+ battle={kind:'sea',target,attacker:G.active,defender,attackUnits:n,defenseBase:defBase,defOriginalUnits:defUnits,epicDefenderUnits:defUnits,hostile:false,stack:[],seconds:15,reactionSide:'defender',attackOrigins,attackMove:attackMove.slice()};
  log('Bataille maritime en '+target+' : '+n+' Att contre '+defBase+' Déf ('+defUnits+' unité(s) ×'+defCoeff+').');
  audioBattleBegin();
  startReactionWindow();
@@ -4048,7 +4111,7 @@ function beginOracleSacrifices(terrain,name,protectedBuilding){
  const queues=[];
  G.players.forEach((pl,i)=>{
    if(playerImmuneToOracle(i,name)){log(p(i).name+' est immunisé à '+name+'.');return}
-   const regs=Object.keys(G.b).filter(r=>G.b[r].owner===i&&currentTerrain(r)===terrain);
+   const regs=Object.keys(G.b).filter(r=>(G.b[r].owner===i||engagedAt(r,i))&&currentTerrain(r)===terrain);
    const need=Math.ceil(regs.length/2);
    const eligible=regs.filter(r=>!(cityAt(r)&&cityAt(r).type===protectedBuilding));
    if(need&&eligible.length)queues.push({player:i,name,need:Math.min(need,eligible.length),eligible,chosen:[],done:false});
@@ -4075,7 +4138,7 @@ function oracleSacrificeAllDone(){
 }
 function finishSimultaneousOracleSacrifice(){
  if(!oracleSacrificeAllDone())return false;
- oracleState=null;oracleSacrificeLocalPicks=[];
+ finishOracleBattleDestruction(oracleState);oracleState=null;oracleSacrificeLocalPicks=[];
  checkDecimations();finishOracleResolution();render();completeOracleResolution();
  return true;
 }
@@ -4085,7 +4148,7 @@ function advanceOracleSacrifice(){
    oracleState.queues.forEach(q=>{
      if(!q.done&&G.players[q.player].bot){
        const picks=q.eligible
-         .filter(r=>G.b[r].owner===q.player&&currentTerrain(r)===(q.name==='Givre mortel'?'e':'d'))
+         .filter(r=>(G.b[r].owner===q.player||engagedAt(r,q.player))&&currentTerrain(r)===(q.name==='Givre mortel'?'e':'d'))
          .sort((a,b)=>G.b[a].units-G.b[b].units)
          .slice(0,q.need);
        picks.forEach(destroyUnitsOnRegion);q.chosen=picks;q.done=true;
@@ -4099,15 +4162,15 @@ function advanceOracleSacrifice(){
    const q=oracleState.queues[oracleState.index];
    if(!G.players[q.player].bot){render();return}
    const picks=q.eligible
-     .filter(r=>G.b[r].owner===q.player&&currentTerrain(r)===(q.name==='Givre mortel'?'e':'d'))
+     .filter(r=>(G.b[r].owner===q.player||engagedAt(r,q.player))&&currentTerrain(r)===(q.name==='Givre mortel'?'e':'d'))
      .sort((a,b)=>G.b[a].units-G.b[b].units)
      .slice(0,q.need);
-   picks.forEach(destroyUnitsOnRegion);
+   picks.forEach(destroyUnitsOnRegion);q.chosen=picks;
    log(p(q.player).name+' sacrifie '+(picks.length?picks.join(', '):'aucune région')+'.');
    oracleState.index++;
  }
  if(oracleState&&oracleState.index>=oracleState.queues.length){
-   oracleState=null;checkDecimations();finishOracleResolution();render();completeOracleResolution();
+   finishOracleBattleDestruction(oracleState);oracleState=null;checkDecimations();finishOracleResolution();render();completeOracleResolution();
  }
 }
 let oracleSacrificeSyncPending=false,oracleSacrificeLocalPicks=[];
