@@ -1505,7 +1505,7 @@ function startAssassin(handIndex){
  const actor=localViewer(),id=G.players[actor].hand[handIndex];
  if(id===undefined||CARDS[id].name!=='Assassin'||isDecimated(actor))return;
  const targets=assassinTargets(actor);
- if(!targets.length){log('Assassin : aucun Agent adverse à cibler.');render();return}
+ if(!targets.length){render();return}
  // Ouvrir le choix de cible ne joue pas encore Assassin : le chrono d'Or continue.
  agentModalState={kind:'assassin',actor,handIndex,cardId:id};
  pauseGameForPriorityCard();
@@ -1570,7 +1570,7 @@ function startCaravan(handIndex){
  if(pausedBattle){clearInterval(battleTick);clearTimeout(botReactionTimer)}
  const revealed=[];
  for(let k=0;k<caravanRevealCount();k++){const x=drawOneToPool();if(x!==null)revealed.push(x)}
- if(!revealed.length){if(pausedBattle)resumeBattleTimer();log('Caravane de commerce : aucune carte disponible.');render();return}
+ if(!revealed.length){if(pausedBattle)resumeBattleTimer();render();return}
  const currentIndex=G.players[actor].hand.indexOf(id);
  if(currentIndex<0){if(revealed.length)G.deck.push(...revealed.reverse());if(pausedBattle)resumeBattleTimer();render();return}
  discardHandCard(actor,currentIndex);
@@ -1674,7 +1674,7 @@ function resetRecruitmentForPriorityCard(actor,label){
  G.players[recruiter].gold=recruitSnapshot.gold;
  Object.keys(recruitSnapshot.units).forEach(r=>G.b[r].units=recruitSnapshot.units[r]);
  const who=(actor===recruiter?'':(' jouée par '+p(actor).name));
- log(label+who+' interrompt le recrutement de '+p(recruiter).name+' : recrutement remis à zéro (Or et unités restaurés), puis résolution prioritaire.');
+ 
  return true;
 }
 function resetRecruitmentForDivination(s){return !!s&&resetRecruitmentForPriorityCard(s.actor,'Divination de l’Oracle')}
@@ -1775,7 +1775,7 @@ function divinationSetVisible(oracleId){
 function noteComplexAnytimeCard(handIndex){
  const v=localViewer(),id=G.players[v].hand[handIndex];if(id===undefined)return;
  const c=CARDS[id];
- log(c.name+' est jouable maintenant. Sa résolution complète sera intégrée avec son effet.',false);
+ 
  render();
 }
 
@@ -1798,7 +1798,7 @@ function startEgnobombe(handIndex){
  if(goldReaction)pauseGoldReactionForCard();
  egnoState={player:actor,cardId:id,parentBattle:battle||null,parentSeconds:battle?battle.seconds:null};
  pauseGameForPriorityCard();
- log(p(actor).name+' prépare Egnobombe : choisissez une case où vous avez au moins 5 unités, région ou aire maritime.');
+ 
  render();
  if(G&&G.online&&G.online.legacySync)onlineLegacyPushPriorityCardNow();
 }
@@ -1806,7 +1806,7 @@ function cancelEgnobombe(){
  if(!egnoState||localViewer()!==egnoState.player)return;
  const s=egnoState;egnoState=null;
  clearTopBanner();
- log('Egnobombe annulée : la carte reste en main.');
+ 
  if(s.parentBattle){battle=s.parentBattle;battle.seconds=battleReactionSeconds();resumeBattleTimer()}
  render();
  resumeGameAfterPriorityCard('reprise après annulation Egnobombe');
@@ -1910,7 +1910,7 @@ function startShadow(handIndex){
  clearInterval(shadowTick);
  shadowState={stage:'gather',player:actor,cardId:id,handIndex,seconds:20,picks:{},parentBattle:battle||null,parentBattleSeconds:battle?battle.seconds:null};
  pauseGameForPriorityCard();
- log(p(actor).name+' prépare une action secrète.');
+ 
  if(!isHotseatMode())shadowTick=setInterval(()=>{if(!shadowState||shadowState.stage!=='gather'){clearInterval(shadowTick);return}shadowState.seconds--;if(shadowState.seconds<=0){cancelShadow(true);return}const detail=$('battleBanner')&&$('battleBanner').querySelector('.battleDetail');if(detail&&localViewer()===shadowState.player)detail.textContent='Préparation : '+shadowState.seconds+' s — choisissez 1 à 6 unités sur vos régions ou aires maritimes.'},1000);
  render();
  if(G&&G.online&&G.online.legacySync)onlineLegacyPushPriorityCardNow();
@@ -1931,14 +1931,14 @@ function shadowAll(r){
 function cancelShadow(timeout=false){
  if(!shadowState)return;clearInterval(shadowTick);
  const s=shadowState;shadowState=null;
- if(timeout)log('Section de l’ombre annulée après 20 secondes : la carte reste en main et les unités restent en place.');
- else log('Section de l’ombre annulée : la carte reste en main et les unités restent en place.');
+ 
+ 
  if(s.parentBattle){battle=s.parentBattle;battle.seconds=s.parentBattleSeconds??battleReactionSeconds();resumeBattleTimer()}render();queueBot('reprise après Section annulée');
 }
 function validateShadowUnits(){
  if(!shadowState||shadowState.stage!=='gather'||shadowTotal()<1)return;
  clearInterval(shadowTick);shadowState.stage='target';shadowState.units=shadowTotal();
- log(p(shadowState.player).name+' révèle Section de l’ombre avec '+shadowState.units+' unité(s). Choisissez maintenant la région cible.');render();
+ render();
 }
 function shadowTargetLegal(r){
  if(!shadowState||shadowState.stage!=='target'||isSea(r))return false;
@@ -2413,20 +2413,20 @@ function beginPortals(handIndex){
  if(portalMode||buildingMode||choiceState)return;
  const found=cardFromViewerHand(handIndex,'Portails');if(!found)return;
  portalMode={cardId:found.id,first:null,owner:found.viewer};dest=null;picks={};
- log('Portails : choisissez une première région terrestre sans bâtiment.');render();
+ render();
 }
 function cancelPortals(){
  if(!portalMode)return;
  const first=portalMode.first;
  portalMode=null;
- log(first?'Pose des Portails annulée après sélection de '+first+'. La carte reste en main.':'Pose des Portails annulée. La carte reste en main.');
+ 
  clearTopBanner();
  render();
 }
 function canPortalRegion(r){return portalMode&&!isSea(r)&&!hasBuilding(r)&&portalMode.first!==r}
 function choosePortalRegion(r){
  if(!canPortalRegion(r))return;
- if(!portalMode.first){portalMode.first=r;log('Premier Portail : '+r+'. Choisissez la seconde région.');render();return}
+ if(!portalMode.first){portalMode.first=r;render();return}
  const a=portalMode.first,b=r,id=portalMode.cardId,owner=portalMode.owner,idx=G.players[owner].hand.indexOf(id);
  if(idx<0){portalMode=null;clearTopBanner();render();return}
  G.players[owner].hand.splice(idx,1);G.players[owner].inPlay.push(id);
@@ -2508,7 +2508,7 @@ function beginBuildingPlacement(handIndex){
  const name=CARDS[id].name;
  if(!['Forteresse','Icenia, la cité blanche','Sundo, cité du soleil'].includes(name))return;
  buildingMode={type:name,cardId:id};dest=null;picks={};
- log(name+' : choisissez une région valide sans bâtiment.');render();
+ render();
 }
 function cancelBuildingPlacement(){buildingMode=null;render()}
 function canPlaceBuilding(r){
@@ -3439,7 +3439,7 @@ function playBattleCardForOwner(owner,handIndex){
 
   const legality=battleCardLegality(id,owner);
   if(!legality.ok){
-    log(cardDef(id).name+' non jouable : '+legality.reason,false);
+    
     renderBattle();render();
     return;
   }
