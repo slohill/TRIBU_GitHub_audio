@@ -4406,6 +4406,37 @@ function floatingActionPosition(target){
  return [x+best.dx,y+best.dy];
 }
 
+function renderSacrificeOriginLinks(){
+ map.querySelectorAll('.sacrificeOriginLinks').forEach(el=>el.remove());
+ if(!oracleState||oracleState.kind!=='sacrifice'||!battle||battle.environmentResolved)return;
+ const q=oracleSacrificeQueueFor(localViewer());
+ if(!q||q.player!==localViewer()||battle.attacker!==q.player)return;
+ const chosen=oracleState.simultaneous?oracleSacrificeLocalPicks:q.chosen||[];
+ const target=map.querySelector('[data-region="'+battle.target+'"] .attackerDie');
+ if(!target)return;
+ const box=map.getBoundingClientRect();if(!box.width||!box.height)return;
+ const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');
+ svg.classList.add('sacrificeOriginLinks');svg.setAttribute('aria-hidden','true');
+ svg.setAttribute('viewBox','0 0 '+box.width+' '+box.height);
+ svg.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:19;overflow:visible';
+ const seen=new Set();
+ for(const o of battle.attackOrigins||[]){
+   if(!o.moves.length||seen.has(o.region)||!q.eligible.includes(o.region)||chosen.includes(o.region))continue;
+   seen.add(o.region);
+   const source=map.querySelector('[data-region="'+o.region+'"]');if(!source)continue;
+   const a=source.getBoundingClientRect(),b=target.getBoundingClientRect();
+   const sx=a.x+a.width/2-box.x,sy=a.y+a.height/2-box.y,tx=b.x+b.width/2-box.x,ty=b.y+b.height/2-box.y;
+   const dx=tx-sx,dy=ty-sy,len=Math.hypot(dx,dy),start=Math.max(a.width,a.height)/2+5,end=Math.max(b.width,b.height)/2+1;
+   if(len<=start+end)continue;
+   const line=document.createElementNS(ns,'line');
+   line.setAttribute('x1',sx+dx/len*start);line.setAttribute('y1',sy+dy/len*start);
+   line.setAttribute('x2',tx-dx/len*end);line.setAttribute('y2',ty-dy/len*end);
+   line.setAttribute('stroke','#8b5cf6');line.setAttribute('stroke-width','3');line.setAttribute('stroke-linecap','round');
+   svg.appendChild(line);
+ }
+ if(svg.childElementCount)map.appendChild(svg);
+}
+window.addEventListener('resize',()=>requestAnimationFrame(renderSacrificeOriginLinks));
 function renderMap(){
  const suggestedMoves=new Set(movementSuggestionTargets());
  map.querySelectorAll('.spot,.floatActions,.dragonRestart').forEach(x=>x.remove());
@@ -4552,6 +4583,7 @@ function renderMap(){
  map.appendChild(b);
 });
  if(G.phase==='play'&&dest&&!shadowState){const xy=POS[dest],box=document.createElement('div');box.className='floatActions';const fp=floatingActionPosition(dest);box.style.left=fp[0]+'%';box.style.top=fp[1]+'%';box.innerHTML='<button class="no">✕</button><button class="yes">✓ '+selected()+'</button>';const bs=box.querySelectorAll('button');bs[0].onclick=()=>{dest=null;picks={};render()};bs[1].onclick=validate;bs[1].disabled=selected()===0;map.appendChild(box)}
+ renderSacrificeOriginLinks();
 }
 
 let pinnedPlayer=null;
