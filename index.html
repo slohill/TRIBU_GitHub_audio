@@ -4408,10 +4408,12 @@ function floatingActionPosition(target){
 
 function renderSacrificeOriginLinks(){
  map.querySelectorAll('.sacrificeOriginLinks').forEach(el=>el.remove());
- if(!oracleState||oracleState.kind!=='sacrifice'||!battle||battle.environmentResolved)return;
+ if(!battle||battle.environmentResolved)return;
+ const bomb=!!egnoState&&egnoState.player===localViewer();
  const q=oracleSacrificeQueueFor(localViewer());
- if(!q||q.player!==localViewer()||battle.attacker!==q.player)return;
- const chosen=oracleState.simultaneous?oracleSacrificeLocalPicks:q.chosen||[];
+ if(!bomb&&(!q||q.player!==localViewer()||battle.attacker!==q.player))return;
+ const eligible=bomb?[...new Set(egnoEligibleRegions(egnoState.player).flatMap(r=>[r,...neighbors(r)]))]:q.eligible;
+ const chosen=bomb?[]:(oracleState.simultaneous?oracleSacrificeLocalPicks:q.chosen||[]);
  const target=map.querySelector('[data-region="'+battle.target+'"] .attackerDie');
  if(!target)return;
  const box=map.getBoundingClientRect();if(!box.width||!box.height)return;
@@ -4421,7 +4423,7 @@ function renderSacrificeOriginLinks(){
  svg.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:19;overflow:visible';
  const seen=new Set();
  for(const o of battle.attackOrigins||[]){
-   if(!o.moves.length||seen.has(o.region)||!q.eligible.includes(o.region)||chosen.includes(o.region))continue;
+   if(!o.moves.length||seen.has(o.region)||!eligible.includes(o.region)||chosen.includes(o.region))continue;
    seen.add(o.region);
    const source=map.querySelector('[data-region="'+o.region+'"]');if(!source)continue;
    const a=source.getBoundingClientRect(),b=target.getBoundingClientRect();
