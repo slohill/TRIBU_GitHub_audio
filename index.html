@@ -5536,7 +5536,7 @@ function onlineLegacyApply(packet){
  // un état local plus récent qu'un snapshot serveur venant juste d'être confirmé.
  // Ne pas réappliquer visuellement cet état intermédiaire : on avance seulement la
  // révision, puis le debounce publiera l'état local complet le plus récent.
- const localRecruitDirty=(G.phase==='recruit'||G.phase==='play')&&G.active===G.online.myPlayerIndex&&!priorityCardResolutionActive()&&onlineLegacyCanPublish()&&onlineLegacyDigest()!==onlineLegacyLastDigest;
+ const localRecruitDirty=!goldReaction&&!packet.snapshot.rule?.goldReaction&&(G.phase==='recruit'||G.phase==='play')&&G.active===G.online.myPlayerIndex&&!priorityCardResolutionActive()&&onlineLegacyCanPublish()&&onlineLegacyDigest()!==onlineLegacyLastDigest;
  if(localRecruitDirty&&Number.isInteger(packet.revision)&&packet.revision>=onlineLegacyRevision){
    onlineLegacyRevision=packet.revision;G.online.revision=packet.revision;return;
  }
@@ -5856,6 +5856,11 @@ function onlineLegacyMaybePush(){
      onlineLegacyRevision=Math.max(onlineLegacyRevision,res.revision||0);G.online.revision=onlineLegacyRevision;
 
    }).catch(err=>{
+     // A gold reaction may have been intercepted or resolved by another player.
+     // Never replay a whole older snapshot over that accepted transaction.
+     if(err&&err.current&&(snapshot.rule?.goldReaction||err.current.snapshot?.rule?.goldReaction)){
+       onlineLegacyLastDigest='';onlineLegacyApply(err.current);return;
+     }
      // Un conflit de révision pendant le recrutement ne doit jamais réinjecter un
      // ancien compteur d'unités. Rejouer le snapshot capturé sur la révision reçue.
      if(snapshot&&snapshot.g&&(snapshot.g.phase==='recruit'||snapshot.g.phase==='play')&&err&&err.current&&retries>0&&Number.isInteger(err.current.revision)){
