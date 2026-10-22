@@ -2043,6 +2043,7 @@ function resumeBattleTimer(){
  if(G&&G.online&&G.online.legacySync&&onlineLegacyPriorityWasActive&&!priorityCardResolutionActive())return;
  if(!isHotseatMode()&&onlineLegacyOwnsBattlePriority())battleTick=setInterval(()=>{if(!battle||commerceBattlePaused)return;battle.seconds--;renderBattle();if(battle.seconds<=0){if(G&&G.online&&G.online.legacySync)clearInterval(battleTick);passPriority()}},1000);
  showBattle();renderBattle();
+ if(G&&G.online&&G.online.legacySync&&!onlineLegacyOwnsBattlePriority())onlineLegacyResumeBattleView();
  if(!isHotseatMode()&&onlineLegacyOwnsBattlePriority())prepareCurrentBattleReaction();
 }
 function renderShadowBanner(){
@@ -3367,6 +3368,7 @@ function startReactionWindow(){
   },1000);
   showBattle();
   renderBattle();
+  if(G&&G.online&&G.online.legacySync&&!onlineLegacyOwnsBattlePriority())onlineLegacyResumeBattleView();
 }
 function prepareCurrentBattleReaction(){
  if(!battle||isHotseatMode())return;
@@ -3402,6 +3404,7 @@ function advancePriority(resetPasses){
   if(resetPasses) battle.consecutivePasses=0;
   battle.priorityIndex=(battle.priorityIndex+1)%battle.priorityOrder.length;
   battle.seconds=battleReactionSeconds();
+  if(G&&G.online&&G.online.legacySync)onlineLegacyResumeBattleView();
 }
 function passPriority(){
   // Une résolution prioritaire suspend réellement la fenêtre de réaction : son chrono
@@ -3586,7 +3589,8 @@ function renderBattle(){
     $('priorityInfo').innerHTML=p(priority).name.toUpperCase()+' PEUT RÉAGIR<br><span style="font-size:12px;font-weight:500">'+
       (spectatorPriority?'Jouez une carte depuis votre main ou passez.':'Jouez directement une carte depuis votre main, ou passez.')+
       '</span>';
-    $('priorityTimer').textContent=battle.seconds+' s';
+    const viewSeconds=G&&G.online&&G.online.legacySync&&!onlineLegacyOwnsBattlePriority()?onlineLegacyBattleViewSeconds:null;
+    $('priorityTimer').textContent=viewSeconds===null?battle.seconds+' s':(viewSeconds>0?viewSeconds+' s':'En attente…');
     const participant=priority===battle.attacker||priority===battle.defender;
     if(!isBot(priority)){
       const mayReact=!G.online||!G.online.legacySync||priority===localViewer();
@@ -5600,6 +5604,7 @@ function onlineLegacyResumeBattleView(){
  const priority=currentPriorityPlayer(),me=G.online&&G.online.myPlayerIndex;
  const myHumanPriority=Number.isInteger(priority)&&priority===me&&G.players[priority]&&!G.players[priority].bot;
  if(myHumanPriority){
+   onlineLegacyBattleViewSeconds=null;
    battleTick=setInterval(()=>{
      if(!battle){clearInterval(battleTick);hideBattle();return}
      if(commerceBattlePaused)return;
@@ -5614,6 +5619,7 @@ function onlineLegacyResumeBattleView(){
  }
  // Spectateur : le chrono affiché descend, mais l'état canonique reste intact.
  onlineLegacyBattleViewSeconds=Math.max(0,Number(battle.seconds)||0);
+ renderBattle();
  battleTick=setInterval(()=>{
    if(!battle){clearInterval(battleTick);hideBattle();return}
    if(commerceBattlePaused)return;
