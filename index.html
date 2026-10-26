@@ -474,7 +474,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
   <button id="startBtn" hidden>DÉMARRER LA PARTIE</button>
 </div></section>
 <div id="game" class="hidden">
-<header><b id="gamePointsTitle">partie à 3 points</b><span class="badge" id="playerCountBadge">mode test</span><button id="gameHelpBtn">Aide de jeu</button><button id="restart">Recommencer</button><div class="audioControls"><button id="musicToggle" title="Activer ou couper les musiques">🎵 Musique</button><button id="sfxToggle" title="Activer ou couper les sons et bruitages">🔊 Sons</button></div></header>
+<header><b id="gamePointsTitle">partie à 3 points</b><span class="badge" id="playerCountBadge">mode test</span><button id="gameHelpBtn">Aide de jeu</button><button id="restart">Recommencer</button><button id="resyncGame" class="hidden" title="Récupérer l’état enregistré de la partie et relancer son affichage">Resynchroniser la partie</button><span id="resyncStatus" role="status" aria-live="polite"></span><div class="audioControls"><button id="musicToggle" title="Activer ou couper les musiques">🎵 Musique</button><button id="sfxToggle" title="Activer ou couper les sons et bruitages">🔊 Sons</button></div></header>
 <main>
 <div class="playerRail" id="playerRail"></div>
 <div class="boardCol">
@@ -5308,7 +5308,7 @@ function onlineRefreshPlayUi(){
 }
 function onlinePseudo(){const input=$('onlinePseudo');let v=(input&&input.value||'').trim();if(!v){v=ONLINE_RANDOM_NAMES[Math.floor(Math.random()*ONLINE_RANDOM_NAMES.length)];if(input)input.value=v}return v}
 function showOnlineScreen(id){document.querySelectorAll('.onlineScreen').forEach(x=>x.classList.add('hidden'));$(id).classList.remove('hidden')}
-function launchLegacyMode(mode,victory=3){const topRestart=$('restart');if(topRestart)topRestart.classList.remove('hidden');COLORS.splice(0,COLORS.length,...BASE_COLORS);$('gameMode').value=mode;$('victoryMode').value=String(victory);$('start').classList.add('hidden');$('game').classList.remove('hidden');init()}
+function launchLegacyMode(mode,victory=3){$('resyncGame').classList.add('hidden');$('resyncStatus').textContent='';const topRestart=$('restart');if(topRestart)topRestart.classList.remove('hidden');COLORS.splice(0,COLORS.length,...BASE_COLORS);$('gameMode').value=mode;$('victoryMode').value=String(victory);$('start').classList.add('hidden');$('game').classList.remove('hidden');init()}
 function onlineModeLabel(mode){return ({'2v3-online':'2 joueurs vs 3 bots','3v2-online':'3 joueurs vs 2 bots','3h':'3 joueurs','4h':'4 joueurs','5h':'5 joueurs'})[mode]||mode}
 let onlineWelcomeShownKey=null,onlineWelcomeActive=false,onlineWelcomeTimer=null;
 function onlineShowGameWelcome(state){
@@ -5540,7 +5540,7 @@ function onlineLegacyApply(packet){
  // un état local plus récent qu'un snapshot serveur venant juste d'être confirmé.
  // Ne pas réappliquer visuellement cet état intermédiaire : on avance seulement la
  // révision, puis le debounce publiera l'état local complet le plus récent.
- const localRecruitDirty=!goldReaction&&!packet.snapshot.rule?.goldReaction&&(G.phase==='recruit'||G.phase==='play')&&G.active===G.online.myPlayerIndex&&!priorityCardResolutionActive()&&onlineLegacyCanPublish()&&onlineLegacyDigest()!==onlineLegacyLastDigest;
+ const localRecruitDirty=!battle&&!packet.snapshot.rule?.battle&&!goldReaction&&!packet.snapshot.rule?.goldReaction&&(G.phase==='recruit'||G.phase==='play')&&G.active===G.online.myPlayerIndex&&!priorityCardResolutionActive()&&onlineLegacyCanPublish()&&onlineLegacyDigest()!==onlineLegacyLastDigest;
  if(localRecruitDirty&&Number.isInteger(packet.revision)&&packet.revision>=onlineLegacyRevision){
    onlineLegacyRevision=packet.revision;G.online.revision=packet.revision;return;
  }
@@ -5864,7 +5864,7 @@ function onlineLegacyMaybePush(){
    }).catch(err=>{
      // A gold reaction may have been intercepted or resolved by another player.
      // Never replay a whole older snapshot over that accepted transaction.
-     if(err&&err.current&&(snapshot.rule?.goldReaction||err.current.snapshot?.rule?.goldReaction)){
+     if(err&&err.current&&(snapshot.rule?.goldReaction||err.current.snapshot?.rule?.goldReaction||snapshot.rule?.battle||err.current.snapshot?.rule?.battle)){
        onlineLegacyLastDigest='';onlineLegacyApply(err.current);return;
      }
      // Un conflit de révision pendant le recrutement ne doit jamais réinjecter un
@@ -5899,6 +5899,7 @@ function onlineLegacyViewerNeedsMap(me){
  return me===G.active;
 }
 function onlineLegacyLockControls(){
+ const syncButton=$('resyncGame');if(syncButton)syncButton.classList.toggle('hidden',!G?.online?.legacySync);
  if(!G||!G.online||!G.online.legacySync)return;
  const me=G.online.myPlayerIndex,mine=me===G.active&&!G.players[me].bot;
  const cardPause=priorityCardResolutionActive()||onlineLegacyRecoveryPending;
@@ -6054,6 +6055,34 @@ function connectOnline(){
  });
 }
 function onlineAck(action,payload){return connectOnline().then(socket=>new Promise((resolve,reject)=>socket.emit(action,payload,res=>{if(res&&res.ok){if(res.recovery)onlineResumeSaveRecovery(res.recovery);resolve(res);return}const err=new Error(res&&res.error||'Erreur serveur.');if(res&&res.current)err.current=res.current;reject(err)})))}
+let onlineManualResyncPending=false;
+async function onlineResynchroniseGame(){
+ if(onlineManualResyncPending||!G?.online?.legacySync)return;
+ const button=$('resyncGame'),status=$('resyncStatus'),game=$('game');
+ if(onlineLegacyPriorityTerminalPending||onlineLegacyRecoveryPending){status.textContent='Une action se termine. Réessayez dans un instant.';return}
+ if(!onlineSocket?.connected){status.textContent='Connexion interrompue. Attendez son retour puis réessayez.';return}
+ onlineManualResyncPending=true;button.disabled=true;status.textContent='Resynchronisation…';
+ // Read only: never publish this client's potentially stale board as a repair.
+ onlineLegacyRecoveryPending=true;game.inert=true;
+ clearTimeout(onlineLegacyPushTimer);onlineLegacyPushTimer=null;
+ clearInterval(battleTick);clearTimeout(botReactionTimer);clearGoldReactionTimer();
+ clearInterval(paidDrawTick);clearTimeout(botTimer);botTimer=null;botToken++;
+ onlineLegacyLockControls();
+ const bounded=promise=>new Promise((resolve,reject)=>{const timeout=setTimeout(()=>reject(new Error('Le serveur ne répond pas. Réessayez dans quelques instants.')),8000);Promise.resolve(promise).then(resolve,reject).finally(()=>clearTimeout(timeout))});
+ try{
+   // Let an already sent action finish before requesting its accepted state.
+   if(onlineLegacyPendingPush)await bounded(onlineLegacyPendingPush);
+   const full=await bounded(onlineAck('requestLegacyState',{}));
+   if(!full?.snapshot)throw new Error('La partie enregistrée est indisponible.');
+   if(Number(full.revision)>=onlineLegacyRevision)onlineLegacyApply({snapshot:full.snapshot,revision:full.revision,youIndex:full.youIndex});
+   status.textContent='Partie resynchronisée.';
+ }catch(error){status.textContent=error.message||'Resynchronisation impossible. Réessayez.'}
+ finally{
+   onlineLegacyRecoveryPending=false;onlineManualResyncPending=false;button.disabled=false;game.inert=false;
+   onlineLegacyLockControls();onlineLegacyResumeBattleView();onlineLegacyResumeGoldView();onlineLegacyEnsureBotProgress();
+   if(paidDrawState&&paidDrawState.player===G.online.myPlayerIndex&&!paidDrawState.pausedByCard)startPaidDrawTimer();
+ }
+}
 function onlineLegacyCanAutoRecover(err){
  return !!(err&&err.message==='Synchronisation complète indisponible.'&&G&&G.online&&G.online.legacySync&&!onlineLegacyRecoveryPending&&!onlineLegacyRecoveryAttempted&&onlineResumeRead());
 }
@@ -6142,7 +6171,7 @@ document.addEventListener('click',e=>{
 
 $('commerceOverlay').onclick=e=>{if(e.target===$('commerceOverlay'))commerceClose()};
 $('commerceClose').onclick=commerceClose;$('commerceNewOffer').onclick=()=>commerceStart('offer');$('commerceNewAsk').onclick=()=>commerceStart('ask');$('commerceShowCard').onclick=()=>commerceStart('show');
-$('hotseatReveal').onclick=revealHotseatHand;$('oracleNoticePass').onclick=finishOracleNotice;$('dragonSixPass').onclick=finishDragonSixNotice;$('dragonPublicPass').onclick=passDragonPublic;$('dragonCurseContinue').onclick=continueDragonCurse;$('discardPile').onclick=openDiscard;$('deckPile').onclick=()=>{};$('discardClose').onclick=closeDiscard;$('restart').onclick=init;$('victoryRestart').onclick=()=>{audioResetVictory();location.reload()};$('agentClose').onclick=closeAgentModal;$('draw').onclick=doDraw;$('harvest').onclick=doHarvest;$('recruit').onclick=doRecruit;$('resetRecruit').onclick=resetRecruitment;$('endRecruit').onclick=beginPlay;$('toOracle').onclick=toOracle;$('choiceConfirm').onclick=confirmCouncil;$('roll').onclick=roll;
+$('hotseatReveal').onclick=revealHotseatHand;$('oracleNoticePass').onclick=finishOracleNotice;$('dragonSixPass').onclick=finishDragonSixNotice;$('dragonPublicPass').onclick=passDragonPublic;$('dragonCurseContinue').onclick=continueDragonCurse;$('discardPile').onclick=openDiscard;$('deckPile').onclick=()=>{};$('discardClose').onclick=closeDiscard;$('restart').onclick=init;$('resyncGame').onclick=onlineResynchroniseGame;$('victoryRestart').onclick=()=>{audioResetVictory();location.reload()};$('agentClose').onclick=closeAgentModal;$('draw').onclick=doDraw;$('harvest').onclick=doHarvest;$('recruit').onclick=doRecruit;$('resetRecruit').onclick=resetRecruitment;$('endRecruit').onclick=beginPlay;$('toOracle').onclick=toOracle;$('choiceConfirm').onclick=confirmCouncil;$('roll').onclick=roll;
 </script><script src="assets/tutorial.js?v=7"></script>
 <script src="assets/interaction-safety.js?v=3"></script>
 <script src="assets/party-options.js?v=3"></script>
