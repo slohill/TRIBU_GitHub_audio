@@ -158,7 +158,11 @@ function tutorialCapture(e){
  if(e.type==='click'&&tutorial.helpOpen){tutorialCloseHelp();e.preventDefault();e.stopImmediatePropagation();return}
  if(e.type==='keydown'&&!['Enter',' '].includes(e.key))return;
  if(tutorialAllows(e.target))return;
- e.preventDefault();e.stopImmediatePropagation();
+ // Keep the browser's native pan/zoom gesture, but stop game press handlers.
+ // The subsequent click remains blocked, so scrolling cannot bypass the step.
+ const gestureStart=e.type==='touchstart'||(e.type==='pointerdown'&&e.pointerType==='touch');
+ if(!gestureStart)e.preventDefault();
+ e.stopImmediatePropagation();
 }
 // Capture all activation routes, including long press and keyboard-generated clicks.
 ['click','pointerdown','mousedown','touchstart','keydown','contextmenu'].forEach(type=>document.addEventListener(type,tutorialCapture,{capture:true,passive:false}));
