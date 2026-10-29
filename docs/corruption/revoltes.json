@@ -1,0 +1,73 @@
+{
+  "name": "Révoltes",
+  "count": 1,
+  "deck": "Oracle",
+  "image": "assets/images/cards/revoltes.webp",
+  "zoomRules": [
+    "Chaque joueur.euse faisant 3 ou 4 au dé doit choisir une Région du.de la joueur.euse ayant activé les révoltes et en retirer au choix une ou deux unités."
+  ],
+  "outsideZoomRules": [
+    "À l’activation, mémoriser le joueur X qui active Révoltes. Ses unités clignotent en rouge tant que Révoltes est l’Oracle actif.",
+    "Chaque lancer de dé donnant 3 ou 4 (Voleur, Oracle, Assassin, attaque Ogres et futurs héros) déclenche une réaction après résolution de la capacité initiale.",
+    "Le joueur ayant lancé le dé choisit une seule région du joueur X, y compris s’il est lui-même X, puis retire une ou deux unités : un clic pour une unité, deux clics pour deux unités, confirmation OK.",
+    "Après confirmation, tous les joueurs reçoivent une annonce de type Oracle avec son : Révolte : Le royaume de joueur X est en proie à de violentes rébellions ! Durée 5 secondes ou Passer, puis reprise du jeu.",
+    "Correction utilisateur : les 10 secondes concernent uniquement l’encart expliquant l’action. Ensuite le joueur dispose d’un temps illimité pour effectuer Révoltes ; aucune expiration du choix ni validation automatique. Les autres actions attendent la fin de la réaction.",
+    "Confirmation utilisateur : les aires maritimes et les flottes du joueur X sont également éligibles, pas seulement ses régions terrestres.",
+    "Confirmation utilisateur : si Révoltes retire la dernière unité du défenseur dans la région attaquée, appliquer la conquête par les attaquants survivants sauf retour d’un PNJ, avec ou sans bâtiment (exception précisée ci-dessous).",
+    "Confirmation utilisateur : le joueur peut choisir de retirer une seule unité même si deux sont disponibles, y compris lorsqu’il vise ses propres unités.",
+    "Confirmation utilisateur : après résolution de la capacité initiale du lancer, vérifier que Révoltes est toujours l’Oracle actif ; si elle a été remplacée, ne pas ouvrir d’action Révoltes.",
+    "Confirmation utilisateur : Passer ferme uniquement les encarts d’information ; il ne permet pas d’éviter le retrait obligatoire. Si le joueur visé n’a plus aucune unité éligible, reprendre directement la partie.",
+    "Confirmation utilisateur : une région vidée retrouve son PNJ et lui rend son bâtiment éventuel selon les règles legacy applicables aux régions PNJ. En bataille, appliquer la conquête par les attaquants survivants lorsqu’elle est prévue.",
+    "Précision utilisateur : Révoltes doit déjà être dans Oracle actif au moment du lancer donnant 3 ou 4. Aucun déclenchement rétroactif pour un lancer antérieur, notamment lors d’une activation ultérieure par Divination. Conserver également la vérification après résolution initiale : si Révoltes a été remplacée, ne pas ouvrir la réaction.",
+    "Confirmation utilisateur : si Révoltes élimine tous les attaquants, terminer la bataille et défausser ses cartes de combat ; sinon poursuivre avec l’effectif réduit.",
+    "Correction validée : pendant l’action Révoltes, des traits rouges relient une région d’origine à chacun de ses groupes attaquants. Les dés des batailles en cours et suspendues restent visibles et cliquables. Le joueur choisit librement entre unités restées dans la région et unités engagées : une unité dans deux groupes ou deux dans un même groupe, puis OK. Limite totale de une ou deux unités rattachées à une seule région d’origine. Cette règle remplace toute priorité automatique de retrait.",
+    "Clarification utilisateur : après résolution signifie après l’effet de la carte/action ayant provoqué le lancer, jamais après la fin de la bataille. Le chrono de bataille est mis en pause pendant Révoltes ; la bataille reprend ensuite si elle existe encore.",
+    "Clarification utilisateur : aucune carte ni autre action de jeu ne peut être jouée pendant la résolution de Révoltes. Ne pas prévoir de remplacement/réactivation de l’Oracle au milieu de cette réaction.",
+    "Clarification utilisateur : aucun héros ne lance plusieurs dés en même temps ; ne pas ajouter de règle de dés simultanés pour les héros.",
+    "Interface validée : boutons OK et Changer son choix dans la colonne de droite. Les pertes restent une sélection provisoire jusqu’à OK ; Changer son choix permet de refaire la sélection sans perte préalable.",
+    "Correction utilisateur prioritaire : si Révoltes vide une région PNJ portant une forteresse, le PNJ reprend la région et la forteresse. Aucune conquête automatique : la bataille continue contre 15 de défense (5 PNJ + 10 forteresse). Les cartes d’attaque déjà utilisées restent en compte et ne sont pas défaussées à ce changement de défenseur.",
+    "Clarification utilisateur prioritaire : toute région PNJ vidée retrouve automatiquement son PNJ. La bataille continue contre 5 de défense sans bâtiment, ou 15 avec une cité ou une forteresse. Aucune conquête automatique sur ces régions ; cartes d’attaque déjà utilisées conservées.",
+    "Confirmation utilisateur : lors du retour PNJ après élimination du défenseur par Révoltes, les cartes de défense déjà jouées par le joueur délogé sont défaussées. Les cartes d’attaque restent actives et la bataille continue contre le PNJ."
+  ],
+  "visualProposal": "Halo rouge pulsant autour des dés, sans masquer les valeurs.",
+  "pendingClarifications": [],
+  "status": "prepared_not_integrated",
+  "instructionDurationSeconds": 10,
+  "selectionTimeLimitSeconds": null,
+  "includesSeaFleets": true,
+  "activationRollQuestion": "Résolu explicitement : aucun lancer antérieur à l’activation ne déclenche Révoltes, y compris si Divination active ensuite cet Oracle.",
+  "withdrawalPriority": "player_selects_stationed_or_committed_groups",
+  "oneUnitChoiceAllowedWhenTwoAvailable": true,
+  "passSkipsInformationOnly": true,
+  "checkOracleStillActiveAfterInitialResolution": true,
+  "noEligibleUnits": "resume_without_revolt_action",
+  "requiresActiveAtRollTime": true,
+  "retroactiveTriggers": false,
+  "originSelection": {
+    "singleOriginPerReaction": true,
+    "maxTotalUnits": 2,
+    "allowSplitAcrossGroups": true,
+    "includePausedBattles": true,
+    "originLinkColor": "red",
+    "requireConfirmation": true
+  },
+  "resolutionTiming": "after_triggering_card_or_action_before_battle_resumes",
+  "pauseBattleClock": true,
+  "blockOtherGameActionsDuringRevolt": true,
+  "selectionControls": {
+    "location": "right_column",
+    "confirm": "OK",
+    "reset": "Changer son choix",
+    "applyLossesOnlyOnConfirmation": true
+  },
+  "simultaneousHeroDice": false,
+  "npcRevolt": {
+    "npcRetakesRegion": true,
+    "defenseWithoutBuilding": 5,
+    "defenseWithCityOrFortress": 15,
+    "continueExistingBattle": true,
+    "keepPlayedAttackCards": true,
+    "automaticConquest": false,
+    "discardDisplacedDefenderBattleCards": true
+  }
+}

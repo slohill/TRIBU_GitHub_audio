@@ -1,0 +1,94 @@
+{
+  "name": "Le golem des temps anciens",
+  "type": "Agent — Héros",
+  "count": 1,
+  "faction": "Reptones",
+  "image": "assets/images/cards/golem_des_temps_anciens.webp",
+  "abilities": [
+    {
+      "name": "Violence aveugle",
+      "kind": "active",
+      "zoomText": "Lancez un dé, supprimez autant d’unités que le résultat du dé sur une Région non adjacente aux vôtres."
+    },
+    {
+      "name": "L’appel prophétique",
+      "kind": "passive_faction",
+      "zoomText": "Vous pouvez recruter sur la mer de feu pour un d’or : 3 unités."
+    }
+  ],
+  "outsideZoomRules": [
+    "Appliquer les règles communes des héros, notamment activation différée et capacité active pendant sa propre phase de jeu une fois par tour.",
+    "Pendant une bataille, mettre le chrono en pause ; traits noirs reliant les groupes attaquants à leur région source.",
+    "Sélectionner les pertes par clics sur les unités rattachées à une seule région, puis OK ; permettre de recommencer le choix.",
+    "Si le résultat du dé dépasse les unités disponibles dans la région choisie, supprimer seulement les unités disponibles (exemple : 6 au dé, 2 unités disponibles => 2 pertes).",
+    "Confirmations utilisateur : héros Reptone ; Violence aveugle cible uniquement les régions terrestres, non adjacentes à toutes les régions du joueur, Portails compris.",
+    "Confirmations utilisateur : un seul exemplaire du Golem, comme chaque héros ; lancer le dé avant de sélectionner la cible ; recrutement en mer de feu uniquement pendant la phase de recrutement, avec plafond habituel.",
+    "Confirmation utilisateur : recrutement en mer de feu autorisé malgré une flotte adverse ; coexistence sans bataille automatique.",
+    "Confirmation utilisateur : si le plafond ne laisse qu’une ou deux places, payer 1 Or pour recruter seulement les unités autorisées.",
+    "Confirmation utilisateur : Violence aveugle est consommée dès le lancer ; impossible d’annuler pour relancer. Changer son choix conserve le résultat et permet seulement de modifier la cible et la sélection des unités.",
+    "Confirmation utilisateur : reprendre les règles de pertes de Révoltes, avec choix entre unités présentes et engagées d’une même région ; retour PNJ à 5 ou 15 de défense et maintien des cartes d’attaque si la bataille continue.",
+    "Confirmation utilisateur : sans cible légale, interdire le lancer de Violence aveugle.",
+    "Confirmation utilisateur : un 3 ou 4 au dé de Violence aveugle peut déclencher Révoltes si cet Oracle est actif. Appliquer les règles Révoltes confirmées : actif lors du lancer, terminer Violence aveugle (validation et application des pertes), puis réaction Révoltes avant reprise de la bataille, avec vérification que l’Oracle est toujours actif.",
+    "Confirmation utilisateur : les aires maritimes où le joueur possède une flotte comptent également pour la non-adjacence de Violence aveugle. Toute région terrestre reliée à une telle aire par les liaisons habituelles de la carte est une cible interdite.",
+    "Demande utilisateur : lors de Violence aveugle, afficher sur les régions éligibles des halos noirs, selon le même système visuel que la sélection des sacrifices de Givre mortel. Conserver les traits noirs vers les groupes attaquants rattachés aux régions sources.",
+    "Confirmation utilisateur : une région vidée parce que toutes ses unités sont engagées dans une attaque reste considérée comme une région du joueur pour vérifier la non-adjacence de Violence aveugle. Même règle pour une aire maritime vidée par l’engagement de sa flotte.",
+    "Confirmation utilisateur : Violence aveugle vise des unités de joueurs, jamais la défense abstraite de 5 des PNJ. Une région occupée uniquement par un PNJ n’est pas une cible valide."
+  ],
+  "pendingClarifications": [],
+  "status": "prepared_not_integrated",
+  "activeTargetRules": {
+    "landOnly": true,
+    "mustBeNonAdjacentToEveryOwnedRegion": true,
+    "portalAdjacencyCounts": true,
+    "ownedFleetSeaAdjacencyCounts": true,
+    "committedUnitOriginsCountForAdjacency": true,
+    "committedFleetOriginsCountForAdjacency": true,
+    "requiresPlayerUnits": true,
+    "npcDefenseIsNotDestroyableUnits": true
+  },
+  "targetSelectionTiming": "after_die_result",
+  "recruitmentRules": {
+    "phase": "recruit",
+    "normalUnitCapApplies": true,
+    "goldCost": 1,
+    "units": 3,
+    "location": "mer de feu",
+    "requiresFaction": "Reptones",
+    "enemyFleetsDoNotBlock": true,
+    "coexistWithoutAutomaticBattle": true,
+    "partialRecruitmentAtCapAllowed": true,
+    "partialRecruitmentGoldCost": 1
+  },
+  "activeUsageRules": {
+    "requiresLegalTargetBeforeRoll": true,
+    "consumedOnRoll": true,
+    "cannotCancelToReroll": true,
+    "changeChoiceKeepsRoll": true,
+    "changeChoiceAllowsTargetAndUnitSelection": true
+  },
+  "battleLossRules": {
+    "singleOriginPerUse": true,
+    "playerChoosesStationedOrCommittedUnits": true,
+    "npcReturnsWhenEmptied": true,
+    "npcDefenseWithoutBuilding": 5,
+    "npcDefenseWithCityOrFortress": 15,
+    "keepAttackCardsIfBattleContinues": true,
+    "inheritConfirmedRevoltBattleLossRules": true
+  },
+  "revoltInteraction": {
+    "triggerResults": [
+      3,
+      4
+    ],
+    "requiresRevoltsActiveAtRoll": true,
+    "resolveAfterViolenceLossesConfirmedAndApplied": true,
+    "checkRevoltsStillActiveBeforeReaction": true,
+    "resumeBattleAfterRevolt": true
+  },
+  "targetSelectionVisuals": {
+    "pattern": "Oracle sacrifice selection (Givre mortel)",
+    "eligibleRegionHaloColor": "black",
+    "showDuringViolenceAveugleTargetSelection": true,
+    "attackerOriginLinkColor": "black"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "name": "Portail — extension Corruption",
+  "additionalCardCount": 1,
+  "tokenImage": "assets/images/tokens/portail2.webp",
+  "abilities": "Identiques à celles de la carte Portail existante ; utiliser le moteur legacy.",
+  "pairingRules": [
+    "Les deux cartes Portail sont indépendantes : chacune possède sa propre paire de pions et de régions liées.",
+    "Un portail de la première carte ne permet pas de rejoindre un portail de la seconde carte.",
+    "Les pions de la seconde carte utilisent Portail2 pour distinguer visuellement les deux paires."
+  ],
+  "implementationRequirements": [
+    "Identifier les liens par carte/paire, sans regrouper tous les portails en un réseau unique.",
+    "Conserver les règles existantes pour chaque paire et vérifier toutes les utilisations des liens de portail lors de l’intégration."
+  ],
+  "status": "prepared_not_integrated",
+  "audit": {
+    "main": "1b78756c0e02bf03fe38eb1fcefa8e7e80eece7b",
+    "dimensionsBoth": [
+      516,
+      516
+    ],
+    "alphaBoundsBoth": [
+      65,
+      40,
+      437,
+      466
+    ],
+    "legacyPairFixtureTests": "Passed separate adjacency, recruitment, no Dragon teleport, Oracle Dragon local unit destruction preserving portals, isolated pair removal. Not integrated multiplayer validation.",
+    "remainingIntegration": "Select second token image by distinct card identity; same portalIcon CSS and legacy handlers.",
+    "existingException": "Correction déjà publiée dans le jeu de base : le Dragon à 40 Or préserve les Portails."
+  },
+  "oneBuildingPerRegionIncludingPortal": true,
+  "dragonUsesPortal": false,
+  "dragonDestroysPortal": false
+}

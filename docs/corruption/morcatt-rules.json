@@ -1,0 +1,40 @@
+{
+  "status": "specified_not_integrated",
+  "harvest": "Reveal one TRIBU card per player including bots and Morcatt; refill from discard normally",
+  "preparation": {
+    "allCardsPublic": true,
+    "pricesLive": true,
+    "minimumGold": 1,
+    "timeout": null,
+    "startButton": "Lancer les enchères",
+    "disconnect": "Persist and wait for owner to reconnect",
+    "lockPricesOnStart": true
+  },
+  "auction": {
+    "order": "Draw order, one card at a time",
+    "sellerMayBid": false,
+    "seconds": 30,
+    "restartOnBid": true,
+    "passResetsOnNewBid": true,
+    "incrementMinimum": 1,
+    "limit": "Current gold",
+    "finish": "Timer expires or all other eligible bidders pass",
+    "unaffordableStartingPrice": "Immediately unsold",
+    "payment": "Immediately once per sale",
+    "award": "Immediately into hand",
+    "unsold": "Discard; subtract 1 from harvest"
+  },
+  "harvestTotal": "max(0, normal harvest including dwarf bonuses + sales - unsold); start normal gold reaction after final sale; Embuscade redirects all; Corruption may remove pending dwarf bonuses",
+  "trading": "Proposals, viewing, showing cards allowed; trade validation forbidden throughout auction",
+  "cardPlay": "Blocked from reveal through final sale; zoom and close remain available",
+  "bots": {
+    "startingPrice": 1,
+    "singletonStartingPrice": 5,
+    "bidCap": 3,
+    "singletonBidCap": 10,
+    "bid": "Minimum needed, bounded by available gold",
+    "singleton": "Copies in selected version deck, not remaining draw pile"
+  },
+  "mapMessage": "Enchères Morcatt en cours : Faites un tour dans Commerce ↓",
+  "location": "Morcatt Commerce row"
+}

@@ -1,0 +1,38 @@
+{
+  "status": "prepared_not_integrated",
+  "type": "Agent — Héros",
+  "heroCount": 5,
+  "oneHeroPerFaction": true,
+  "maxInPlayPerPlayer": 1,
+  "assassinCanTarget": true,
+  "canBeStolenWhileInPlay": false,
+  "playFromHandTiming": "Pendant la phase de jeu de son propriétaire uniquement.",
+  "abilityTiming": "Capacités actives utilisables uniquement pendant la phase de jeu du propriétaire, au plus tôt lors de sa prochaine phase de jeu après la pose. Passifs effectifs à partir du début de son prochain tour.",
+  "abilityFrequency": "Capacités actives : une fois par tour. Passifs : selon le texte propre à chaque héros, sans activation manuelle.",
+  "abilities": "Deux capacités : une accessible à toute faction, une seconde réservée à la faction correspondante et généralement passive ; préciser pour chaque héros.",
+  "returnToHandAfterUsingAbilityAllowed": true,
+  "replacement": {
+    "requiresConfirmation": true,
+    "oldHeroDestination": "owner_hand",
+    "message": "Vous ne pouvez avoir qu’un seul Héros en jeu. Celui en jeu va regagner votre main. Êtes-vous sûr.e de vouloir le remplacer ?"
+  },
+  "pendingClarifications": [],
+  "passiveActivationTiming": "start_of_owner_next_turn_after_placement",
+  "activeActivationTiming": "owner_next_play_phase_after_placement",
+  "returnToHandTiming": "owner_play_phase_only",
+  "replayResetsActivationDelay": true,
+  "copiesPerHero": 1,
+  "inactiveHeroVisual": {
+    "newlyPlacedHeroGreyedOut": true,
+    "appliesToAllHeroes": true,
+    "replayedHeroGreyedOutAgain": true,
+    "purpose": "Signaler le délai initial avant activation des capacités.",
+    "doesNotChangeAbilityTiming": true
+  },
+  "bots": {
+    "playHeroes": true,
+    "usePassives": true,
+    "activateAbilities": false,
+    "returnHeroesToHand": false
+  }
+}

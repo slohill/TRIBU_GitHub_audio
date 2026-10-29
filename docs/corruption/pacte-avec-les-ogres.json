@@ -1,0 +1,29 @@
+{
+  "name": "Pacte avec les Ogres",
+  "count": 1,
+  "type": "Alliance",
+  "tribe": "ogres",
+  "image": "assets/images/cards/pacte_avec_les_ogres.webp",
+  "zoomRules": [
+    "Vous pouvez conquérir les ogres sans combattre.",
+    "Tant que vous contrôlez les Ogres, une fois par tour, durant une bataille, vous pouvez lancer le dé :",
+    "+X d’attaque sur cette bataille, X étant le résultat du dé. Chaque région adjacente à la bataille perd 1 unité."
+  ],
+  "requiresAllianceInPlay": true,
+  "requiresControlledOgreRegion": true,
+  "dieSides": 6,
+  "usesPerPlayerTurn": 1,
+  "outsideZoomRules": [
+    "Pendant une bataille, activer la carte dans En jeu lance un dé de 6 et ajoute son résultat en attaque pour cette bataille.",
+    "Une fois la bataille terminée, quel que soit le gagnant, chaque région terrestre adjacente à la région attaquée perd 1 unité. Les aires maritimes sont exclues.",
+    "Corruption pendant la bataille peut annuler le bonus d’attaque et les pertes adjacentes associées.",
+    "Une Section de l’ombre peut également engager cette capacité.",
+    "Confirmation utilisateur : activation en attaque uniquement, y compris avec une Section de l’ombre ; jamais en défense.",
+    "Confirmation utilisateur : les pertes touchent toutes les régions terrestres adjacentes occupées sans distinction, y compris celles de l’utilisateur et des joueurs hors bataille ; les aires maritimes restent exclues.",
+    "Confirmation utilisateur : si Corruption annule le pouvoir après le lancer, son utilisation reste consommée pour le tour en cours."
+  ],
+  "status": "prepared_not_integrated",
+  "attackOnly": true,
+  "adjacentLossAppliesToAllPlayers": true,
+  "useRemainsConsumedIfCorrupted": true
+}

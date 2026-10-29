@@ -1,0 +1,101 @@
+{
+  "name": "Guide Ancestrale",
+  "type": "Agent — Héros",
+  "count": 1,
+  "faction": "Yonkaï",
+  "image": "assets/images/cards/guide_ancestrale.webp",
+  "abilities": [
+    {
+      "name": "Divination",
+      "kind": "active_start_of_turn",
+      "zoomText": "Au début de chacun de vos tours vous pouvez regarder et changer l'ordre des 3 prochaines cartes Oracle"
+    },
+    {
+      "name": "Culture des bâtisseurs",
+      "kind": "passive_faction",
+      "zoomText": "Si vous êtes Yonkaï, les cités, les forteresses et les murs frontaliers valent 0 face à vos unités"
+    }
+  ],
+  "outsideZoomRules": [
+    "Règles communes des héros applicables ; Divination est explicitement proposée au début du tour, avant le choix Pioche/Récolte/Recrutement, exception à la fenêtre habituelle des actifs.",
+    "Bouton rouge Divination sous les trois actions de début de tour : premier clic explication, second ouverture des trois cartes ; choix des positions 1, 2, 3, bouton grisé après utilisation. Le joueur peut choisir directement une action de début de tour sans utiliser Divination.",
+    "Confirmation utilisateur : Divination appartient exclusivement au détenteur de la Guide Ancestrale ; lui seul dispose du bouton et peut utiliser le pouvoir, à partir du début de son prochain tour après mise en jeu. Culture des bâtisseurs reste la capacité réservée aux Yonkaïs.",
+    "Confirmation utilisateur : tout joueur possédant la Guide Ancestrale en jeu peut utiliser Divination, quelle que soit sa faction, dans la fenêtre et après le délai validés. Cette capacité est distincte de la carte Divination de l’Oracle ; ne pas confondre leurs règles ou leur utilisation.",
+    "Validation utilisateur : toutes les précisions proposées sur la fenêtre du début de tour, le classement privé et modifiable, la suspension des autres actions, le renouvellement Oracle et les attaques de Section de l’ombre sont acceptées. Divination est renouvelée à chaque début de tour du détenteur, après le délai initial de pose.",
+    "Confirmation utilisateur : toutes les cartes Oracle incluent explicitement l’Oracle actif, qui est renvoyé à la pioche lors de ce renouvellement.",
+    "Confirmation utilisateur : lorsque le renouvellement de la pioche reprend l’Oracle actif, ses effets persistants cessent immédiatement, son emplacement reste vide jusqu’à la prochaine activation et ses effets déjà résolus ne sont pas annulés.",
+    "Confirmation utilisateur : un bot détenteur utilise automatiquement Divination à chaque début de tour éligible, choisit un ordre aléatoire et ne déclenche aucune fenêtre de choix ni attente de clic humain.",
+    "Confirmation utilisateur : terminer les sacrifices Oracle obligatoires avant de rendre Divination disponible. Pendant ces sacrifices, la possibilité de jouer des cartes est temporairement bloquée pour tous les joueurs.",
+    "Précision utilisateur : le blocage pendant les sacrifices Oracle concerne Divination et toutes les autres cartes et capacités activables, pour tous les joueurs."
+  ],
+  "pendingClarifications": [],
+  "status": "prepared_not_integrated",
+  "optimization": {
+    "format": "WebP",
+    "quality": 90,
+    "dimensions": [
+      1654,
+      2339
+    ],
+    "sourceBytes": 11610850,
+    "optimizedBytes": 575764
+  },
+  "divinationRules": {
+    "requiresHeroInPlay": true,
+    "availableToHolderOnly": true,
+    "buttonVisibleToHolderOnly": true,
+    "startsAtNextOwnerTurnAfterPlacement": true,
+    "window": "start_of_owner_turn_before_draw_harvest_recruit",
+    "oncePerOwnerTurn": true,
+    "requiresFaction": null,
+    "distinctFromCard": "Divination de l’Oracle",
+    "availableEveryOwnerTurn": true,
+    "forfeitOnConfirmedStartAction": true,
+    "explanationClickDoesNotForfeit": true,
+    "cardsVisibleOnlyToHolder": true,
+    "positionOneIsNextDraw": true,
+    "mayReviseBeforeConfirmation": true,
+    "mayKeepInitialOrder": true,
+    "suspendOtherActionsWhileReordering": true,
+    "resumeOnConfirmation": true,
+    "shortDeckUsesExistingRefillMechanism": false,
+    "excludeActiveOracleFromRefill": false,
+    "shortDeckRefill": "Conserver les une ou deux cartes restantes dans le lot de Divination ; toutes les autres cartes Oracle, y compris l’Oracle actif, retournent dans la pioche et sont mélangées. Tirer la ou les cartes manquantes pour compléter le lot de trois à ordonner.",
+    "includeActiveOracleInRefill": true,
+    "activeOraclePersistentEffectsEndOnRefill": true,
+    "activeOracleSlotEmptyUntilNextActivation": true,
+    "alreadyResolvedOracleEffectsNotReversed": true,
+    "botBehavior": {
+      "useAutomaticallyAtEligibleTurnStart": true,
+      "order": "random",
+      "opensHumanChoiceWindow": false,
+      "waitsForHumanInput": false,
+      "respectsPlacementDelayAndRefillRules": true
+    },
+    "waitForMandatoryOracleResolution": true,
+    "updateNormallyVisibleNextOracleAfterConfirmation": true,
+    "positionsTwoAndThreeRemainPrivate": true
+  },
+  "builderCultureRules": {
+    "requiresFaction": "Yonkaï",
+    "neutralizesDefenseBonusesOnly": true,
+    "buildingsRemain": true,
+    "otherBuildingEffectsRemain": true,
+    "appliesToNpcBuildings": true,
+    "npcBuildingDefenseAgainstHolder": 5,
+    "endsImmediatelyOnHeroEliminationIncludingDuringBattle": true,
+    "appliesToShadowSectionAttacks": true,
+    "otherUnitFactionAndCardBonusesUnaffected": true,
+    "neutralizedBonusesExcludedFromEpicBattleThreshold": true,
+    "onlyAgainstHolderYonkaiAttackingUnits": true,
+    "holderOwnDefensiveBonusesPreserved": true
+  },
+  "epicBattleRule": {
+    "userConfirmedThreshold": 10,
+    "criterion": "Gagner une bataille contre une force adverse de 10 ou plus, unités et cartes comprises. Les bonus de murs frontaliers, cités et forteresses neutralisés par Culture des bâtisseurs ne contribuent pas à ce seuil.",
+    "implementationStatus": "Vérifier la conformité du calcul existant lors de l’intégration ; règle enregistrée, moteur non modifié.",
+    "evaluationMoment": "Au moment de la résolution, avec les bonus réellement applicables à cet instant."
+  },
+  "prescribedExpandedText": "Capacité \"Divination\" : Au début de chacun de vos tours vous pouvez regarder et changer l'ordre des 3 prochaines cartes Oracle\nCapacité \"Culture des bâtisseurs\" : Si vous êtes Yonkaï, les cités, les forteresses et les murs frontaliers valent 0 face à vos unités",
+  "showAbilityNamesInZoom": true
+}

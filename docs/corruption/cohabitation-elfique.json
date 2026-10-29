@@ -1,0 +1,29 @@
+{
+  "name": "Cohabitation elfique",
+  "count": 4,
+  "type": "Alliance",
+  "tribe": "elves",
+  "image": "assets/images/cards/cohabitation_elfique.webp",
+  "zoomRules": [
+    "Vous pouvez conquérir les Elfes sans combattre.",
+    "Si vous possédez au moins une région PNJ Elfe, chaque fois que vous êtes attaqué, il vous est proposé de fuir sur une région non hostile."
+  ],
+  "outsideZoomRules": [
+    "Au début de chaque bataille, proposer la fuite au défenseur uniquement si cette alliance est en jeu, s’il contrôle au moins une région PNJ Elfe et si une destination adjacente éligible existe.",
+    "Afficher dans la colonne de droite : Fuir et Défendre cette Région.",
+    "Après Fuir, le défenseur sélectionne une seule destination adjacente éligible : région libre, région du défenseur, région PNJ Elfe ou aire maritime. Exclure régions adverses et PNJ non Elfes.",
+    "La fuite préserve les unités du défenseur et donne la région attaquée à l’attaquant.",
+    "Confirmation utilisateur : fuir vers une région PNJ Elfe la conquiert immédiatement sans combattre.",
+    "Confirmation utilisateur : toutes les unités fuient vers la destination unique ; les bâtiments restent sur la région abandonnée et reviennent à l’attaquant.",
+    "Corruption retirant Cohabitation elfique au défenseur lui fait perdre le bonus de fuite de cette alliance."
+  ],
+  "status": "prepared_not_integrated",
+  "fleeRequiresAllianceStillInPlay": true,
+  "fleeTimingRule": {
+    "status": "confirmed_by_user",
+    "duringChoice": "Corruption peut retirer l’alliance pendant le choix Fuir / Défendre cette Région ; la fuite devient indisponible et le joueur doit défendre.",
+    "duringDestinationSelection": "Après le clic Fuir et avant validation de la destination, Corruption peut encore retirer l’alliance et annuler la fuite ; le joueur doit défendre.",
+    "afterValidation": "Une fois la destination valide confirmée et les unités déplacées, la fuite est terminée et ne peut pas être annulée rétroactivement par Corruption.",
+    "onlineOrdering": "L’ordre de validation par le serveur départage les actions simultanées."
+  }
+}

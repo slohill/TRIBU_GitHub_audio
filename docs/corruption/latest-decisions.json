@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-29",
+  "priority": "Overrides older contradictory notes",
+  "alliance": {
+    "peacefulNpcBuildingConquest": true,
+    "opponentRegionExcluded": true,
+    "lossPerOrigin": 5,
+    "countIncludesCommittedUnits": true,
+    "overFive": "Player selects five actual units across stationed and committed groups of same origin; confirm or reset",
+    "upToFive": "Remove all",
+    "links": "Green; same geometry as Oracle sacrifice links"
+  },
+  "elfFleeThroughOwnPortalPair": true,
+  "oneBuildingPerRegionIncludingPortal": true,
+  "dragonUsesPortal": false,
+  "dragonDestroysPortal": false,
+  "guideAncestrale": "Neutralize enemy defensive building bonuses in battle calculation, no regional dice display change",
+  "blocking": "Block card play/activation; allow trade proposals, show cards, zoom and close; preserve pending loss selection",
+  "bots": "Heroes passives only; never return heroes to hand",
+  "remainingWork": "Integrate against legacy engine; preserve main and historical backup"
+}

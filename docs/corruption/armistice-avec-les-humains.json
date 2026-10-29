@@ -1,0 +1,19 @@
+{
+  "name": "Armistice avec les humains",
+  "count": 3,
+  "type": "Alliance",
+  "tribe": "humans",
+  "image": "assets/images/cards/armistice_avec_les_humains.webp",
+  "zoomRules": [
+    "Vous pouvez conquérir les humains sans combattre.",
+    "Chaque région PNJ Humaine que vous contrôlez vous confère +1 d’Attaque sur chacune de vos batailles."
+  ],
+  "attackBonusPerRegion": 1,
+  "requiresAllianceInPlay": true,
+  "defenseBonus": 0,
+  "outsideZoomRules": [
+    "Corruption retirant cette alliance pendant une bataille supprime immédiatement son bonus d’attaque pour la bataille en cours.",
+    "Perdre une région PNJ Humaine réduit de 1 le bonus d’attaque pour les futures batailles."
+  ],
+  "status": "prepared_not_integrated"
+}

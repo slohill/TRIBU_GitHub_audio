@@ -1,0 +1,17 @@
+{
+  "status": "specified_not_integrated",
+  "scope": "Toute résolution de sacrifices de régions imposée par un Oracle",
+  "blockCardPlayForAllPlayersWhileSacrificesPending": true,
+  "allowRequiredRegionSelection": true,
+  "restoreNormalCardPermissionsAfterResolution": true,
+  "rightColumnForChoosingPlayer": "Vous devez sacrifier X Régions",
+  "remainingCount": "Nombre requis moins nombre de régions déjà sélectionnées par ce joueur ; actualiser à chaque sélection.",
+  "rightColumnForWaitingPlayers": "En attente de joueur X, joueur Y, joueur Z pour la résolution de Oracle X",
+  "waitingNames": "Noms des joueurs dont les sacrifices restent à terminer ; actualiser à mesure des validations.",
+  "oracleName": "Nom réel de l’Oracle en cours de résolution.",
+  "guideDivinationUnavailableUntilMandatoryResolutionComplete": true,
+  "existingCodeAudit": "Le moteur affiche déjà le nombre restant dans hint ; le message d’attente est actuellement générique. Blocage global et colonne de droite restent à intégrer et vérifier.",
+  "blockAllCardAndHeroAbilityActivationsWhileSacrificesPending": true,
+  "explicitlyIncludesGuideDivination": true,
+  "clarification": "Confirmation utilisateur : blocage de Divination et des autres cartes également ; aucune carte ni capacité activable de carte ne peut être jouée pendant la résolution des sacrifices Oracle."
+}

@@ -1,0 +1,17 @@
+{
+  "source": "G:\\PC 2025\\Bureau\\Tribu Le Jeu Officiel\\Tribu Baby\\CARDS PFI - tribu 2\\ver7.0\\Extension 1 Corruption\\Tribu Corruption Final.png",
+  "asset": "assets/images/tribu-corruption.webp",
+  "dimensions": [
+    1339,
+    1339
+  ],
+  "quality": 90,
+  "sourceBytes": 757657,
+  "optimizedBytes": 196590,
+  "display": {
+    "nextTo": "Tribu-title",
+    "visibleWhen": "Corruption selected",
+    "baseGame": "hidden"
+  },
+  "status": "prepared; extension integration pending"
+}

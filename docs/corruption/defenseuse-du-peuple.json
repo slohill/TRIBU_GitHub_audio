@@ -1,0 +1,63 @@
+{
+  "name": "Défenseuse du peuple",
+  "type": "Agent — Héros",
+  "count": 1,
+  "faction": "Griffes-Blanches",
+  "image": "assets/images/cards/defenseuse_du_peuple.webp",
+  "abilities": [
+    {
+      "name": "L’union fait la force",
+      "kind": "passive",
+      "zoomText": "Toutes vos Régions munies d’une seule unité ont +2 de défense."
+    },
+    {
+      "name": "Givre de guerre",
+      "kind": "passive_faction",
+      "zoomText": "Si vous êtes Griffe-Blanche, toutes vos Régions sont enneigées."
+    }
+  ],
+  "outsideZoomRules": [
+    "Appliquer les règles communes des héros : un exemplaire, un seul héros en jeu par joueur, non volable en jeu, ciblable par Assassin, pose/retour en main pendant propre phase de jeu ; passifs à partir du début du prochain tour après pose.",
+    "Confirmation utilisateur : L’union fait la force est un passif permanent sans activation, applicable uniquement aux régions terrestres contenant exactement une unité, pas aux flottes.",
+    "Confirmation utilisateur : pour une Griffe-Blanche, Givre de guerre impose la neige sur toutes ses régions, prioritairement aux autres effets de terrain, y compris Canicule et le verrouillage désertique de Sundo.",
+    "Demande utilisateur : réutiliser le rond blanc de terrain affiché sous Icenia sous les dés des unités des régions enneigées par Givre de guerre. Affichage lié au passif actif pour les Griffes-Blanches ; ne pas étendre l’enneigement aux aires maritimes.",
+    "Confirmation utilisateur : le bonus Union est actualisé immédiatement, y compris en bataille : passage à exactement une unité => +2 défense ; arrivée d’une deuxième unité => perte du +2.",
+    "Confirmation utilisateur : élimination ou retour en main de l’héroïne met immédiatement fin aux deux passifs. Le terrain redevient celui imposé par le climat et les cités, et les effets de bataille dépendant du terrain sont actualisés.",
+    "Confirmation utilisateur : pour un Yonkaï avec une unité, défense 3 puis +2 Union = 5 avant autres bonus ; le +2 ne bénéficie pas du multiplicateur de faction.",
+    "Confirmation utilisateur : la neige de Givre de guerre est un véritable changement de terrain ; le recrutement facilité des Griffes-Blanches s’applique à toutes leurs régions, y compris Sundo, tant que le passif est actif.",
+    "Précision utilisateur : à Sundo, le rond blanc de Givre de guerre doit être affiché au-dessus du rond orange de Sundo tant que le passif est actif. À sa disparition, le rond orange reste visible selon les règles normales de Sundo.",
+    "Confirmation utilisateur : une Griffe-Blanche ne peut pas jouer/poser Sundo tant que Givre de guerre est actif, toutes ses régions étant enneigées et Sundo nécessitant une région désertique. Une Sundo déjà présente reste soumise à la neige prioritaire du passif, avec rond blanc au-dessus du rond orange.",
+    "Confirmation utilisateur : pour L’union fait la force et la défense d’une région, compter uniquement les unités effectivement restées sur place ; les attaquants engagés ailleurs n’y contribuent pas. Leur rattachement à l’origine s’applique aux pertes causées par Egnobombe, Givre mortel, Tempête de sable, Violence aveugle, Révoltes ou toute autre carte faisant perdre des unités à cette région."
+  ],
+  "pendingClarifications": [],
+  "status": "prepared_not_integrated",
+  "unionRules": {
+    "landOnly": true,
+    "exactUnitCount": 1,
+    "defenseBonus": 2,
+    "manualActivation": false,
+    "updatesImmediatelyDuringBattle": true,
+    "bonusAddedAfterFactionMultiplier": true,
+    "yonkaiSingleUnitDefenseBeforeOtherBonuses": 5,
+    "countStationedUnitsOnly": true,
+    "excludeOutgoingCommittedAttackers": true
+  },
+  "winterRules": {
+    "requiresFaction": "Griffes-Blanches",
+    "allOwnedLandRegionsSnow": true,
+    "overridesClimate": true,
+    "overridesSundoDesertLock": true,
+    "restoreUnderlyingTerrainOnRemoval": true,
+    "terrainDependentBattleEffectsUpdate": true,
+    "snowRecruitmentBenefitApplies": true,
+    "blocksSundoPlacementWhileActive": true
+  },
+  "winterVisuals": {
+    "reuse": "Icenia white terrain circle",
+    "placement": "beneath unit dice on land regions affected by Givre de guerre",
+    "requiresActivePassive": true,
+    "requiresFaction": "Griffes-Blanches",
+    "sundoLayerOrder": "Givre de guerre white circle above Sundo orange circle"
+  },
+  "passivesEndImmediatelyOnRemoval": true
+}

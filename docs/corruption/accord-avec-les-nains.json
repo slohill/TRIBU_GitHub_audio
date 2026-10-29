@@ -1,0 +1,15 @@
+{
+  "name": "Accord avec les nains",
+  "count": 3,
+  "type": "Alliance",
+  "tribe": "dwarves",
+  "image": "assets/images/cards/accord_avec_les_nains.webp",
+  "zoomRules": [
+    "Vous pouvez conquérir les nains sans combattre.",
+    "Chaque région PNJ Naine que vous contrôlez vous confère 5 Or supplémentaires lors de vos phases de récolte."
+  ],
+  "harvestBonusPerRegion": 5,
+  "ambushIncludesBonus": true,
+  "status": "prepared_not_integrated",
+  "harvestTimingRule": "Confirmed: if Corruption removes the alliance while harvest gold is pending, remove the dwarf bonuses from that pending gain, including after Ambush changes its recipient. Gold already paid is never removed retroactively."
+}

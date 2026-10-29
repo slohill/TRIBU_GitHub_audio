@@ -1,0 +1,22 @@
+{
+  "status": "required_on_extension_integration",
+  "inPlay": {
+    "magnifier": "Open enlarged card, no activation",
+    "longPress": "Open enlarged card, no activation; cancel when scrolling",
+    "firstClick": "Explanation",
+    "secondClick": "Activate only when legal"
+  },
+  "discard": {
+    "click": "Open enlarged card with prescribed text"
+  },
+  "hand": "Keep magnifier and established hand gesture rules; do not replace direct-action long presses where prescribed.",
+  "text": "Use prescribed zoom text for each extension card; include all heroes, alliances, Corruption, Révoltes and distinct second portal.",
+  "verification": "Test hand/in-play/discard access and no accidental activation when integrating; not yet implemented for extension.",
+  "abilityTextConvention": {
+    "userFormat": "Capacité [numéro éventuel] [nom de la capacité] : texte destiné à la carte agrandie",
+    "render": "Afficher le libellé Capacité, le nom fourni et le texte prescrit, dans l’ordre donné.",
+    "preserveUserWording": true,
+    "excludeOutsideTextNotes": true,
+    "doNotInventMissingAbilityNames": true
+  }
+}

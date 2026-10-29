@@ -1,0 +1,101 @@
+{
+  "name": "Guilde de l'ombre",
+  "type": "Agent — Héros",
+  "count": 1,
+  "faction": "Egnorax",
+  "image": "assets/images/cards/guilde_de_l_ombre.webp",
+  "abilities": [
+    {
+      "name": "Furie Nocturne",
+      "kind": "active",
+      "zoomText": "Une fois par tour vous pouvez lancer un dé :  4 ou 5 volez une carte au hasard dans la main d'un.e adversaire ; 6 éliminez un héro ou un agent ciblé",
+      "oncePerOwnerPlayPhase": true,
+      "availableFrom": "Prochaine phase de jeu du détenteur après pose",
+      "dieResults": {
+        "1,2,3": "Aucun effet propre à Furie Nocturne",
+        "4,5": "Voler une carte au hasard dans la main d’un adversaire",
+        "6": "Éliminer un héros ou un agent ciblé"
+      },
+      "threeAndFourMayTriggerRevolts": true,
+      "chooseTargetAfterRoll": true,
+      "noEligibleTargetConsumesUseWithoutEffect": true,
+      "heroAssassinationAfterRollDoesNotCancelEffect": true,
+      "rollRemainsValidForRevolts": true,
+      "fourWithoutStealableCardStillMayTriggerRevolts": true,
+      "theftTargets": "Adversaires possédant au moins une carte en main.",
+      "eliminationTargets": "Agents ou héros adverses en jeu, y compris les héros grisés en attente de leur activation."
+    },
+    {
+      "name": "Colonie de rats",
+      "kind": "passive_faction",
+      "zoomText": "Si vous êtes Egnorax, vous pouvez recruter sur une Région inoccupée",
+      "requiresFaction": "Egnorax",
+      "availableFrom": "Début du prochain tour du détenteur après pose, selon les règles communes des héros",
+      "recruitmentPhaseOnly": true,
+      "additionalRegionLimit": 1,
+      "landOnly": true,
+      "excludeNpcAndOtherPlayerRegions": true,
+      "normalOwnedRegionRecruitmentAlsoAllowed": true,
+      "requiresAdjacency": false,
+      "normalRecruitmentCost": true,
+      "ownershipConfirmedOnlyOnRecruitmentValidation": true,
+      "provisionalRecruitmentDoesNotPermanentlyConquer": true,
+      "egnoraxRecruitmentCap": null,
+      "lockAdditionalRegionOnFirstProvisionalRecruit": true,
+      "changeAdditionalRegionRequiresRestartRecruitment": true,
+      "restartClearsAdditionalRegionChoice": true,
+      "heroAssassinationBeforeValidation": "Annuler tout le recrutement en cours, restituer l'Or dépensé et retirer toutes les unités provisoires. Recommencer sans Colonie de rats.",
+      "additionalRegionOccupiedByOpponentBeforeValidation": "Annuler et rembourser uniquement les recrutements provisoires de cette région devenue inéligible.",
+      "excludeRegionsWithUnitsCommittedToUnresolvedBattle": true,
+      "emptyRegionMayContainBuildingOrPortal": true
+    }
+  ],
+  "showAbilityNamesInZoom": true,
+  "prescribedExpandedText": "Capacité \"Furie Nocturne\" : Une fois par tour vous pouvez lancer un dé :  4 ou 5 volez une carte au hasard dans la main d'un.e adversaire ; 6 éliminez un héro ou un agent ciblé\nCapacité \"Colonie de rats\" : Si vous êtes Egnorax, vous pouvez recruter sur une Région inoccupée",
+  "status": "prepared_not_integrated",
+  "outsideZoomRules": [
+    "Appliquer les règles communes des héros : un seul héros en jeu, ciblable par Assassin, non volable en jeu, délai renouvelé après repose, grisé pendant son délai initial.",
+    "Furie Nocturne : 1, 2 ou 3 ne font rien, mais 3 et 4 peuvent déclencher Révoltes si cet Oracle est actif, après résolution de la capacité selon les règles validées.",
+    "Colonie de rats : lors de sa phase de recrutement, le détenteur Egnorax peut recruter dans une seule région terrestre inoccupée sans PNJ ni autre joueur, en plus de ses propres régions.",
+    "Confirmations utilisateur : Furie Nocturne choisit sa cible après le lancer ; sans cible éligible pour le résultat, l’utilisation est consommée sans effet. Colonie de rats peut viser une région terrestre inoccupée n’importe où, sans adjacence requise. Le recrutement coûte le prix habituel ; la région est acquise seulement à la validation du recrutement. Les Egnoraxs n’ont pas de plafond de recrutement (règle de faction, pas un avantage conditionné au héros).",
+    "Validations utilisateur : le lancer de Furie Nocturne reste acquis même si la Guilde est assassinée ensuite ; résoudre son effet puis Révoltes si applicable. Un 4 sans carte à voler consomme l’utilisation sans vol mais peut déclencher Révoltes, comme un 3 sans effet propre.",
+    "Confirmation utilisateur : une région sans unités stationnées mais avec des unités rattachées engagées dans une bataille non résolue ne compte pas comme inoccupée pour Colonie de rats. Furie Nocturne sur 4 ou 5 : seuls les adversaires ayant au moins une carte en main sont sélectionnables. Sur 6 : seuls les Agents et Héros adverses en jeu sont ciblables, y compris les héros grisés encore inactifs.",
+    "Correction finale : assassinat pendant le recrutement = annulation et remboursement de TOUT le recrutement en cours, pas seulement de la région supplémentaire."
+  ],
+  "pendingClarifications": [],
+  "optimization": {
+    "format": "WebP",
+    "quality": 90,
+    "dimensions": [
+      1654,
+      2339
+    ],
+    "sourceBytes": 11610850,
+    "optimizedBytes": 485588
+  },
+  "audio": {
+    "status": "specified_pending_engine_integration",
+    "ability": "Furie Nocturne",
+    "outcomes": {
+      "roll1or2or3": {
+        "key": "fail",
+        "path": "assets/audio/optimized/echec.mp3"
+      },
+      "roll4or5WithEligibleTheft": {
+        "key": "thief",
+        "path": "assets/audio/optimized/voleur.mp3"
+      },
+      "roll6WithEligibleElimination": {
+        "key": "assassin",
+        "path": "assets/audio/assassin.mp3"
+      },
+      "noEligibleTargetForTheftOrElimination": {
+        "key": "fail",
+        "path": "assets/audio/optimized/echec.mp3"
+      }
+    },
+    "noTargetFailureReplacesSuccessSound": true,
+    "useExistingSfxPlaybackAndOnlineDelivery": true,
+    "respectSoundPreference": true
+  }
+}

@@ -1,0 +1,107 @@
+{
+  "name": "Haute noblesse",
+  "type": "Agent — Héros",
+  "count": 1,
+  "faction": "Morcatt",
+  "image": "assets/images/cards/haute_noblesse.webp",
+  "status": "prepared_not_integrated",
+  "abilities": [
+    {
+      "name": "Doigté mercantile",
+      "kind": "active",
+      "zoomText": "Une fois par phase de jeu, vous pouvez lancer un dé 6, gagnez le double du résultat au dé en Or",
+      "starts": "Prochaine phase de jeu du détenteur après la mise en jeu.",
+      "usesPerPlayPhase": 1,
+      "goldReactionUsesExistingTimer": true,
+      "ambushAllowedUnlessActiveMorcattImmunity": true,
+      "useConsumedEvenIfGoldStolen": true
+    },
+    {
+      "name": "Propagande",
+      "kind": "passive_faction",
+      "zoomText": "Si vous êtes Morcatt, vous êtes immunisé.e contre les cartes \"Embuscade\", \"Corruption\" et la carte Oracle \"Révolte\"",
+      "starts": "Début du prochain tour du détenteur après la mise en jeu.",
+      "requiresFaction": "Morcatt",
+      "preventsAmbushAgainstHolder": true,
+      "preventsCorruptionAgainstHolder": true,
+      "revoltsActivatedByImmuneHolderDoNotAllowUnitLossSelectionsOnRollsThreeOrFour": true,
+      "immunityEndsImmediatelyOnHeroElimination": true
+    }
+  ],
+  "outsideZoomRules": [
+    "Appliquer les règles communes validées des héros, notamment le délai renouvelé après retour en main et nouvelle pose.",
+    "Le gain d’Or vaut deux fois le résultat du dé ; utiliser la réaction Or existante et ses interactions, sans réimplémenter ce mécanisme.",
+    "L’immunité Morcatt est conditionnée à la présence du héros en jeu et à l’activation de son passif.",
+    "Règle finale remplaçant l’annulation précédemment demandée : assassiner Haute noblesse après activation et lancer de sa capacité ne supprime ni le lancer ni le gain d’Or. Résoudre le chrono, Embuscade et les autres réactions autorisées, puis le gain d’Or et enfin Révoltes si applicable. Pour empêcher cette activation, le héros doit être assassiné avant celle-ci.",
+    "Confirmations utilisateur : perte immédiate des immunités après assassinat ; pas de Révoltes rétroactive pour un lancer effectué sous protection. Une bataille lancée pendant le chrono Or, notamment par Section de l’ombre, suspend ce chrono jusqu’à la fin de cette bataille ; reprise à 10 secondes. Le gain reste à résoudre et l’utilisation reste consommée. Le seuil Dragon de 40 Or ou plus concerne le bénéficiaire réel du gain, y compris après Embuscade.",
+    "Confirmation utilisateur : maintenir la pause du gain d’Or jusqu’à l’annulation de Section de l’ombre sans utilisation, ou jusqu’à la fin de la bataille qu’elle déclenche. La fermeture de la préparation lors du lancement de la bataille ne doit pas reprendre le chrono. La reprise se fait à 10 secondes.",
+    "Confirmation utilisateur : si le gain d’Or déclenche le Dragon au seuil de 40 Or ou plus et que le lancer a également déclenché Révoltes, résoudre le gain puis la conséquence du Dragon, puis Révoltes. Si aucune unité éligible ne reste chez le joueur visé, terminer Révoltes sans sélection.",
+    "Clarification finale utilisateur : une Révolte visant déjà le détenteur Morcatt cesse de le viser au début de son prochain tour après la pose de Haute noblesse, lorsque son immunité devient active, et non dès la pose."
+  ],
+  "pendingClarifications": [],
+  "optimization": {
+    "format": "WebP",
+    "quality": 90,
+    "dimensions": [
+      1654,
+      2339
+    ],
+    "sourceBytes": 11610850,
+    "optimizedBytes": 403230
+  },
+  "revoltsInteraction": {
+    "immuneHolderCanTriggerLossesAgainstAnotherRevoltsPlayer": true,
+    "assassinationDuringOwnGoldCountdownCancelsTrigger": false,
+    "resolutionOrder": [
+      "Lancer de Haute noblesse",
+      "Chrono et réactions au gain d’Or, avec résolution des interruptions",
+      "Résolution du gain d’Or",
+      "Résolution de la conséquence du Dragon si le bénéficiaire atteint 40 Or ou plus",
+      "Résolution de Révoltes si déclenchée"
+    ],
+    "noRetroactiveTriggerIfProtectedAtRollThenHeroKilled": true,
+    "skipSelectionIfNoEligibleUnitsAfterDragon": true,
+    "protectionCancelsExistingRevoltsTargetingHolder": true,
+    "preventsNewTriggersAgainstProtectedHolder": true,
+    "existingTargetProtectionStarts": "Début du prochain tour du détenteur après la pose, lorsque l’immunité devient active ; aucun effet immédiat à la pose."
+  },
+  "goldAbilityAssassination": {
+    "beforeActivation": "L’assassinat empêche l’activation de la capacité du héros éliminé.",
+    "afterActivationAndRoll": "Le héros est défaussé, mais le lancer et le gain d’Or en attente restent valides. Terminer les réactions au gain d’Or (Embuscade et autres cartes autorisées), résoudre le gain, puis résoudre Révoltes si ce lancer la déclenche.",
+    "cancelsPendingGold": false,
+    "rollTreatedAsNeverOccurred": false,
+    "cancelsPendingRevoltsTriggeredByThisRoll": false,
+    "scope": "Capacité de gain d’Or de Haute noblesse."
+  },
+  "goldThresholdRule": {
+    "threshold": 40,
+    "applyExistingDragonRule": true,
+    "appliesToActualGoldRecipientIncludingAmbusher": true,
+    "onlyIfRecipientTotalReachesOrExceedsThreshold": true
+  },
+  "battleDuringGoldReaction": {
+    "pauseGoldCountdownUntilInterruptingBattleResolved": true,
+    "includesShadowSection": true,
+    "resumeGoldCountdownSeconds": 10,
+    "doesNotCancelGain": true,
+    "doesNotRestoreAbilityUse": true,
+    "resumeIfShadowCancelledWithoutPlay": true,
+    "closingShadowPreparationDoesNotResumeGoldIfBattleStarts": true,
+    "resumeAfterShadowWithoutNewBattleSeconds": 10
+  },
+  "implementationChecks": [
+    "Dans le code consulté, startShadow suspend le gain et resumeGoldReactionAfterCard repart à 10 secondes. Mais la reprise automatique ne teste pas la bataille issue de Section une fois shadowState fermé : vérifier et corriger pour éviter une reprise avant fin de bataille. Ne pas déclarer ce cas garanti sans test."
+  ],
+  "showAbilityNamesInZoom": true,
+  "prescribedExpandedText": "Capacité \"Doigté mercantile\" : Une fois par phase de jeu, vous pouvez lancer un dé 6, gagnez le double du résultat au dé en Or\nCapacité \"Propagande\": Si vous êtes Morcatt, vous êtes immunisé.e contre les cartes \"Embuscade\", \"Corruption\" et la carte Oracle \"Révolte\"",
+  "audio": {
+    "status": "specified_pending_engine_integration",
+    "ability": "Doigté mercantile",
+    "goldReactionSound": {
+      "key": "gaindor",
+      "path": "assets/audio/gaindor.mp3"
+    },
+    "useExistingGoldReactionAudioLifecycle": true,
+    "behavior": "Utiliser le son existant du chrono de gain d’Or, avec ses pauses, reprises, fin de gain et préférence Sons."
+  }
+}

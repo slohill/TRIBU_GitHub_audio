@@ -1,0 +1,11 @@
+{
+  "faction": "Egnorax",
+  "recruitmentCap": null,
+  "requiresGuildeDeLOmbreForUnlimitedRecruitment": false,
+  "source": "Confirmation explicite utilisateur : les Egnoraxs n’ont pas de plafond de recrutement.",
+  "status": "specified_not_integrated",
+  "defense": "ceil(real defending units / 2), then add bonuses",
+  "display": "Outside owner turn show rounded defense on regional dice; attacking groups always show actual attack units",
+  "drawChoice": "Either 2 from deck OR up to 2 from top of discard; never mix; empty discard disabled",
+  "realUnitCountUnchanged": true
+}
