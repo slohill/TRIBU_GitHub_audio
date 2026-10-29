@@ -3893,6 +3893,10 @@ function doHarvest(){if(G&&G.online&&!G.online.legacySync)return onlineGameActio
 function doRecruit(){
  if(G&&G.online&&!G.online.legacySync)return onlineGameAction('RECRUIT_START');
  if(G.phase!=='start'||paidDrawState||goldReaction)return;
+ const reasons=[];
+ if(p().gold<1)reasons.push("vous n'avez pas assez d'or");
+ if(totalUnits()>=cap())reasons.push('plafond déjà atteint');
+ if(reasons.length){log(reasons.join(' / '));render();return}
  recruitSnapshot={player:G.active,gold:p().gold,units:{}};
  Object.keys(G.b).forEach(r=>recruitSnapshot.units[r]=G.b[r].units);
  G.phase='recruit';render();
