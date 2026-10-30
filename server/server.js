@@ -8,6 +8,7 @@ const { createPublicActivity } = require('./public-activity');
 const { createPostgresHistory } = require('./history-store');
 const {createCommercePause}=require('./commerce-pause');
 
+const corruptionOptions=require('./corruption-options');
 const PORT = process.env.PORT || 3000;
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || '*';
 const app = express();
@@ -226,13 +227,13 @@ function roomRecoveryCapsule(room){
   if(!room||!room.launched||!room.game||room.game.status!=='playing')return null;
   const game=JSON.parse(JSON.stringify(room.game));
   (game.players||[]).forEach(p=>{if(!p.bot){p.socketId=null;p.connected=false}});
-  return {version:1,activityId:room.activityId,startedAt:room.startedAt,code:room.code,name:room.name,mode:room.mode,maxHumans:room.maxHumans,bots:room.bots,victoryPoints:room.victoryPoints,battleReactionSeconds:room.battleReactionSeconds||15,seed:room.seed,hostPlayerId:room.hostPlayerId||((room.players.find(p=>p.id===room.hostId)||{}).playerId)||null,players:room.players.map(p=>({playerId:p.playerId,pseudo:p.pseudo,ready:!!p.ready,tokenHash:p.reconnectTokenHash||tokenHash(p.reconnectToken)})),game,legacyMode:!!room.legacyMode,legacyRevision:room.legacyRevision||0,legacySnapshot:room.legacySnapshot||null};
+  return {version:1,activityId:room.activityId,startedAt:room.startedAt,code:room.code,name:room.name,mode:room.mode,gameVersion:corruptionOptions.version(room.gameVersion),maxHumans:room.maxHumans,bots:room.bots,victoryPoints:room.victoryPoints,battleReactionSeconds:room.battleReactionSeconds||15,seed:room.seed,hostPlayerId:room.hostPlayerId||((room.players.find(p=>p.id===room.hostId)||{}).playerId)||null,players:room.players.map(p=>({playerId:p.playerId,pseudo:p.pseudo,ready:!!p.ready,tokenHash:p.reconnectTokenHash||tokenHash(p.reconnectToken)})),game,legacyMode:!!room.legacyMode,legacyRevision:room.legacyRevision||0,legacySnapshot:room.legacySnapshot||null};
 }
 function restoreRoomFromRecovery(saved){
   const cap=saved&&saved.recovery,code=cleanCode(saved&&saved.code),pid=cleanText(saved&&saved.playerId,80),token=cleanText(saved&&saved.token,120);
   if(!cap||cap.version!==1||cleanCode(cap.code)!==code||!cap.game||cap.game.status!=='playing'||!Array.isArray(cap.players))return null;
   const seat=cap.players.find(p=>p.playerId===pid&&p.tokenHash===tokenHash(token));if(!seat)return null;
-  const room={code,name:cleanText(cap.name,30)||`Partie ${code}`,mode:cleanText(cap.mode,20),maxHumans:Math.max(2,Math.min(5,Number(cap.maxHumans)||2)),bots:Math.max(0,Math.min(4,Number(cap.bots)||0)),victoryPoints:[3,4,5].includes(Number(cap.victoryPoints))?Number(cap.victoryPoints):3,battleReactionSeconds:[15,20,30].includes(Number(cap.battleReactionSeconds))?Number(cap.battleReactionSeconds):15,hostId:null,hostPlayerId:cleanText(cap.hostPlayerId,80)||null,launched:true,seed:Number(cap.seed)>>>0,game:cap.game,legacyMode:!!cap.legacyMode,legacyRevision:Math.max(0,Number(cap.legacyRevision)||0),legacySnapshot:cap.legacySnapshot||null,players:cap.players.map(p=>({id:null,playerId:cleanText(p.playerId,80),reconnectToken:null,reconnectTokenHash:String(p.tokenHash||''),pseudo:cleanText(p.pseudo,24),ready:!!p.ready,connected:false}))};
+  const room={code,name:cleanText(cap.name,30)||`Partie ${code}`,mode:cleanText(cap.mode,20),gameVersion:corruptionOptions.version(cap.gameVersion),maxHumans:Math.max(2,Math.min(corruptionOptions.seats(cap.gameVersion),Number(cap.maxHumans)||2)),bots:Math.max(0,Math.min(4,Number(cap.bots)||0)),victoryPoints:[3,4,5].includes(Number(cap.victoryPoints))?Number(cap.victoryPoints):3,battleReactionSeconds:[15,20,30].includes(Number(cap.battleReactionSeconds))?Number(cap.battleReactionSeconds):15,hostId:null,hostPlayerId:cleanText(cap.hostPlayerId,80)||null,launched:true,seed:Number(cap.seed)>>>0,game:cap.game,legacyMode:!!cap.legacyMode,legacyRevision:Math.max(0,Number(cap.legacyRevision)||0),legacySnapshot:cap.legacySnapshot||null,players:cap.players.map(p=>({id:null,playerId:cleanText(p.playerId,80),reconnectToken:null,reconnectTokenHash:String(p.tokenHash||''),pseudo:cleanText(p.pseudo,24),ready:!!p.ready,connected:false}))};
   (room.game.players||[]).forEach(p=>{if(!p.bot){p.socketId=null;p.connected=false}});
   if(room.legacySnapshot?.rule){room.legacySnapshot.rule.commercePaused=false;room.legacySnapshot.rule.commerceEditors=0;}
   room.activityId=cap.activityId;room.startedAt=cap.startedAt;publicActivity.attach(room);
@@ -243,6 +244,7 @@ function publicRoom(room) {
     code: room.code,
     name: room.name,
     mode: room.mode,
+    gameVersion: corruptionOptions.version(room.gameVersion),
     maxHumans: room.maxHumans,
     bots: room.bots,
     victoryPoints: room.victoryPoints,battleReactionSeconds:room.battleReactionSeconds||15,
@@ -259,6 +261,7 @@ function publicGameView(room, socketId) {
   return {
     code: room.code,
     mode: room.mode,
+    gameVersion: corruptionOptions.version(room.gameVersion),
     victoryPoints: room.victoryPoints,battleReactionSeconds:room.battleReactionSeconds||15,
     seed: room.seed,
     revision: game.revision,
@@ -302,7 +305,7 @@ function legacyYouIndex(room,socketId){return humanGameIndex(room,socketId)}
 function legacyBootstrapView(room,socketId){
   const game=room.game,youIndex=legacyYouIndex(room,socketId);
   return {
-    code:room.code,mode:room.mode,victoryPoints:room.victoryPoints,battleReactionSeconds:room.battleReactionSeconds||15,seed:room.seed,youIndex,legacyRevision:room.legacyRevision||0,
+    code:room.code,mode:room.mode,gameVersion:corruptionOptions.version(room.gameVersion),victoryPoints:room.victoryPoints,battleReactionSeconds:room.battleReactionSeconds||15,seed:room.seed,youIndex,legacyRevision:room.legacyRevision||0,
     status:game.status,phase:game.phase,turn:game.turn,active:game.active,dragon:game.dragon,
     board:game.board,sea:game.sea,deck:game.deck,discard:game.discard,oracleDeck:game.oracleDeck,oracleDiscard:game.oracleDiscard,oracleActive:game.oracleActive,
     log:[],players:game.players.map((p,i)=>({index:i,pseudo:p.pseudo,bot:p.bot,connected:p.bot?true:p.connected!==false,color:p.color,portrait:p.portrait,faction:p.faction,province:p.province,regions:(p.regions||[]).slice(),gold:p.gold||0,pvPermanent:p.pvPermanent||0,hand:(p.hand||[]).slice(),inPlay:[]}))
@@ -504,14 +507,16 @@ io.on('connection', socket => {
     const code = cleanCode(payload.code);
     if (code.length < 3) return ack({ ok: false, error: 'Le code doit contenir au moins 3 caractères.' });
     if (rooms.has(code)) return ack({ ok: false, error: 'Ce code de partie existe déjà.' });
-    const maxHumans = Math.max(2, Math.min(5, Number(payload.maxHumans) || 3));
-    const bots = Math.max(0, Math.min(4, Number(payload.bots) || 0));
+    let options;
+    try{options=corruptionOptions.roomOptions(payload,process.env.TRIBU_CORRUPTION_PREVIEW==='1')}catch(e){return ack({ok:false,error:e.message})}
+    const {gameVersion,maxHumans,bots}=options;
     const victoryPoints = [3,4,5].includes(Number(payload.victoryPoints)) ? Number(payload.victoryPoints) : 3;
     const pseudo = cleanText(payload.pseudo, 24) || randomPseudo();
     const room = {
       code,
       name: cleanText(payload.name, 30) || `Partie ${code}`,
       mode: cleanText(payload.mode, 20),
+      gameVersion,
       maxHumans,
       bots,
       victoryPoints,battleReactionSeconds:[15,20,30].includes(Number(payload.battleReactionSeconds))?Number(payload.battleReactionSeconds):15,
@@ -579,6 +584,7 @@ io.on('connection', socket => {
     if (room.hostId !== socket.id) return ack({ ok: false, error: 'Seul le créateur peut lancer la partie.' });
     if (room.players.length !== room.maxHumans) return ack({ ok: false, error: 'Il manque encore des joueurs ou des joueuses.' });
     if (!room.players.every(p => p.ready)) return ack({ ok: false, error: 'Tout le monde doit être prêt·e.' });
+    if(room.gameVersion==='corruption')return ack({ok:false,error:'Salon expérimental : le lancement de Corruption attend la fin de son intégration.'});
     room.seed = Math.floor(Math.random() * 0x100000000) >>> 0;
     room.launched = true;
     room.game = buildAuthoritativeGame(room);
@@ -736,6 +742,7 @@ io.on('connection', socket => {
     }
     if(!payload.snapshot||typeof payload.snapshot!=='object'||!payload.snapshot.g||!Array.isArray(payload.snapshot.g.players)||!payload.snapshot.rule||typeof payload.snapshot.rule!=='object')return rejectGameAction(ack,'État de jeu invalide.');
     if(!commercePause.accept(room,payload.snapshot))return ack({ok:false,error:'Commerce en cours : bataille en pause.',current:{snapshot:room.legacySnapshot,revision:current,youIndex:index}});
+    payload.snapshot.g.gameVersion=corruptionOptions.version(room.gameVersion);
     payload.snapshot.g.battleReactionSeconds=room.battleReactionSeconds||15;
     room.legacySnapshot=payload.snapshot;room.legacyRevision=current+1;commercePause.committed(room);
     ack({ok:true,revision:room.legacyRevision,recovery:roomRecoveryCapsule(room)});emitLegacy(room,socket.id);

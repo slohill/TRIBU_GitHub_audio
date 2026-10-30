@@ -24,3 +24,10 @@ Next:
 5. Full multiplayer regression, then user trial before main.
 Rules: latest-decisions.json overrides older prose. Other per-card files contain validated texts.
 Never modify historical backup branches or index_TRIBU_map_audio_cartes_fix.html.
+
+## Checkpoint 2 — 2026-10-30
+Version now propagates through room views, game views, legacy bootstrap, recovery capsules and canonical legacy snapshots. Missing version defaults to base for older games.
+Corruption lobby capacity is six, behind server TRIBU_CORRUPTION_PREVIEW=1. Base six-seat requests and unknown versions are rejected.
+Corruption launch remains explicitly blocked: sixth color, all setup paths and full faction rules are not ready.
+Node options tests and real Socket.IO tests pass: base setup/bootstrap/recovery, six human connections, seventh refused, unfinished expansion launch refused. Foundation browser regression passes.
+Next concrete work: six distinct color assets and full setup selection, new faction identifiers without replacing legacy indices 3/4, version-dependent deck generation on server. Then enable experimental launch only for complete mechanisms.
