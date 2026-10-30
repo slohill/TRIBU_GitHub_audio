@@ -42,3 +42,8 @@ Unlimited cap handles zero owned regions without Infinity*0. Human start draw ch
 Regional dice outside owner turn show rounded defense, own-turn/attacking unit counts unchanged.
 Tests work/corruption-integration/check-egnorax.cjs pass defense odd/even, Yonkais regression, fortress 5 units=>13, reinforcement 5->6 adds zero defense, 6->7 adds one, draw cases, unlimited recruitment and display. Foundations browser test also passes.
 Remaining: actual synchronized multiplayer scenarios, spectator unlimited-cap formatting, Morcatt auctions and full online setup. Do not enable public launch.
+
+## Checkpoint 5 — Morcatt auction state engine (not yet connected to gameplay)
+assets/corruption-auction.js implements serializable preparation, prices, round ordering, 30-second deadline, revision-checked bids/pass, immediate payments/card award, unsold discard/penalty, final nonnegative harvest and bot 3/10 caps. Same-name portal copies counted together for singleton policy.
+Six Node tests pass: preparation/launch, rebids/pass reset, stale simultaneous offer, deadlines/payment once, budgets, no buyer/empty deck, JSON restore, bots.
+NOT DONE: UI in Morcatt Commerce row, map notice, actual server-authoritative auction event handlers, harvesting bridge to offerGoldGain, card-activation guards while allowing previews/proposals, bot scheduling. Module deliberately not loaded in index yet. Next work is these connections before claiming Morcatt playable.
