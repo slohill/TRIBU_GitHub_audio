@@ -9,6 +9,7 @@ const { createPostgresHistory } = require('./history-store');
 const {createCommercePause}=require('./commerce-pause');
 
 const corruptionOptions=require('./corruption-options');
+const {createAuctionSync}=require('./corruption-auction-sync');
 const PORT = process.env.PORT || 3000;
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || '*';
 const app = express();
@@ -31,6 +32,12 @@ const io = new Server(server, {
 });
 
 const rooms = new Map();
+const auctionHtml=require('fs').readFileSync(path.join(CLIENT_ROOT,'index.html'),'utf8');
+const auctionCardCatalog=JSON.parse(auctionHtml.match(/const DATA=(\{[^\r\n]+\}),POS=DATA/)[1]).cards;
+require('../assets/corruption').installPortal(auctionCardCatalog);
+const auctionSync=createAuctionSync({publish:room=>emitLegacy(room)});
+setInterval(()=>{for(const room of rooms.values())auctionSync.tick(room,auctionCardCatalog)},500).unref();
+
 const commercePause=createCommercePause({emit:(room,event,payload)=>io.to(room.code).emit(event,payload),changed:room=>emitLegacy(room)});
 const historyDatabase=process.env.TRIBU_HISTORY_DATABASE_URL;
 const publicActivity=createPublicActivity({remote:historyDatabase?createPostgresHistory(historyDatabase):null,onChange:()=>publishPublicActivity()});
@@ -731,6 +738,12 @@ io.on('connection', socket => {
     emitLegacy(room,socket.id);
   });
 
+  socket.on('morcattAuctionAction',(payload={},ack=()=>{})=>{
+    const room=roomForSocket(socket),actor=room?humanGameIndex(room,socket.id):-1;
+    if(!room||actor<0)return ack({ok:false,error:'Joueur introuvable.'});
+    const result=auctionSync.action(room,actor,payload);
+    ack({...result,current:room.legacySnapshot?{snapshot:room.legacySnapshot,revision:room.legacyRevision,youIndex:actor}:null});
+  });
   socket.on('legacyCommit', (payload = {}, ack = () => {}) => {
     const room=roomForSocket(socket);
     if(!room||!room.game||room.game.status!=='playing'||!room.legacyMode)return rejectGameAction(ack,'Synchronisation complète indisponible.');
@@ -741,6 +754,12 @@ io.on('connection', socket => {
       return ack({ok:false,error:'État de partie plus récent disponible.',current:room.legacySnapshot?{snapshot:room.legacySnapshot,revision:current,youIndex:index}:null});
     }
     if(!payload.snapshot||typeof payload.snapshot!=='object'||!payload.snapshot.g||!Array.isArray(payload.snapshot.g.players)||!payload.snapshot.rule||typeof payload.snapshot.rule!=='object')return rejectGameAction(ack,'État de jeu invalide.');
+    if(auctionSync.active(room)){
+      if(!auctionSync.mergeProposals(room,payload.snapshot))return ack({ok:false,error:'Les échanges ne peuvent pas être exécutés pendant les enchères.'});
+      room.legacyRevision=current+1;
+      ack({ok:true,revision:room.legacyRevision,recovery:roomRecoveryCapsule(room)});
+      emitLegacy(room);return;
+    }
     if(!commercePause.accept(room,payload.snapshot))return ack({ok:false,error:'Commerce en cours : bataille en pause.',current:{snapshot:room.legacySnapshot,revision:current,youIndex:index}});
     payload.snapshot.g.gameVersion=corruptionOptions.version(room.gameVersion);
     payload.snapshot.g.battleReactionSeconds=room.battleReactionSeconds||15;

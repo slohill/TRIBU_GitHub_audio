@@ -1,11 +1,10 @@
 /* Local auction UI; online entry stays gated until server-authoritative actions are ready. */
 function morcattAuctionActive(){return !!G?.morcattAuction&&G.morcattAuction.stage!=='finished'}
 function startMorcattAuction(seller,gain){
- if(G.online){log('Les enchères en ligne attendent la fin de leur intégration.');render();return}
  if(morcattAuctionActive())return;
  const cards=[];for(let i=0;i<G.players.length;i++){const id=drawOneToPool();if(id===null||id===undefined)break;cards.push(id)}
  G.morcattAuction=TribuAuction.create(seller,cards,gain);G.phase='auction';render();
- if(p(seller).bot){cards.forEach((id,i)=>TribuAuction.price(G.morcattAuction,seller,i,TribuAuction.botPrice(id,CARDS)));TribuAuction.start(G.morcattAuction,seller,G.players,G.discard);morcattAuctionChanged()}
+ if(!G.online&&p(seller).bot){cards.forEach((id,i)=>TribuAuction.price(G.morcattAuction,seller,i,TribuAuction.botPrice(id,CARDS)));TribuAuction.start(G.morcattAuction,seller,G.players,G.discard);morcattAuctionChanged()}
 }
 function morcattAuctionChanged(){
  const s=G.morcattAuction;
@@ -17,7 +16,11 @@ function morcattAuctionChanged(){
  render();
 }
 function morcattAuctionAction(kind,value,index){
- const s=G?.morcattAuction;if(!s||G.online)return;
+ const s=G?.morcattAuction;if(!s)return;
+ if(G.online){
+  onlineAck('morcattAuctionAction',{kind,amount:value,index,revision:s.revision}).then(result=>{if(result.current)onlineLegacyApply(result.current)}).catch(error=>{if(error.current)onlineLegacyApply(error.current);else onlineError(error)});
+  return;
+ }
  const actor=localViewer();let changed=false;
  if(kind==='price')changed=TribuAuction.price(s,actor,index,value);
  if(kind==='start')changed=TribuAuction.start(s,actor,G.players,G.discard);
@@ -27,6 +30,10 @@ function morcattAuctionAction(kind,value,index){
 }
 function renderMorcattAuction(){
  document.getElementById('morcattAuctionPanel')?.remove();document.getElementById('morcattAuctionNotice')?.remove();
+ const pending=G?.morcattAuction;
+ if(pending?.stage==='finished'&&!pending.gainOffered&&(!G.online||G.online.myPlayerIndex===pending.seller||p(pending.seller).bot&&onlineLegacyCanExecuteBot())){
+  setTimeout(()=>{if(G?.morcattAuction===pending&&!pending.gainOffered)morcattAuctionChanged()},0);
+ }
  if(!morcattAuctionActive())return;
  const s=G.morcattAuction,root=$('commerceBoard');if(!root)return;
  const notice=document.createElement('button');notice.id='morcattAuctionNotice';
@@ -66,7 +73,9 @@ function updateMorcattAuctionTimer(){const timer=$('morcattAuctionTimer'),s=G?.m
 const morcattBaseRenderCommerceBoard=renderCommerceBoard;
 renderCommerceBoard=function(){morcattBaseRenderCommerceBoard();renderMorcattAuction()};
 setInterval(()=>{
- if(!morcattAuctionActive()||G.online)return;
+ if(!morcattAuctionActive())return;
+ updateMorcattAuctionTimer();
+ if(G.online)return;
  const s=G.morcattAuction;
  if(s.stage!=='bidding')return;
  if(TribuAuction.tick(s,G.players,G.discard)){morcattAuctionChanged();return}

@@ -51,3 +51,10 @@ NOT DONE: UI in Morcatt Commerce row, map notice, actual server-authoritative au
 ## Checkpoint 6 — local Morcatt harvest UI
 Loaded auction engine and new corruption-auction-ui.js. Harvest reveals via legacy drawOneToPool, shared Commerce panel, editable prices/no preparation timer, launch, bid/pass, 30s display, sequential settlement, bots, final offerGoldGain bridge. Card entry guards block activation/purchases while zoom/show/proposals remain available. Local browser test checks sale/payment/gold reaction and accessible zoom/Commerce; Egnorax regression passes.
 Online harvest explicitly returns an integration message: authoritative auction actions and multi-device sync remain TODO. Price changes currently use onchange; live cross-client updates pending. Do not unlock online Corruption.
+
+## Checkpoint 7 — authoritative auction actions
+Server corruption-auction-sync.js owns price/start/bid/pass, revisions, deadlines and bot actions. Socket actor taken from authenticated room membership. Active-auction legacy commits only merge Commerce proposals, preserving balances, cards and auction state; execution of exchanges rejected.
+Online UI sends actions and displays server snapshots; server ticks even if seller disconnects. Finished auction owner/driver bridges to existing gold reaction. Initial harvest still enters through legacy snapshot.
+Real Socket.IO test with test-only fixture passes concurrent bids, stale rejection, single payment/award, old snapshot overwrite resistance. Local browser auction regression passes.
+TODO before release: full multi-browser harvest-to-Embuscade and reconnect tests; initialize/finish handoff races; server-clock offset for display; spectator public summaries; six-player/faction online setup. Public launch still locked.
+Test fixture creates temporary server copy; test-only event is never included in production server.
