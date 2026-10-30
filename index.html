@@ -1884,7 +1884,7 @@ function resolveEgnobombe(r){
  if(parent&&!parent.environmentResolved&&parent.kind==='land'&&affected.includes(parent.target)){
    const c=G.b[parent.target],def=parent.defender;
    parent.defOriginalUnits=c.units;
-   parent.defenseBase=(c.hostile?5:(def===null?0:c.units*FACTIONS[p(def).faction].def))+buildingDefense(parent.target);
+   parent.defenseBase=(c.hostile?5:(def===null?0:defendingUnits(def,c.units)))+buildingDefense(parent.target);
  }
  if(parent){
    battle=parent;if(!finishDestroyedBattle()){battle.seconds=battleReactionSeconds();resumeBattleTimer()}
@@ -2027,11 +2027,11 @@ function chooseShadowTarget(r){
    resumeBattleTimer();render();return;
  }
  if(c.owner===actor&&parent&&parent.target===r&&parent.defender===actor){
-   const coeff=FACTIONS[p(actor).faction].def;
-   c.units+=n;parent.defOriginalUnits+=n;parent.defenseBase+=n*coeff;
+   const defenseGain=defendingUnits(actor,parent.defOriginalUnits+n)-defendingUnits(actor,parent.defOriginalUnits);
+   c.units+=n;parent.defOriginalUnits+=n;parent.defenseBase+=defenseGain;
    restoreShadowMovementAt(r,n);
    shadowState=null;battle=parent;battle.seconds=s.parentBattleSeconds??battleReactionSeconds();
-   log('Section de l’ombre renforce '+r+' avec '+n+' unité(s) : +'+(n*coeff)+' Défense au siège.');
+   log('Section de l’ombre renforce '+r+' avec '+n+' unité(s) : +'+defenseGain+' Défense au siège.');
    resumeBattleTimer();render();return;
  }
  // Empty / neutral peaceful conquest.
@@ -2049,7 +2049,7 @@ function chooseShadowTarget(r){
  if(parent)battleStack.push({battle:parent,seconds:s.parentBattleSeconds||15});
  const hostile=effectiveHostile(r),db=defensiveBuildingAt(r);
  const defender=hostile?null:(c.owner!==null?c.owner:(db&&db.owner!==null?db.owner:null));
- const defBase=(hostile?5:(defender===null?0:c.units*FACTIONS[p(defender).faction].def))+buildingDefense(r);
+ const defBase=(hostile?5:(defender===null?0:defendingUnits(defender,c.units)))+buildingDefense(r);
  battle={kind:'land',target:r,attacker:actor,defender,attackUnits:n,defenseBase:defBase,defOriginalUnits:c.units,epicDefenderUnits:c.units,hostile:hostile,stack:[],seconds:15,reactionSide:'defender',fromShadow:true,attackOrigins:s.attackOrigins,shadowMove:(s.carriedMove||[]).slice()};
  log('Section de l’ombre ouvre une nouvelle bataille en '+r+' : '+n+' Att contre '+defBase+' Déf.');startReactionWindow();render();
 }
@@ -2680,12 +2680,12 @@ function botTargetDefense(target){
  if(isSea(target)){
    const enemies=seaEnemies(target);
    if(!enemies.length)return 0;
-   return Math.min(...enemies.map(e=>e.units*FACTIONS[p(e.owner).faction].def));
+   return Math.min(...enemies.map(e=>defendingUnits(e.owner,e.units)));
  }
  const c=G.b[target];
  if(effectiveHostile(target))return 5+buildingDefense(target);
  if(c.owner===null || c.owner===G.active)return buildingDefense(target);
- return c.units*FACTIONS[p(c.owner).faction].def+buildingDefense(target);
+ return defendingUnits(c.owner,c.units)+buildingDefense(target);
 }
 function botDestinationLegal(target){
  const enemy=enemyRegion(target);
@@ -3181,7 +3181,10 @@ function renderReturnBanner(){
  setTimeout(()=>{const b=$('returnPass');if(b)b.onclick=passReturn},0);return true;
 }
 function totalUnits(i=G.active){let n=Object.values(G.b).filter(c=>c.owner===i).reduce((a,c)=>a+c.units,0);Object.values(G.sea).forEach(s=>n+=(s.fleets[i]||0));return n}
-function cap(i=G.active){return FACTIONS[p(i).faction].cap*ownRegs(i)}
+function isEgnorax(i){return TribuCorruption.enabled(G)&&FACTIONS[p(i).faction].name==='Egnorax'}
+function defendingUnits(i,n){return isEgnorax(i)?Math.ceil(n/2):n*FACTIONS[p(i).faction].def}
+function cap(i=G.active){return isEgnorax(i)?Infinity:FACTIONS[p(i).faction].cap*ownRegs(i)}
+function capLabel(i=G.active){return isEgnorax(i)?'sans plafond':cap(i)}
 function units(id,i=G.active){return isSea(id)?(G.sea[id].fleets[i]||0):(G.b[id].owner===i?G.b[id].units:0)}
 function physicalNeighbors(id){return isSea(id)?[...SEA[id],...PORTS[id]]:[...R[id][3],...R[id][4]]}
 function neighbors(id){const n=physicalNeighbors(id);if(!isSea(id)){const mate=portalMate(id);if(mate&&!n.includes(mate))n.push(mate)}return n}
@@ -3793,7 +3796,7 @@ function openSeaChoice(n){
 function startLandBattle(target,n,attackMove=[],attackOrigins=[]){
  const c=G.b[target],hostile=effectiveHostile(target),db=defensiveBuildingAt(target);
  const defender=hostile?null:(c.owner!==null?c.owner:(db&&db.owner!==null?db.owner:null));
- const defBase=(hostile?5:(defender===null?0:c.units*FACTIONS[p(defender).faction].def))+buildingDefense(target);
+ const defBase=(hostile?5:(defender===null?0:defendingUnits(defender,c.units)))+buildingDefense(target);
  attacked.add(target);
  battle={kind:'land',target,attacker:G.active,defender,attackUnits:n,defenseBase:defBase,defOriginalUnits:c.units,epicDefenderUnits:c.units,hostile:hostile,stack:[],seconds:15,reactionSide:'defender',attackOrigins,attackMove:attackMove.slice()};
  log('Bataille terrestre en '+target+' : '+n+' Att contre '+defBase+' Déf.');
@@ -3803,7 +3806,7 @@ function startLandBattle(target,n,attackMove=[],attackOrigins=[]){
 function startSeaBattle(target,n,defender,attackMove=[],attackOrigins=[]){
  const defUnits=G.sea[target].fleets[defender]||0;
  const defCoeff=FACTIONS[p(defender).faction].def;
- const defBase=defUnits*defCoeff;
+ const defBase=defendingUnits(defender,defUnits);
  attacked.add(target);
  battle={kind:'sea',target,attacker:G.active,defender,attackUnits:n,defenseBase:defBase,defOriginalUnits:defUnits,epicDefenderUnits:defUnits,hostile:false,stack:[],seconds:15,reactionSide:'defender',attackOrigins,attackMove:attackMove.slice()};
  log('Bataille maritime en '+target+' : '+n+' Att contre '+defBase+' Déf ('+defUnits+' unité(s) ×'+defCoeff+').');
@@ -3903,7 +3906,27 @@ function resolveBattle(){
  render();queueBot('après bataille');
 }
 function beginPlay(){if(G&&G.online&&!G.online.legacySync){if(onlineGameState&&onlineGameState.phase==='recruit')return onlineGameAction('END_RECRUIT');return}if(paidDrawState)return;recruitSnapshot=null;G.phase='play';setMovable();render()}
-function doDraw(){if(G&&G.online&&!G.online.legacySync)return onlineGameAction('DRAW_START');if(G.phase!=='start'||paidDrawState||goldReaction)return;draw(G.active,2);log(p().name+' pioche 2 cartes.');beginPlay()}
+function completeStartDraw(source,actor=G.active){
+ if(G.active!==actor||G.phase!=='start'||paidDrawState||goldReaction)return;
+ if(source==='discard'){
+  if(!isEgnorax(actor)||!G.discard.length)return;
+  const count=Math.min(2,G.discard.length);
+  for(let i=0;i<count;i++)p(actor).hand.push(G.discard.pop());
+  audioCardMove();log(p(actor).name+' prend '+count+' carte(s) sur la défausse.');
+ }else{draw(actor,2);log(p(actor).name+' pioche 2 cartes.')}
+ beginPlay();
+}
+function doDraw(){
+ if(G&&G.online&&!G.online.legacySync)return onlineGameAction('DRAW_START');
+ if(G.phase!=='start'||paidDrawState||goldReaction)return;
+ if(isEgnorax(G.active)&&!isBot()){
+  const actor=G.active,valid=interactionContextValid(true);
+  requestActionConfirmation('Piocher — Egnorax','Choisissez une seule source. La défausse donne au maximum ses deux cartes du dessus, sans complément.',
+   [{label:'Pioche',run:()=>completeStartDraw('deck',actor)},...(G.discard.length?[{label:'Défausse ('+Math.min(2,G.discard.length)+' carte(s))',run:()=>completeStartDraw('discard',actor)}]:[])],valid);
+  return;
+ }
+ completeStartDraw('deck');
+}
 function doHarvest(){if(G&&G.online&&!G.online.legacySync)return onlineGameAction('HARVEST_START');if(G.phase!=='start'||paidDrawState||goldReaction)return;
  const receiver=G.active;
  let gain=ownRegs(receiver)*2,cityBonus=0;
@@ -4404,7 +4427,7 @@ function die(owner,count,region=null){
  const y=FACTIONS[G.players[owner].faction].name==='Yonkaïs'&&defending;
  const walls=(region!==null&&owner!==G.active)?wallCount(owner):0;
  if(walls>0)d.classList.add('walledDie');
- const shown=(y?count*3:count);
+ const shown=defending?defendingUnits(owner,count):count;
  d.textContent=shown;
  d.title=(region!==null?'Valeur sur région : ':'Unités : ')+shown+(walls?' (Murs frontaliers +'+walls+')':'');
  return d
@@ -4540,7 +4563,7 @@ function renderMap(){
    pair.appendChild(ad);
    previewDefenders.forEach(e=>{
      const dd=document.createElement('span');dd.className='battleDie defenderDie';dd.style.backgroundImage='url("'+factionDieImage(e.owner)+'")';
-     const defUnitValue=e.units*FACTIONS[p(e.owner).faction].def;
+     const defUnitValue=defendingUnits(e.owner,e.units);
      if(!isSea(id)&&wallCount(e.owner)>0)dd.classList.add('walledDie');
      dd.textContent=defUnitValue;dd.title=p(e.owner).name+' : '+defUnitValue+' Défense affichée';pair.appendChild(dd);
    });
@@ -4550,7 +4573,7 @@ function renderMap(){
    const pair=document.createElement('span');pair.className='battleDicePair';
    const ad=document.createElement('span');ad.className='battleDie attackerDie';ad.style.backgroundImage='url("'+factionDieImage(battle.attacker)+'")';ad.textContent=battle.attackUnits;ad.title=p(battle.attacker).name+' : '+battle.attackUnits+' unité(s) attaquante(s)';
    const dd=document.createElement('span');dd.className='battleDie defenderDie';dd.style.backgroundImage='url("'+factionDieImage(battle.defender)+'")';
-   const defUnitValue=battle.defOriginalUnits*FACTIONS[p(battle.defender).faction].def;
+   const defUnitValue=defendingUnits(battle.defender,battle.defOriginalUnits);
    if(wallCount(battle.defender)>0)dd.classList.add('walledDie');
    dd.textContent=defUnitValue;dd.title=p(battle.defender).name+' : '+defUnitValue+' Défense affichée';
    pair.appendChild(ad);pair.appendChild(dd);b.appendChild(pair);
@@ -4699,7 +4722,7 @@ function renderPlayerRail(){
      '<div class="playerPeek" style="border-color:'+COLORS[i]+'">'+
        '<b>'+pl.name+' — '+FACTIONS[pl.faction].name+'</b>'+
        '<div>Or : '+pl.gold+'</div><div>Cartes en main : '+pl.hand.length+'</div>'+
-       '<div>Unités : '+totalUnits(i)+' / '+cap(i)+'</div>'+
+       '<div>Unités : '+totalUnits(i)+' / '+capLabel(i)+'</div>'+
        '<div>Points de victoire : '+victoryPoints(i)+' <small>('+((pl.pvPermanent||0))+' permanents + '+provinceVictoryPoints(i)+' provinces)</small></div>'+
        '<b>Cartes publiques en jeu</b>'+
        '<div class="peekCards">'+(publicCards.length?publicCards.map(id=>OFFICIAL_CARD_ART[CARDS[id].name]?'<button type="button" class="peekOfficialCard" data-peek-card-id="'+id+'"><img src="'+OFFICIAL_CARD_ART[CARDS[id].name]+'" alt="'+CARDS[id].name.replace(/"/g,'&quot;')+'"><span class="peekZoom" data-peek-zoom="'+id+'">⌕</span><span class="peekLabel">'+CARDS[id].name+'</span></button>':'<button type="button" class="peekOfficialCard" data-peek-card-id="'+id+'"><span class="peekLabel">'+CARDS[id].name+'</span></button>').join(''):'<small>Aucune pour le moment.</small>')+'</div>'+
@@ -5099,7 +5122,7 @@ function render(){
    '<div class="rightStats">'+
      '<div class="statBox"><small>Tour</small><b>'+G.turn+'</b></div>'+
      '<div class="statBox"><small>Or</small><b>'+pl.gold+'</b></div>'+
-     '<div class="statBox"><small>Unités</small><b>'+totalUnits()+' / '+cap()+'</b></div>'+
+     '<div class="statBox"><small>Unités</small><b>'+totalUnits()+' / '+capLabel()+'</b></div>'+
      '<div class="statBox"><small>Cartes</small><b>'+pl.hand.length+'</b></div>'+
    '</div>'+
    '<div style="margin-top:7px"><span class="badge">Phase : '+G.phase+'</span></div>'+
@@ -5179,7 +5202,7 @@ function render(){
  const handTitle=$('handSummaryTitle'),handGold=$('handGold'),handUnits=$('handUnits');
  if(handTitle)handTitle.style.color=handPlayer!==null?COLORS[handPlayer]:'';
  if(handGold)handGold.textContent=handPlayer!==null?'Or : '+p(handPlayer).gold:'Or : —';
- if(handUnits)handUnits.textContent=handPlayer!==null?'Unités : '+totalUnits(handPlayer)+'/'+cap(handPlayer):'Unités : —';
+ if(handUnits)handUnits.textContent=handPlayer!==null?'Unités : '+totalUnits(handPlayer)+'/'+capLabel(handPlayer):'Unités : —';
  const h=$('hand');h.innerHTML='';
  if(handPlayer===null){
    $('handCount').textContent='0';

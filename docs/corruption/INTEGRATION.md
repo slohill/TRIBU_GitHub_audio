@@ -35,3 +35,10 @@ Next concrete work: six distinct color assets and full setup selection, new fact
 ## Checkpoint 3 — setup visuals
 User selected violet #a66bff. Added 15 optimized dice assets: Egnorax/Morcatt six colors, base factions violet. Local 6h setup has six players/colors and two new faction choices, info magnifiers and color routing. Base setup remains five colors/six portrait choices. Browser setup check passed; violet Egnorax inspected.
 IMPORTANT: faction mechanics are NOT complete. Egnorax rounding/draw and Morcatt auctions remain pending. FACTIONS indices 5/6 reserved; legacy 3/4 aliases preserved. Full online setup still pending. Do not enable public selection/launch.
+
+## Checkpoint 4 — Egnorax legacy rules
+Rounded defendingUnits helper applied to battle creation, previews, NPC-destruction recomputation, bot estimates and Shadow defensive reinforcements (difference of rounded totals).
+Unlimited cap handles zero owned regions without Infinity*0. Human start draw choice uses existing action confirmation, deck OR top two discard cards, one if only one, no discard option if empty. Bot currently uses normal deck.
+Regional dice outside owner turn show rounded defense, own-turn/attacking unit counts unchanged.
+Tests work/corruption-integration/check-egnorax.cjs pass defense odd/even, Yonkais regression, fortress 5 units=>13, reinforcement 5->6 adds zero defense, 6->7 adds one, draw cases, unlimited recruitment and display. Foundations browser test also passes.
+Remaining: actual synchronized multiplayer scenarios, spectator unlimited-cap formatting, Morcatt auctions and full online setup. Do not enable public launch.
