@@ -127,7 +127,10 @@ function addSetupFactionInfo(button,key){
  const hint=document.createElement('span');hint.className='factionInfoBtn';hint.textContent='⌕';hint.tabIndex=0;hint.setAttribute('role','button');hint.setAttribute('aria-label','Informations sur '+FACTION_PORTRAIT_META[key].label);
  const open=e=>{e.preventDefault();e.stopPropagation();const f=FACTIONS[FACTION_PORTRAIT_META[key].faction];
    $('factionInfoTitle').textContent=f.name;$('factionInfoImage').src=FACTION_PORTRAITS[key];$('factionInfoImage').alt=f.name;
-   $('factionInfoText').textContent=tutorialFactionHelp[FACTION_PORTRAIT_META[key].faction];
+   $('factionInfoText').textContent=({
+'Egnorax':"Vous n'avez pas de plafond de recrutement. Vos unités sont divisées par deux au supérieur en Défense. Au début de votre tour, si vous décidez de piocher deux cartes, vous pouvez les prendre sur le dessus de la pile de défausse.",
+'Morcatt':"Lors de chacune de vos récoltes, piochez autant de cartes qu’il y a de joueur.euses et mettez-les aux enchères. Les recettes s’ajoutent à votre récolte ; chaque carte invendue retire 1 Or au gain, sans descendre sous zéro."
+})[f.name]||tutorialFactionHelp[FACTION_PORTRAIT_META[key].faction];
    factionInfoOverlay.classList.remove('hidden');$('factionInfoClose').focus();
  };
  hint.onclick=open;hint.onkeydown=e=>{if(e.key==='Enter'||e.key===' ')open(e)};hint.onpointerdown=e=>e.stopPropagation();button.appendChild(hint);
@@ -139,3 +142,4 @@ function movementSuggestionTargets(){
 }
 
 wireStartActionGestures();
+
