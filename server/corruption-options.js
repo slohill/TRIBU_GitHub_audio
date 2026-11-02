@@ -14,5 +14,5 @@ function roomOptions(payload,enabled=false){
 const baseColors=['#ff4fc3','#ffd92f','#6ab34c','#7ec8ff','#ff3b30'];
 const basePortraits=['GB_A','GB_B','R_A','R_B','Y_A','Y_B'];
 function colors(v){return version(v)==='corruption'?[...baseColors,'#a66bff']:baseColors.slice()}
-function portraits(v){return version(v)==='corruption'?[...basePortraits,'E_A','M_A']:basePortraits.slice()}
+function portraits(v){return version(v)==='corruption'?[...basePortraits,'E_A','E_B','M_A','M_B']:basePortraits.slice()}
 module.exports={version,seats,roomOptions,colors,portraits};

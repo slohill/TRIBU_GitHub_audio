@@ -129,7 +129,7 @@ function addSetupFactionInfo(button,key){
    $('factionInfoTitle').textContent=f.name;$('factionInfoImage').src=FACTION_PORTRAITS[key];$('factionInfoImage').alt=f.name;
    $('factionInfoText').textContent=({
 'Egnorax':"Vous n'avez pas de plafond de recrutement. Vos unités sont divisées par deux au supérieur en Défense. Au début de votre tour, si vous décidez de piocher deux cartes, vous pouvez les prendre sur le dessus de la pile de défausse.",
-'Morcatt':"Lors de chacune de vos récoltes, piochez autant de cartes qu’il y a de joueur.euses et mettez-les aux enchères. Les recettes s’ajoutent à votre récolte ; chaque carte invendue retire 1 Or au gain, sans descendre sous zéro."
+'Morcatt':"Lors de chacune de vos récoltes, piochez autant de cartes qu'il y a de joueur.euse. Vous êtes maître des enchères : choisissez une somme de départ pour chacune des cartes ainsi piochées, minimum 1 d'Or. Chaque adversaire peut ensuite surenchérir selon l'Or qu'il.elle possède. Chaque carte va à celui ou celle qui a mis la plus grosse somme. L'Or des enchères vient s'ajouter à l'Or de la récolte. Toute carte invendue va à la défausse et retire 1 Or à la récolte du Morcatt, sans descendre sous zéro."
 })[f.name]||tutorialFactionHelp[FACTION_PORTRAIT_META[key].faction];
    factionInfoOverlay.classList.remove('hidden');$('factionInfoClose').focus();
  };

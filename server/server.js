@@ -62,7 +62,7 @@ function leaveSpectator(socket){
 const DEFAULT_NAMES = ['Valkor','Xodia','Oldirn','Mundris','Ferna','Dronk','Spoltreg','Nimun','Raenura','Keplet'];
 const COLORS = ['#ff4fc3','#ffd92f','#6ab34c','#7ec8ff','#ff3b30'];
 const PORTRAITS = ['GB_A','GB_B','R_A','R_B','Y_A','Y_B'];
-const PORTRAIT_FACTION = { GB_A:0, GB_B:0, R_A:1, R_B:1, Y_A:2, Y_B:2, E_A:5, M_A:6 };
+const PORTRAIT_FACTION = { GB_A:0, GB_B:0, R_A:1, R_B:1, Y_A:2, Y_B:2, E_A:5, E_B:5, M_A:6, M_B:6 };
 const PROVINCES = ['A','B','C','D','E','F','G','H','I'];
 const PROVINCE_REGIONS = {
   A:['A1','A2','A3','A4'], B:['B1','B2','B4','B5'], C:['C1','C2','C4','C5'],
