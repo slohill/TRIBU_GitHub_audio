@@ -33,7 +33,7 @@ function createLossPlan(game,player,tribe,battles){
   battles.forEach((b,battleIndex)=>{
    if(b.environmentResolved||b.attacker!==player)return;
    (b.attackOrigins||[]).forEach((o,originIndex)=>{
-    if(o.region===region&&o.moves.length)groups.push({key:'battle:'+battleIndex+':'+originIndex,kind:'attacking',battleIndex,originIndex,target:b.target,available:o.moves.length});
+    if(o.region===region&&o.moves.length)groups.push({key:'battle:'+battleIndex+':'+originIndex,kind:'attacking',battleIndex,originIndex,target:b.target,available:o.moves.length,moves:o.moves.slice()});
    });
   });
   // An emptied origin can retain committed troops. A region owned by an opponent is excluded.
@@ -69,15 +69,19 @@ function commands(plan){
  return plan.regions.flatMap(row=>row.groups.filter(g=>row.chosen[g.key]>0).map(g=>({region:row.region,...g,loss:row.chosen[g.key]})));
 }
 function validate(plan,game,battles){
- if(!ready(plan))return false;
+ if(game.gameVersion!=='corruption'||!Number.isInteger(plan.player)||!game.players[plan.player]||!definitions.some(d=>d.tribe===plan.tribe)||!ready(plan))return false;
  const fresh=createLossPlan(game,plan.player,plan.tribe,battles);
- if(fresh.regions.length!==plan.regions.length)return false;
+ if(fresh.regions.length!==plan.regions.length||new Set(plan.regions.map(r=>r.region)).size!==plan.regions.length)return false;
  return plan.regions.every(row=>{
   const next=fresh.regions.find(r=>r.region===row.region);
-  if(!next||next.total!==row.total||next.required!==row.required||next.groups.length!==row.groups.length)return false;
-  return row.groups.every(g=>next.groups.some(n=>n.key===g.key&&n.available===g.available&&n.target===g.target));
+  if(!next||next.total!==row.total||next.required!==row.required||next.groups.length!==row.groups.length||new Set(row.groups.map(g=>g.key)).size!==row.groups.length)return false;
+  return row.groups.every(g=>{
+   const n=next.groups.find(n=>n.key===g.key);
+   return n&&['kind','available','target','battleIndex','originIndex'].every(k=>n[k]===g[k])&&JSON.stringify(n.moves)===JSON.stringify(g.moves);
+  });
  });
 }
+
 const api=Object.freeze({definitions,alliance,peaceful,ownedTribe,bonus,createLossPlan,choose,reset,ready,commands,validate});
 root.TribuAlliances=api;if(typeof module==='object'&&module.exports)module.exports=api;
 })(typeof globalThis==='object'?globalThis:this);

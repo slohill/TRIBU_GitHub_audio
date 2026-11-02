@@ -40,3 +40,11 @@ test('forged choices cannot remove more units than a group contains or use unkno
  plan.regions[0].chosen={unknown:5};assert.equal(A.validate(plan,game,battles),false);
  plan.regions[0].chosen={stationed:-1,'battle:0:0':6};assert.equal(A.ready(plan),false);
 });
+
+test('reject forged mutation routing and duplicated region rows',()=>{
+ const {game,battles}=fixture();
+ function selectedPlan(){const plan=A.createLossPlan(game,0,'dwarves',battles);for(let i=0;i<3;i++)A.choose(plan,'A','stationed');for(let i=0;i<2;i++)A.choose(plan,'A','battle:0:0');return plan}
+ const plan=selectedPlan();plan.regions[0].groups[1].battleIndex=1;assert.equal(A.validate(plan,game,battles),false);
+ const other=selectedPlan();other.regions[0].groups[0].kind='attacking';assert.equal(A.validate(other,game,battles),false);
+ const moved=selectedPlan();battles[0].attackOrigins[0].moves[0]=0;assert.equal(A.validate(moved,game,battles),false);
+});
