@@ -11,18 +11,20 @@ onlineLegacyApply=function(packet){
  return morcattBaseApply(packet);
 };
 function morcattAuctionActive(){return !!G?.morcattAuction&&G.morcattAuction.stage!=='finished'}
-function startMorcattAuction(seller,gain){
+function startMorcattAuction(seller,gain,dwarfHarvest=null){
  if(morcattAuctionActive())return;
  const cards=[];for(let i=0;i<G.players.length;i++){const id=drawOneToPool();if(id===null||id===undefined)break;cards.push(id)}
- G.morcattAuction=TribuAuction.create(seller,cards,gain);G.phase='auction';render();
+ G.morcattAuction=TribuAuction.create(seller,cards,gain);G.morcattAuction.dwarfHarvest=dwarfHarvest;G.phase='auction';render();
  if(!G.online&&p(seller).bot){cards.forEach((id,i)=>TribuAuction.price(G.morcattAuction,seller,i,TribuAuction.botPrice(id,CARDS)));TribuAuction.start(G.morcattAuction,seller,G.players,G.discard);morcattAuctionChanged()}
 }
 function morcattAuctionChanged(){
  const s=G.morcattAuction;
  if(s?.stage==='finished'&&!s.gainOffered){
-  s.gainOffered=true;const gain=TribuAuction.total(s);
+  s.gainOffered=true;let gain=TribuAuction.total(s);
+  const dwarfHarvest=s.dwarfHarvest?{...s.dwarfHarvest,baseAmount:s.dwarfHarvest.baseAmount+s.receipts-s.unsold}:null;
+  if(dwarfHarvest){const pending={amount:gain,dwarfHarvest};refreshDwarfHarvestGain(pending);gain=pending.amount;}
   log(p(s.seller).name+' termine ses enchères : '+s.receipts+' Or de ventes, '+s.unsold+' invendue(s).');
-  G.phase='start';offerGoldGain(s.seller,gain,'Récolte Morcatt','beginPlay');return;
+  G.phase='start';offerGoldGain(s.seller,gain,'Récolte Morcatt','beginPlay',{dwarfHarvest});return;
  }
  render();
 }

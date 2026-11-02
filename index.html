@@ -1423,6 +1423,7 @@ function resolveGoldGain(){if(allianceLossActive())return false;
  if(!goldReaction)return;
  clearHotseatReaction();
  clearGoldReactionTimer();
+ refreshPendingAllianceGold();
  const r=goldReaction;
  goldReaction=null;
  // La chaîne d'Or appartient au tour qui l'a ouverte. Si une ancienne version
@@ -1453,6 +1454,7 @@ function playAmbush(playerIndex){if(morcattAuctionActive()||allianceLossActive()
  const id=G.players[playerIndex].hand.splice(idx,1)[0];G.discard.push(id);
  goldReaction={
    receiver:playerIndex,
+   dwarfHarvest:r.dwarfHarvest,
    amount:r.amount,
    source:'Embuscade sur '+r.source,
    after:r.after,
@@ -1478,7 +1480,7 @@ function maybeBotAmbush(){
  if(goldReaction.amount>=2){setTimeout(()=>{if(goldReaction&&goldReaction.receiver!==chooser&&G.players[chooser].gold+goldReaction.amount<40)playAmbush(chooser)},650);return true}
  return false;
 }
-function offerGoldGain(receiver,amount,source,after){
+function offerGoldGain(receiver,amount,source,after,details={}){
  if(amount<=0){continueAfterGold(after);return}
  if(G.players[receiver].bot&&source==='Taxe'&&G.players[receiver].gold+amount>=40){
    log(p(receiver).name+' (bot) renonce à Taxe pour ne pas déclencher la Malédiction du Dragon.');
@@ -1487,7 +1489,7 @@ function offerGoldGain(receiver,amount,source,after){
  }
  const pausedBattle=!!battle;
  if(pausedBattle){clearInterval(battleTick);clearTimeout(botReactionTimer)}
- goldReaction={receiver,amount,source,after,seconds:10,turnOwner:G.active,turnEpoch,pausedBattle};
+ goldReaction={...details,receiver,amount,source,after,seconds:10,turnOwner:G.active,turnEpoch,pausedBattle};
  log(p(receiver).name+' doit recevoir '+amount+' Or : '+(isHotseatMode()?'réactions hot-seat sans chrono.':'fenêtre de réaction de 10 secondes.')+(pausedBattle?' La bataille est mise en pause.':''));
  startGoldReactionTimer();
  render();
@@ -2043,7 +2045,7 @@ function chooseShadowTarget(r){
    resumeBattleTimer();render();return;
  }
  // Empty / neutral peaceful conquest.
- if(c.owner===null&&!c.hostile){
+ if(c.owner===null&&(!c.hostile||TribuAlliances.peaceful(G,actor,r,CARDS))){
    c.owner=actor;c.units=n;c.hostile=false;
    restoreShadowMovementAt(r,n);
    if(c.building&&c.building.owner!==actor&&['Forteresse','Icenia, la cité blanche','Sundo, cité du soleil'].includes(c.building.type)){
@@ -3317,6 +3319,7 @@ function legalSources(d){
 function enemyRegion(id){
  if(isSea(id))return false;
  const c=G.b[id],b=c.building;
+ if(TribuAlliances.peaceful(G,G.active,id,CARDS))return false;
  const hostileOccupant=effectiveHostile(id)||(c.owner!==null&&c.owner!==G.active&&c.units>0);
  // Un bâtiment défensif VIDE et sans PNJ ne déclenche jamais de bataille :
  // il est récupéré simplement en y déplaçant au moins une unité.
@@ -3448,7 +3451,7 @@ function battlePower(side){
   if(!battle) return 0;
   const base=side==='attacker'?battle.attackUnits:battle.defenseBase;
   let bonus=0;
-  if(side==='attacker') bonus+=p(battle.attacker).attackTurnBonus||0;
+  if(side==='attacker') bonus+=(p(battle.attacker).attackTurnBonus||0)+TribuAlliances.bonus(G,battle.attacker,CARDS,'humans',1);
   if(side==='defender' && battle.defender!==null) bonus+=p(battle.defender).defenseTurnBonus||0;
   battle.stack.forEach(entry=>{
     if(entry.side===side) bonus+=battleBonusFor(cardDef(entry.cardId),side);
@@ -3838,6 +3841,12 @@ function commitMovement(n,seaDefender){
    G.sea[target].fleets[G.active]=(G.sea[target].fleets[G.active]||0)+n;
    movable[target]=(movable[target]||[]).concat(carried);
    recordDestinationUse(target);log(n+' unité(s) rejoignent '+target+'.');
+ }else if(TribuAlliances.peaceful(G,G.active,target,CARDS)){
+   const c=G.b[target],building=defensiveBuildingAt(target);
+   if(building)transferBuildingCard(building,G.active);
+   c.owner=G.active;c.units=n;c.hostile=false;
+   movable[target]=(movable[target]||[]).concat(carried);
+   recordDestinationUse(target);log(p().name+' conquiert '+target+' grâce à son alliance, sans bataille.');
  }else if((()=>{const c=G.b[target],db=defensiveBuildingAt(target);return !!(c&&db&&c.units===0&&!effectiveHostile(target)&&c.owner===null)})()){
    // Bâtiment défensif réellement abandonné : capture pacifique prioritaire,
    // avant toute logique de bataille.
@@ -4032,14 +4041,28 @@ function doDraw(){if(allianceLossActive())return false;
  }
  completeStartDraw('deck');
 }
+function dwarfHarvestDetails(owner,baseAmount){
+ const bonus=TribuAlliances.bonus(G,owner,CARDS,'dwarves',5);
+ return bonus?{owner,baseAmount,bonus,regions:TribuAlliances.ownedTribe(G,owner,'dwarves')}:null;
+}
+function refreshDwarfHarvestGain(reaction){
+ const d=reaction?.dwarfHarvest;if(!d)return;
+ if(!TribuAlliances.bonus(G,d.owner,CARDS,'dwarves',5))d.revoked=true;
+ const bonus=d.revoked?0:d.regions.filter(r=>G.b[r]?.owner===d.owner).length*5;
+ reaction.amount=Math.max(0,d.baseAmount+bonus);
+}
+function refreshPendingAllianceGold(){
+ [goldReaction,...goldReactionStack].forEach(refreshDwarfHarvestGain);
+}
 function doHarvest(){if(allianceLossActive())return false;if(G&&G.online&&!G.online.legacySync)return onlineGameAction('HARVEST_START');if(G.phase!=='start'||paidDrawState||goldReaction)return;
  const receiver=G.active;
  let gain=ownRegs(receiver)*2,cityBonus=0;
  Object.keys(G.b).forEach(r=>{const b=cityAt(r);if(b&&b.owner===receiver)cityBonus+=5});
  gain+=cityBonus;
- if(TribuCorruption.enabled(G)&&FACTIONS[p(receiver).faction].name==='Morcatt'){startMorcattAuction(receiver,gain);return}
+ const dwarfHarvest=dwarfHarvestDetails(receiver,gain);if(dwarfHarvest)gain+=dwarfHarvest.bonus;
+ if(TribuCorruption.enabled(G)&&FACTIONS[p(receiver).faction].name==='Morcatt'){startMorcattAuction(receiver,gain,dwarfHarvest);return}
  log(p(receiver).name+' lance une Récolte de '+gain+' Or'+(cityBonus?' dont +'+cityBonus+' grâce aux Cités.':'.'));
- offerGoldGain(receiver,gain,'Récolte','beginPlay');
+ offerGoldGain(receiver,gain,'Récolte','beginPlay',{dwarfHarvest});
 }
 function doRecruit(){if(allianceLossActive())return false;
  if(G&&G.online&&!G.online.legacySync)return onlineGameAction('RECRUIT_START');
@@ -5213,6 +5236,7 @@ function commerceClock(){if(!G)return;let changed=false;const now=Date.now();com
 setInterval(commerceClock,1000);
 
 function render(){
+ refreshPendingAllianceGold();
  applyOracleMapVisual();
  if(!G)return;
  $('gamePointsTitle').textContent='partie à '+G.victoryTarget+' points';
