@@ -29,10 +29,10 @@ function bonus(game,player,cards,tribe,perRegion){
  const a=alliance(game.players[player],cards);
  return a?.card.allianceTribe===tribe?ownedTribe(game,player,tribe).length*perRegion:0;
 }
-function createLossPlan(game,player,tribe,battles){
+function createLossPlan(game,player,tribe,battles,eligibleRegions=null,quota=5){
  const regions=[];
  for(const [region,cell]of Object.entries(game.b)){
-  if(cell.npcTribe!==tribe)continue;
+  if(eligibleRegions?!eligibleRegions.includes(region):cell.npcTribe!==tribe)continue;
   const groups=[];
   if(cell.owner===player&&cell.units>0)groups.push({key:'stationed',kind:'stationed',available:cell.units});
   battles.forEach((b,battleIndex)=>{
@@ -44,12 +44,13 @@ function createLossPlan(game,player,tribe,battles){
   // An emptied origin can retain committed troops. A region owned by an opponent is excluded.
   if(cell.owner!==player&&!(cell.owner===null&&groups.some(g=>g.kind==='attacking')))continue;
   const total=groups.reduce((n,g)=>n+g.available,0);if(!total)continue;
-  const required=Math.min(5,total),chosen={};
-  if(total<=5)groups.forEach(g=>chosen[g.key]=g.available);
-  regions.push({region,groups,total,required,chosen,automatic:total<=5});
+  const required=Math.min(quota,total),chosen={};
+  if(total<=quota)groups.forEach(g=>chosen[g.key]=g.available);
+  regions.push({region,groups,total,required,chosen,automatic:total<=quota});
  }
- return {player,tribe,regions,confirmed:false};
+ return {player,tribe,regions,confirmed:false,...(eligibleRegions?{kind:"ogre",eligibleRegions:eligibleRegions.slice()}: {})};
 }
+function createOgreLossPlan(game,player,regions,battles){return createLossPlan(game,player,null,battles,regions,1)}
 function selected(row){return Object.values(row.chosen).reduce((n,v)=>n+v,0)}
 function choose(plan,region,key){
  if(plan.confirmed)return false;
@@ -74,8 +75,8 @@ function commands(plan){
  return plan.regions.flatMap(row=>row.groups.filter(g=>row.chosen[g.key]>0).map(g=>({region:row.region,...g,loss:row.chosen[g.key]})));
 }
 function validate(plan,game,battles){
- if(game.gameVersion!=='corruption'||!Number.isInteger(plan.player)||!game.players[plan.player]||!definitions.some(d=>d.tribe===plan.tribe)||!ready(plan))return false;
- const fresh=createLossPlan(game,plan.player,plan.tribe,battles);
+ if(game.gameVersion!=='corruption'||!Number.isInteger(plan.player)||!game.players[plan.player]||!(plan.kind==='ogre'?Array.isArray(plan.eligibleRegions)&&plan.eligibleRegions.every(r=>!!game.b[r]):definitions.some(d=>d.tribe===plan.tribe))||!ready(plan))return false;
+ const fresh=plan.kind==='ogre'?createOgreLossPlan(game,plan.player,plan.eligibleRegions,battles):createLossPlan(game,plan.player,plan.tribe,battles);
  if(fresh.regions.length!==plan.regions.length||new Set(plan.regions.map(r=>r.region)).size!==plan.regions.length)return false;
  return plan.regions.every(row=>{
   const next=fresh.regions.find(r=>r.region===row.region);
@@ -87,6 +88,6 @@ function validate(plan,game,battles){
  });
 }
 
-const api=Object.freeze({definitions,install,alliance,peaceful,ownedTribe,bonus,createLossPlan,choose,reset,ready,commands,validate});
+const api=Object.freeze({definitions,install,alliance,peaceful,ownedTribe,bonus,createLossPlan,createOgreLossPlan,choose,reset,ready,commands,validate});
 root.TribuAlliances=api;if(typeof module==='object'&&module.exports)module.exports=api;
 })(typeof globalThis==='object'?globalThis:this);

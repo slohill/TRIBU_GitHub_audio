@@ -6,7 +6,7 @@ function mount({map,panel,plan,viewer,playerName,dieImage,onChoose,onReset,onCon
  const layer=document.createElement('div');layer.className='allianceLossLayer';
  layer.style.cssText='position:absolute;inset:0;pointer-events:none;z-index:25';
  const box=document.createElement('section');box.className='allianceLossPanel';
- const heading=document.createElement('h3');heading.textContent='Perte de votre alliance';box.appendChild(heading);
+ const heading=document.createElement('h3');heading.textContent=plan.kind==='ogre'?'Ogres — pertes adjacentes':'Perte de votre alliance';box.appendChild(heading);
  const message=document.createElement('p');message.textContent=mine?'Choisissez les unités à retirer. Les pertes ne seront appliquées qu’après OK.':'En attente de '+playerName+' pour le choix des unités à retirer.';box.appendChild(message);
  const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');
  svg.style.cssText='position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:19';

@@ -3078,7 +3078,11 @@ function beginAllianceLossSelection(player,tribe,pauseContext=null){
  if(!Number.isInteger(player)||!G.players[player]||!TribuAlliances.definitions.some(d=>d.tribe===tribe))return false;
  if(!TribuCorruption.enabled(G)||G.online||allianceLossActive()||priorityCardResolutionActive()||oracleState||morcattAuctionActive())return false;
  const plan=TribuAlliances.createLossPlan(G,player,tribe,engagedBattles());
- G.allianceLoss={plan,...(pauseContext||{goldWasPaused:!!goldReaction?.pausedByCard,paidWasPaused:!!paidDrawState?.pausedByCard})};
+ return startMandatoryLossPlan(plan,pauseContext);
+}
+function startMandatoryLossPlan(plan,pauseContext=null,queue=[]){
+ const player=plan.player;
+ G.allianceLoss={plan,queue,...(pauseContext||{goldWasPaused:!!goldReaction?.pausedByCard,paidWasPaused:!!paidDrawState?.pausedByCard})};
  pauseGameForPriorityCard();pauseGoldReactionForCard();pausePaidDrawForCard();
  render();
  if(G.players[player].bot){
@@ -3090,10 +3094,15 @@ function beginAllianceLossSelection(player,tribe,pauseContext=null){
 function confirmAllianceLossSelection(actor=localViewer(),bot=false){
  const state=G.allianceLoss;if(!state||actor!==state.plan.player||(!bot&&G.players[actor].bot))return false;
  if(!applyAllianceLossPlan(state.plan)){
-  state.plan=TribuAlliances.createLossPlan(G,actor,state.plan.tribe,engagedBattles());
+  state.plan=state.plan.kind==='ogre'?TribuAlliances.createOgreLossPlan(G,actor,state.plan.eligibleRegions,engagedBattles()):TribuAlliances.createLossPlan(G,actor,state.plan.tribe,engagedBattles());
   render();return false;
  }
  delete G.allianceLoss;
+ if(state.queue?.length){
+  const next=state.queue.shift(),plan=TribuAlliances.createOgreLossPlan(G,next.player,next.regions,engagedBattles());
+  if(isHotseatMode()&&!p(next.player).bot)hotseatViewerOverride=next.player;
+  startMandatoryLossPlan(plan,{goldWasPaused:state.goldWasPaused,paidWasPaused:state.paidWasPaused},state.queue);return true;
+ }
  checkDecimations();
  if(isDecimated(G.active))G.allianceLossTurnEnd={player:G.active,epoch:turnEpoch};
  for(const b of engagedBattles()){
@@ -3196,12 +3205,14 @@ function applyBattleRegionDestruction(regions,onlyBattle=null){
 }
 function finishDestroyedBattle(){
  if(!battle||!battle.environmentResolved)return false;
+ const ogreBlast=prepareOgreBlast(battle);
  clearInterval(battleTick);clearHotseatReaction();recordDestinationUse(battle.target);hideBattle();
  const shadow=!!battle.fromShadow;battle=null;
  if(shadow&&battleStack.length){
    const paused=battleStack.pop();battle=paused.battle;battle.seconds=paused.seconds??battleReactionSeconds();
    if(!finishDestroyedBattle())resumeBattleTimer();
  }else audioBattleEnd();
+ beginOgreLosses(ogreBlast);
  return true;
 }
 function finishOracleBattleDestruction(state){
@@ -3496,11 +3507,39 @@ function battleBonusFor(card,side){
   if(name==='Balistes') return 0;
   return 0;
 }
+function canUseOgres(actor){
+ return !!battle&&!G.online&&TribuCorruption.enabled(G)&&battle.attacker===actor&&!battle.environmentResolved&&!battle.elfChoice&&!priorityCardResolutionActive()&&!goldReaction&&!morcattAuctionActive()&&p(actor).ogreUsedEpoch!==turnEpoch&&TribuAlliances.bonus(G,actor,CARDS,'ogres',1)>0;
+}
+function useOgres(actor){
+ if(actor!==localViewer()||p(actor).bot||!canUseOgres(actor))return false;
+ const roll=1+Math.floor(Math.random()*6);
+ p(actor).ogreUsedEpoch=turnEpoch;battle.ogrePower={actor,roll,cancelled:false,settled:false};
+ log(p(actor).name+' invoque les Ogres : dé '+roll+', +'+roll+' Attaque pour cette bataille.');render();return true;
+}
+function ogreBattleBonus(b){
+ const power=b?.ogrePower;if(!power||power.cancelled||power.settled)return 0;
+ if(!TribuAlliances.bonus(G,power.actor,CARDS,'ogres',1)){power.cancelled=true;return 0}
+ return power.roll;
+}
+function prepareOgreBlast(b){
+ if(!ogreBattleBonus(b))return null;
+ b.ogrePower.settled=true;
+ return {regions:[...new Set(neighbors(b.target).filter(r=>!isSea(r)))],actor:b.ogrePower.actor};
+}
+function beginOgreLosses(blast){
+ if(!blast||G.online)return false;
+ const queue=G.players.map((_,player)=>({player,regions:blast.regions})).filter(x=>TribuAlliances.createOgreLossPlan(G,x.player,x.regions,engagedBattles()).regions.length);
+ if(!queue.length)return false;
+ const next=queue.shift(),plan=TribuAlliances.createOgreLossPlan(G,next.player,next.regions,engagedBattles());
+ if(isHotseatMode()&&!p(next.player).bot)hotseatViewerOverride=next.player;
+ log('Ogres : chaque région terrestre adjacente occupée perd une unité.');
+ startMandatoryLossPlan(plan,null,queue);return true;
+}
 function battlePower(side){
   if(!battle) return 0;
   const base=side==='attacker'?battle.attackUnits:battle.defenseBase;
   let bonus=0;
-  if(side==='attacker') bonus+=(p(battle.attacker).attackTurnBonus||0)+TribuAlliances.bonus(G,battle.attacker,CARDS,'humans',1);
+  if(side==='attacker') bonus+=(p(battle.attacker).attackTurnBonus||0)+TribuAlliances.bonus(G,battle.attacker,CARDS,'humans',1)+ogreBattleBonus(battle);
   if(side==='defender' && battle.defender!==null) bonus+=p(battle.defender).defenseTurnBonus||0;
   battle.stack.forEach(entry=>{
     if(entry.side===side) bonus+=battleBonusFor(cardDef(entry.cardId),side);
@@ -3735,7 +3774,7 @@ function battleBreakdown(side){
  if(!battle)return '';
  const bits=[];
  if(side==='attacker'){
-   bits.push(battle.attackUnits+' unité(s)');
+   bits.push(battle.attackUnits+' unité(s)');const ogre=ogreBattleBonus(battle);if(ogre)bits.push('🎲 Ogres +'+ogre);
    const tb=p(battle.attacker).attackTurnBonus||0;if(tb)bits.push('Balistes +'+tb);if(battle.trebuchetsUsed)bits.push('Plan des trébuchets +'+trebuchetBonus());
  }else{
    bits.push(battle.defenseBase+' Défense totale');
@@ -4053,6 +4092,7 @@ function resolveBattle(){
  clearHotseatReaction();
  clearInterval(battleTick);
  const a=battlePower('attacker'),d=battlePower('defender'),target=battle.target;
+ const ogreBlast=prepareOgreBlast(battle);
  const attacker=battle.attacker,defender=battle.defender;
  if(a>d){
    const surv=Math.min(battle.attackUnits,a-d);
@@ -4128,9 +4168,10 @@ function resolveBattle(){
  battle=null;
  if(finishedShadow&&battleStack.length){
    const paused=battleStack.pop();battle=paused.battle;battle.seconds=paused.seconds??battleReactionSeconds();
-   log('La bataille précédente reprend en '+battle.target+'.');resumeBattleTimer();render();return;
+   log('La bataille précédente reprend en '+battle.target+'.');if(beginOgreLosses(ogreBlast))return;resumeBattleTimer();render();return;
  }
  audioBattleEnd();
+ if(beginOgreLosses(ogreBlast))return;
  if(isDecimated(G.active)){
    log(p().name+' est décimé : son tour se termine immédiatement, sans Oracle.');
    advanceTurn('joueur décimé');
@@ -5020,6 +5061,7 @@ function inPlayCardUsable(i,id,index=null){if(morcattAuctionActive()||allianceLo
  if(i!==localViewer()||isDecimated(i))return false;
  agentDefaults(i);
 
+ if(CARDS[id].allianceTribe==='ogres')return canUseOgres(i);
  if(name==='Espion')
    return i===G.active&&G.phase==='play'&&index!==null&&!agentUsed(i,index);
 
@@ -5036,6 +5078,7 @@ function activateInPlayCard(i,id,index=null){if(morcattAuctionActive()||alliance
  if(!inPlayCardUsable(i,id,index))return false;
  const name=CARDS[id].name;
  hideInPlayPreview();
+ if(CARDS[id].allianceTribe==='ogres')return useOgres(i);
  if(name==='Espion'||name==='Voleur'){
    if(goldReaction)pauseGoldReactionForCard();
    pauseGameForPriorityCard();
