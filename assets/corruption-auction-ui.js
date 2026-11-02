@@ -1,4 +1,15 @@
-/* Local auction UI; online entry stays gated until server-authoritative actions are ready. */
+/* Auction UI: server-authoritative online, legacy local execution otherwise. */
+let morcattClockSample=null;
+function morcattClockNow(){
+ return G?.online&&morcattClockSample?morcattClockSample.serverTime+performance.now()-morcattClockSample.observedAt:Date.now();
+}
+const morcattBaseApply=onlineLegacyApply;
+onlineLegacyApply=function(packet){
+ if(Number.isFinite(packet?.serverTime)&&(!Number.isInteger(packet.revision)||packet.revision>=onlineLegacyRevision)){
+  morcattClockSample={serverTime:packet.serverTime,observedAt:performance.now()};
+ }
+ return morcattBaseApply(packet);
+};
 function morcattAuctionActive(){return !!G?.morcattAuction&&G.morcattAuction.stage!=='finished'}
 function startMorcattAuction(seller,gain){
  if(morcattAuctionActive())return;
@@ -69,7 +80,7 @@ function renderMorcattAuction(){
  }
  root.appendChild(panel);updateMorcattAuctionTimer();
 }
-function updateMorcattAuctionTimer(){const timer=$('morcattAuctionTimer'),s=G?.morcattAuction;if(timer&&s?.deadline)timer.textContent=Math.max(0,Math.ceil((s.deadline-Date.now())/1000))+' s'}
+function updateMorcattAuctionTimer(){const timer=$('morcattAuctionTimer'),s=G?.morcattAuction;if(timer&&s?.deadline)timer.textContent=Math.max(0,Math.ceil((s.deadline-morcattClockNow())/1000))+' s'}
 const morcattBaseRenderCommerceBoard=renderCommerceBoard;
 renderCommerceBoard=function(){morcattBaseRenderCommerceBoard();renderMorcattAuction()};
 setInterval(()=>{

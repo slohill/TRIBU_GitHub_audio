@@ -324,7 +324,7 @@ function emitLegacy(room,exceptSocketId=null){
   room.players.forEach(p=>{
     if(p.id===exceptSocketId)return;
     const socket=io.sockets.sockets.get(p.id);if(!socket)return;
-    socket.emit('legacyState',{snapshot:room.legacySnapshot,revision:room.legacyRevision||0,youIndex:legacyYouIndex(room,p.id),recovery:roomRecoveryCapsule(room)});
+    socket.emit('legacyState',{serverTime:Date.now(),snapshot:room.legacySnapshot,revision:room.legacyRevision||0,youIndex:legacyYouIndex(room,p.id),recovery:roomRecoveryCapsule(room)});
   });
 }
 
@@ -686,7 +686,7 @@ io.on('connection', socket => {
     const room=roomForSocket(socket);
     if(!room||!room.game||room.game.status!=='playing')return rejectGameAction(ack,'La partie complète n’est pas disponible.');
     const youIndex=humanGameIndex(room,socket.id);if(youIndex<0)return rejectGameAction(ack,'Joueur introuvable.');
-    ack({ok:true,revision:room.legacyRevision||0,youIndex,bootstrap:legacyBootstrapView(room,socket.id),snapshot:room.legacySnapshot||null,recovery:roomRecoveryCapsule(room)});
+    ack({ok:true,serverTime:Date.now(),revision:room.legacyRevision||0,youIndex,bootstrap:legacyBootstrapView(room,socket.id),snapshot:room.legacySnapshot||null,recovery:roomRecoveryCapsule(room)});
   });
 
   socket.on('legacySfx', (payload = {}) => {
@@ -742,7 +742,7 @@ io.on('connection', socket => {
     const room=roomForSocket(socket),actor=room?humanGameIndex(room,socket.id):-1;
     if(!room||actor<0)return ack({ok:false,error:'Joueur introuvable.'});
     const result=auctionSync.action(room,actor,payload);
-    ack({...result,current:room.legacySnapshot?{snapshot:room.legacySnapshot,revision:room.legacyRevision,youIndex:actor}:null});
+    ack({...result,current:room.legacySnapshot?{serverTime:Date.now(),snapshot:room.legacySnapshot,revision:room.legacyRevision,youIndex:actor}:null});
   });
   socket.on('legacyCommit', (payload = {}, ack = () => {}) => {
     const room=roomForSocket(socket);

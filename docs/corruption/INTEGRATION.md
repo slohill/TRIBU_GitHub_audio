@@ -58,3 +58,9 @@ Online UI sends actions and displays server snapshots; server ticks even if sell
 Real Socket.IO test with test-only fixture passes concurrent bids, stale rejection, single payment/award, old snapshot overwrite resistance. Local browser auction regression passes.
 TODO before release: full multi-browser harvest-to-Embuscade and reconnect tests; initialize/finish handoff races; server-clock offset for display; spectator public summaries; six-player/faction online setup. Public launch still locked.
 Test fixture creates temporary server copy; test-only event is never included in production server.
+
+## Checkpoint 8 — 2026-11-02 end-to-end auction verification
+Two real browser pages + local Socket.IO server pass full harvest -> shared preparation prices -> disconnect/reload/resume buyer -> start -> sale -> final harvest reaction -> Embuscade -> payout. One owned region (2 Or) + sale (3) - unsold (1) = 4; buyer pays 3 then intercepts 4, seller unchanged.
+Added serverTime on legacy stream/request/auction responses and monotonic browser clock projection. Artificial +120s client wall-clock skew does not corrupt auction display.
+Test: work/corruption-integration/check-auction-online-browser.cjs. Production launch remains locked. Test fixture only changes room version after ordinary base setup, does not enable real production extension.
+Remaining: seller disconnect at final payout and bot handoff, spectator public summaries, full six-player online setup/factions, alliance and hero integrations. No changes published to main.
