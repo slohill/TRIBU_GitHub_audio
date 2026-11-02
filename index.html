@@ -3111,6 +3111,7 @@ function confirmAllianceLossSelection(actor=localViewer(),bot=false){
   if(next.length!==b.priorityOrder.length){b.priorityOrder=next;b.priorityIndex=Math.max(0,next.indexOf(current));b.consecutivePasses=0}
  }
  finishDestroyedBattle();
+ if(drainOgreLosses({goldWasPaused:state.goldWasPaused,paidWasPaused:state.paidWasPaused}))return true;
  if(battle)resumeBattleTimer();
  if(goldReaction&&!state.goldWasPaused&&!battle&&!priorityCardResolutionActive())resumeGoldReactionAfterCard();
  if(paidDrawState&&!state.paidWasPaused&&!battle&&!priorityCardResolutionActive())resumePaidDrawAfterCard();
@@ -3119,7 +3120,7 @@ function confirmAllianceLossSelection(actor=localViewer(),bot=false){
 function finishAllianceLossTurnIfReady(){
  const pending=G?.allianceLossTurnEnd;if(!pending)return false;
  if(pending.epoch!==turnEpoch||pending.player!==G.active){delete G.allianceLossTurnEnd;return false}
- if(battle||goldReaction||goldReactionStack.length||paidDrawState||priorityCardResolutionActive()||oracleState||oracleNoticeState||dragonRichState||dragonCurseState||dragonPublicState||dragonSixState||gameOverState)return false;
+ if(battle||G.ogreBlastQueue?.length||goldReaction||goldReactionStack.length||paidDrawState||priorityCardResolutionActive()||oracleState||oracleNoticeState||dragonRichState||dragonCurseState||dragonPublicState||dragonSixState||gameOverState)return false;
  delete G.allianceLossTurnEnd;
  advanceTurn('joueur décimé après perte d’alliance');return true;
 }
@@ -3206,13 +3207,14 @@ function applyBattleRegionDestruction(regions,onlyBattle=null){
 function finishDestroyedBattle(){
  if(!battle||!battle.environmentResolved)return false;
  const ogreBlast=prepareOgreBlast(battle);
+ if(ogreBlast)(G.ogreBlastQueue||(G.ogreBlastQueue=[])).push(ogreBlast);
  clearInterval(battleTick);clearHotseatReaction();recordDestinationUse(battle.target);hideBattle();
  const shadow=!!battle.fromShadow;battle=null;
  if(shadow&&battleStack.length){
    const paused=battleStack.pop();battle=paused.battle;battle.seconds=paused.seconds??battleReactionSeconds();
    if(!finishDestroyedBattle())resumeBattleTimer();
  }else audioBattleEnd();
- beginOgreLosses(ogreBlast);
+ drainOgreLosses();
  return true;
 }
 function finishOracleBattleDestruction(state){
@@ -3528,12 +3530,21 @@ function prepareOgreBlast(b){
 }
 function beginOgreLosses(blast){
  if(!blast||G.online)return false;
- const queue=G.players.map((_,player)=>({player,regions:blast.regions})).filter(x=>TribuAlliances.createOgreLossPlan(G,x.player,x.regions,engagedBattles()).regions.length);
- if(!queue.length)return false;
- const next=queue.shift(),plan=TribuAlliances.createOgreLossPlan(G,next.player,next.regions,engagedBattles());
- if(isHotseatMode()&&!p(next.player).bot)hotseatViewerOverride=next.player;
- log('Ogres : chaque région terrestre adjacente occupée perd une unité.');
- startMandatoryLossPlan(plan,null,queue);return true;
+ (G.ogreBlastQueue||(G.ogreBlastQueue=[])).push(blast);
+ return drainOgreLosses();
+}
+function drainOgreLosses(pauseContext=null){
+ if(allianceLossActive())return true;
+ while(G.ogreBlastQueue?.length){
+  const blast=G.ogreBlastQueue.shift();
+  const queue=G.players.map((_,player)=>({player,regions:blast.regions})).filter(x=>TribuAlliances.createOgreLossPlan(G,x.player,x.regions,engagedBattles()).regions.length);
+  if(!queue.length)continue;
+  const next=queue.shift(),plan=TribuAlliances.createOgreLossPlan(G,next.player,next.regions,engagedBattles());
+  if(isHotseatMode()&&!p(next.player).bot)hotseatViewerOverride=next.player;
+  log('Ogres : chaque région terrestre adjacente occupée perd une unité.');
+  startMandatoryLossPlan(plan,pauseContext,queue);return true;
+ }
+ return false;
 }
 function battlePower(side){
   if(!battle) return 0;
@@ -3633,7 +3644,7 @@ function fleeElfTo(destination){
  finishDestroyedBattle();render();queueBot('après fuite elfique');return true;
 }
 function startReactionWindow(){
- if(battle?.elfChoice)return;
+ if(allianceLossActive()||battle?.elfChoice)return;
   commerceClocksPaused();
   battle.priorityOrder=buildPriorityOrder();
   battle.priorityIndex=0;
@@ -3693,7 +3704,7 @@ function battleReactionSeconds(player=currentPriorityPlayer()){
   return player===battle.attacker||player===battle.defender?seconds:({15:5,20:10,30:15}[seconds]);
 }
 function advancePriority(resetPasses){
- if(battle?.elfChoice)return;
+ if(allianceLossActive()||battle?.elfChoice)return;
   if(resetPasses) battle.consecutivePasses=0;
   battle.priorityIndex=(battle.priorityIndex+1)%battle.priorityOrder.length;
   battle.seconds=battleReactionSeconds();
@@ -4088,7 +4099,7 @@ function startSeaBattle(target,n,defender,attackMove=[],attackOrigins=[]){
  startReactionWindow();
 }
 function resolveBattle(){
- if(battle?.elfChoice)return false;
+ if(allianceLossActive()||battle?.elfChoice)return false;
  clearHotseatReaction();
  clearInterval(battleTick);
  const a=battlePower('attacker'),d=battlePower('defender'),target=battle.target;
