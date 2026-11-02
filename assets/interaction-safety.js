@@ -101,6 +101,12 @@ function wireCardConfirmations(){
  [...$('hand').children].forEach((el,index)=>{
    const id=G.players[owner].hand[index],c=CARDS[id];if(!c)return;
    const key='card:'+owner+':'+index+':'+id;
+   if(c.allianceTribe&&el.onclick){
+     const action=el.onclick;
+     const old=TribuAlliances.alliance(G.players[owner],CARDS);
+     const text=c.effect+(old?' Votre alliance actuelle sera défaussée et vous perdrez 5 unités par région de son peuple que vous contrôlez.':'');
+     bindActionGesture(el,key,c.name,text,event=>action.call(el,event),()=>localViewer()===owner&&!allianceLossActive()&&G.players[owner].hand[index]===id);return;
+   }
    if(c.name==='Balistes'&&canPlayBalistesOutsideBattle(owner)){
      el.classList.add('playablePermanent');el.title='Balistes : choisir un bonus jusqu’à la fin du tour';
      const text='Jusqu’à la fin du tour actuellement en cours, choisissez +2 à chacune de vos attaques OU +2 à chacune de vos défenses.';

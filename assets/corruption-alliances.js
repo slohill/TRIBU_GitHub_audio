@@ -2,12 +2,15 @@
    Loss plans never mutate the board or battle objects. */
 (function(root){
 'use strict';
-const definitions=[
- {name:'Accord avec les nains',tribe:'dwarves',count:3,image:'accord_avec_les_nains.webp'},
- {name:'Armistice avec les humains',tribe:'humans',count:3,image:'armistice_avec_les_humains.webp'},
- {name:'Cohabitation elfique',tribe:'elves',count:4,image:'cohabitation_elfique.webp'},
- {name:'Pacte avec les Ogres',tribe:'ogres',count:1,image:'pacte_avec_les_ogres.webp'}
-];
+const definitions=[{"name": "Accord avec les nains", "tribe": "dwarves", "count": 3, "image": "accord_avec_les_nains.webp", "effect": "Vous pouvez conquérir les nains sans combattre. Chaque région PNJ Naine que vous contrôlez vous confère 5 Or supplémentaires lors de vos phases de récolte."}, {"name": "Armistice avec les humains", "tribe": "humans", "count": 3, "image": "armistice_avec_les_humains.webp", "effect": "Vous pouvez conquérir les humains sans combattre. Chaque région PNJ Humaine que vous contrôlez vous confère +1 d’Attaque sur chacune de vos batailles."}, {"name": "Cohabitation elfique", "tribe": "elves", "count": 4, "image": "cohabitation_elfique.webp", "effect": "Vous pouvez conquérir les Elfes sans combattre. Si vous possédez au moins une région PNJ Elfe, chaque fois que vous êtes attaqué, il vous est proposé de fuir sur une région non hostile."}, {"name": "Pacte avec les Ogres", "tribe": "ogres", "count": 1, "image": "pacte_avec_les_ogres.webp", "effect": "Vous pouvez conquérir les ogres sans combattre. Tant que vous contrôlez les Ogres, une fois par tour, durant une bataille, vous pouvez lancer le dé : +X d’attaque sur cette bataille, X étant le résultat du dé. Chaque région adjacente à la bataille perd 1 unité."}];
+function install(cards){
+ return definitions.map(d=>{
+  const key='alliance-'+d.tribe,existing=cards.findIndex(c=>c.extensionKey===key);
+  if(existing>=0)return existing;
+  return cards.push({name:d.name,type:'Alliance',count:d.count,effect:d.effect,allianceTribe:d.tribe,extension:'corruption',extensionKey:key})-1;
+ });
+}
+
 function alliance(player,cards){
  const held=(player.inPlay||[]).map(id=>({id,card:cards[id]})).filter(x=>x.card?.allianceTribe);
  if(held.length>1)throw new Error('Un seul accord d’alliance peut être en jeu.');
@@ -82,6 +85,6 @@ function validate(plan,game,battles){
  });
 }
 
-const api=Object.freeze({definitions,alliance,peaceful,ownedTribe,bonus,createLossPlan,choose,reset,ready,commands,validate});
+const api=Object.freeze({definitions,install,alliance,peaceful,ownedTribe,bonus,createLossPlan,choose,reset,ready,commands,validate});
 root.TribuAlliances=api;if(typeof module==='object'&&module.exports)module.exports=api;
 })(typeof globalThis==='object'?globalThis:this);

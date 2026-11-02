@@ -35,6 +35,7 @@ const rooms = new Map();
 const auctionHtml=require('fs').readFileSync(path.join(CLIENT_ROOT,'index.html'),'utf8');
 const auctionCardCatalog=JSON.parse(auctionHtml.match(/const DATA=(\{[^\r\n]+\}),POS=DATA/)[1]).cards;
 require('../assets/corruption').installPortal(auctionCardCatalog);
+require('../assets/corruption-alliances').install(auctionCardCatalog);
 const auctionSync=createAuctionSync({publish:room=>emitLegacy(room)});
 setInterval(()=>{for(const room of rooms.values())auctionSync.tick(room,auctionCardCatalog)},500).unref();
 
