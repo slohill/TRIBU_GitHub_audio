@@ -3093,11 +3093,25 @@ function confirmAllianceLossSelection(actor=localViewer(),bot=false){
   render();return false;
  }
  delete G.allianceLoss;
+ checkDecimations();
+ if(isDecimated(G.active))G.allianceLossTurnEnd={player:G.active,epoch:turnEpoch};
+ for(const b of engagedBattles()){
+  if(!Array.isArray(b.priorityOrder))continue;
+  const current=b.priorityOrder[b.priorityIndex],next=b.priorityOrder.filter(i=>!isDecimated(i));
+  if(next.length!==b.priorityOrder.length){b.priorityOrder=next;b.priorityIndex=Math.max(0,next.indexOf(current));b.consecutivePasses=0}
+ }
  finishDestroyedBattle();
  if(battle)resumeBattleTimer();
  if(goldReaction&&!state.goldWasPaused&&!battle&&!priorityCardResolutionActive())resumeGoldReactionAfterCard();
  if(paidDrawState&&!state.paidWasPaused&&!battle&&!priorityCardResolutionActive())resumePaidDrawAfterCard();
  render();queueBot('après pertes d’alliance');return true;
+}
+function finishAllianceLossTurnIfReady(){
+ const pending=G?.allianceLossTurnEnd;if(!pending)return false;
+ if(pending.epoch!==turnEpoch||pending.player!==G.active){delete G.allianceLossTurnEnd;return false}
+ if(battle||goldReaction||goldReactionStack.length||paidDrawState||priorityCardResolutionActive()||oracleState||oracleNoticeState||dragonRichState||dragonCurseState||dragonPublicState||dragonSixState||gameOverState)return false;
+ delete G.allianceLossTurnEnd;
+ advanceTurn('joueur décimé après perte d’alliance');return true;
 }
 function renderAllianceLossSelection(){
  allianceLossView?.destroy();allianceLossView=null;
@@ -5270,6 +5284,7 @@ function commerceClock(){if(!G)return;let changed=false;const now=Date.now();com
 setInterval(commerceClock,1000);
 
 function render(){
+ if(finishAllianceLossTurnIfReady())return;
  refreshPendingAllianceGold();
  applyOracleMapVisual();
  if(!G)return;
