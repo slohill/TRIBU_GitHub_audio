@@ -11,4 +11,8 @@ function roomOptions(payload,enabled=false){
  const bots=Math.max(0,Math.min(seats(gameVersion)-maxHumans,Math.floor(Number(payload.bots)||0)));
  return {gameVersion,maxHumans,bots};
 }
-module.exports={version,seats,roomOptions};
+const baseColors=['#ff4fc3','#ffd92f','#6ab34c','#7ec8ff','#ff3b30'];
+const basePortraits=['GB_A','GB_B','R_A','R_B','Y_A','Y_B'];
+function colors(v){return version(v)==='corruption'?[...baseColors,'#a66bff']:baseColors.slice()}
+function portraits(v){return version(v)==='corruption'?[...basePortraits,'E_A','M_A']:basePortraits.slice()}
+module.exports={version,seats,roomOptions,colors,portraits};

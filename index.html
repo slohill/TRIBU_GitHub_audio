@@ -5513,7 +5513,7 @@ function onlineLegacyBootstrap(full,state){
  const board={};Object.entries(full.board||{}).forEach(([r,c])=>board[r]={...c});
  const sea={};Object.keys(SEA).forEach(id=>sea[id]={fleets:{...((full.sea&&full.sea[id]&&full.sea[id].fleets)||{})}});
  legacyGameVersion=full.gameVersion==='corruption'?'corruption':'base';
- G={gameVersion:legacyGameVersion,active:Number.isInteger(full.active)?full.active:0,turn:full.turn||1,phase:full.phase||'start',dragon:full.dragon||'E4',victoryTarget:full.victoryPoints||3,battleReactionSeconds:full.battleReactionSeconds||15,
+ G={gameVersion:legacyGameVersion,corruptionNpcAssigned:!!full.corruptionNpcAssigned,active:Number.isInteger(full.active)?full.active:0,turn:full.turn||1,phase:full.phase||'start',dragon:full.dragon||'E4',victoryTarget:full.victoryPoints||3,battleReactionSeconds:full.battleReactionSeconds||15,
    players,b:board,sea,deck:(full.deck||[]).slice(),discard:(full.discard||[]).slice(),log:(full.log||[]).slice(),
    oracleDeck:(full.oracleDeck||[]).slice(),oracleDiscard:(full.oracleDiscard||[]).slice(),oracleActive:full.oracleActive===null?null:full.oracleActive,
    online:{code:full.code||state.code,seed:full.seed||state.seed,mySocketId:onlineSocket&&onlineSocket.id,myPlayerIndex:full.youIndex,hostId:onlineRoom&&onlineRoom.hostId,legacySync:true,revision:full.legacyRevision||0}};

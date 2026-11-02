@@ -64,3 +64,10 @@ Two real browser pages + local Socket.IO server pass full harvest -> shared prep
 Added serverTime on legacy stream/request/auction responses and monotonic browser clock projection. Artificial +120s client wall-clock skew does not corrupt auction display.
 Test: work/corruption-integration/check-auction-online-browser.cjs. Production launch remains locked. Test fixture only changes room version after ordinary base setup, does not enable real production extension.
 Remaining: seller disconnect at final payout and bot handoff, spectator public summaries, full six-player online setup/factions, alliance and hero integrations. No changes published to main.
+
+## Checkpoint 9 — six-player online setup (preview only)
+Server version-aware colors/portraits/capacity: violet + E_A faction5 and M_A faction6 only in Corruption; base indices 3/4 remain unchanged client-side. Both setupComplete and setupIdentity/setupRegions routes validate availability. Bots choose from version-specific remaining options.
+Corruption setup launch allowed only with BOTH TRIBU_CORRUPTION_PREVIEW=1 and TRIBU_CORRUPTION_SETUP_PREVIEW=1. Normal/default launch stays blocked; public selector disabled.
+Server initializes permanent NPC allocation once after all placements, copies allocation flag into legacy bootstrap, adds independent second portal to version deck. All six clients receive identical board/deck state.
+check-six-online.cjs PASS six actual sockets, duplicate refusal, two setup routes, versioned factions/colors, NPC counts and portal count; base setup regression. Existing launch gate and two-browser Morcatt reconnect/Embuscade tests PASS.
+Next: alliance cards and peaceful conquest, Corruption loss selection, remaining Oracle/heroes; spectator summaries and full bot game checks still pending.

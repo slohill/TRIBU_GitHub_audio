@@ -62,7 +62,7 @@ function leaveSpectator(socket){
 const DEFAULT_NAMES = ['Valkor','Xodia','Oldirn','Mundris','Ferna','Dronk','Spoltreg','Nimun','Raenura','Keplet'];
 const COLORS = ['#ff4fc3','#ffd92f','#6ab34c','#7ec8ff','#ff3b30'];
 const PORTRAITS = ['GB_A','GB_B','R_A','R_B','Y_A','Y_B'];
-const PORTRAIT_FACTION = { GB_A:0, GB_B:0, R_A:1, R_B:1, Y_A:2, Y_B:2 };
+const PORTRAIT_FACTION = { GB_A:0, GB_B:0, R_A:1, R_B:1, Y_A:2, Y_B:2, E_A:5, M_A:6 };
 const PROVINCES = ['A','B','C','D','E','F','G','H','I'];
 const PROVINCE_REGIONS = {
   A:['A1','A2','A3','A4'], B:['B1','B2','B4','B5'], C:['C1','C2','C4','C5'],
@@ -124,9 +124,10 @@ function shuffle(array, random = Math.random) {
   }
   return array;
 }
-function makeDeck(random) {
+function makeDeck(random,version='base') {
   const deck = [];
   CARD_COUNTS.forEach((count, id) => { for (let n = 0; n < count; n++) deck.push(id); });
+  if(version==='corruption')auctionCardCatalog.forEach((c,id)=>{if(c.extension==='corruption')for(let i=0;i<c.count;i++)deck.push(id)});
   return shuffle(deck, random);
 }
 function drawCards(game, playerIndex, count) {
@@ -314,7 +315,7 @@ function legacyBootstrapView(room,socketId){
   return {
     code:room.code,mode:room.mode,gameVersion:corruptionOptions.version(room.gameVersion),victoryPoints:room.victoryPoints,battleReactionSeconds:room.battleReactionSeconds||15,seed:room.seed,youIndex,legacyRevision:room.legacyRevision||0,
     status:game.status,phase:game.phase,turn:game.turn,active:game.active,dragon:game.dragon,
-    board:game.board,sea:game.sea,deck:game.deck,discard:game.discard,oracleDeck:game.oracleDeck,oracleDiscard:game.oracleDiscard,oracleActive:game.oracleActive,
+    corruptionNpcAssigned:!!game.corruptionNpcAssigned,board:game.board,sea:game.sea,deck:game.deck,discard:game.discard,oracleDeck:game.oracleDeck,oracleDiscard:game.oracleDiscard,oracleActive:game.oracleActive,
     log:[],players:game.players.map((p,i)=>({index:i,pseudo:p.pseudo,bot:p.bot,connected:p.bot?true:p.connected!==false,color:p.color,portrait:p.portrait,faction:p.faction,province:p.province,regions:(p.regions||[]).slice(),gold:p.gold||0,pvPermanent:p.pvPermanent||0,hand:(p.hand||[]).slice(),inPlay:[]}))
   };
 }
@@ -358,8 +359,8 @@ function completeSetupIfReady(room) {
   if (game.setup.activePlayer < humanCount) return;
 
   const random = seededRandom((room.seed ^ 0xa5a5a5a5) >>> 0);
-  const freeColors = COLORS.filter(c => !game.players.some(p => p.color === c));
-  const freePortraits = PORTRAITS.filter(p => !game.players.some(x => x.portrait === p));
+  const freeColors = corruptionOptions.colors(room.gameVersion).filter(c => !game.players.some(p => p.color === c));
+  const freePortraits = corruptionOptions.portraits(room.gameVersion).filter(p => !game.players.some(x => x.portrait === p));
   for (let i = humanCount; i < game.players.length; i++) {
     const bot = game.players[i];
     bot.color = freeColors.shift() || COLORS[i % COLORS.length];
@@ -375,6 +376,11 @@ function completeSetupIfReady(room) {
     });
   }
 
+  if(room.gameVersion==='corruption'){
+    const holder={gameVersion:room.gameVersion,b:game.board};
+    require('../assets/corruption').assignNpcs(holder,random);
+    game.corruptionNpcAssigned=holder.corruptionNpcAssigned;
+  }
   game.players.forEach((_, i) => drawCards(game, i, 3));
   game.setup = null;
   room.legacyMode = true; room.legacyRevision = 0; room.legacySnapshot = null;
@@ -405,7 +411,7 @@ function buildAuthoritativeGame(room) {
   }));
   shuffle(humans, random);
 
-  const totalPlayers = Math.min(5, room.maxHumans + room.bots);
+  const totalPlayers = Math.min(corruptionOptions.seats(room.gameVersion), room.maxHumans + room.bots);
   const players = humans.slice(0, room.maxHumans);
   for (let i = players.length; i < totalPlayers; i++) {
     players.push({
@@ -436,7 +442,7 @@ function buildAuthoritativeGame(room) {
     dragon: 'E4',
     board: makeBoard(),
     sea: Object.fromEntries(Object.keys(SEA_NEIGHBORS).map(id=>[id,{fleets:{}}])),
-    deck: makeDeck(random),
+    deck: makeDeck(random,room.gameVersion),
     discard: [],
     oracleDeck: shuffle(ORACLE_IDS.slice(), random),
     oracleDiscard: [],
@@ -591,7 +597,7 @@ io.on('connection', socket => {
     if (room.hostId !== socket.id) return ack({ ok: false, error: 'Seul le créateur peut lancer la partie.' });
     if (room.players.length !== room.maxHumans) return ack({ ok: false, error: 'Il manque encore des joueurs ou des joueuses.' });
     if (!room.players.every(p => p.ready)) return ack({ ok: false, error: 'Tout le monde doit être prêt·e.' });
-    if(room.gameVersion==='corruption')return ack({ok:false,error:'Salon expérimental : le lancement de Corruption attend la fin de son intégration.'});
+    if(room.gameVersion==='corruption'&&process.env.TRIBU_CORRUPTION_SETUP_PREVIEW!=='1')return ack({ok:false,error:'Salon expérimental : le lancement de Corruption attend la fin de son intégration.'});
     room.seed = Math.floor(Math.random() * 0x100000000) >>> 0;
     room.launched = true;
     room.game = buildAuthoritativeGame(room);
@@ -617,8 +623,8 @@ io.on('connection', socket => {
     const color = String(payload.color || ''), portrait = String(payload.portrait || '');
     const unique = [...new Set(Array.isArray(payload.regions) ? payload.regions.map(String) : [])];
     const player = game.players[index], allowed = PROVINCE_REGIONS[player.province] || [];
-    if (!COLORS.includes(color)) return rejectGameAction(ack, 'Couleur invalide.');
-    if (!PORTRAITS.includes(portrait)) return rejectGameAction(ack, 'Faction invalide.');
+    if (!corruptionOptions.colors(room.gameVersion).includes(color)) return rejectGameAction(ack, 'Couleur invalide.');
+    if (!corruptionOptions.portraits(room.gameVersion).includes(portrait)) return rejectGameAction(ack, 'Faction invalide.');
     if (game.players.some((p, i) => i !== index && p.color === color)) return rejectGameAction(ack, 'Cette couleur est déjà prise.');
     if (game.players.some((p, i) => i !== index && p.portrait === portrait)) return rejectGameAction(ack, 'Cet encart de faction est déjà pris.');
     if (unique.length !== 2 || !unique.every(r => allowed.includes(r))) return rejectGameAction(ack, 'Choisissez exactement deux régions valides de votre province.');
@@ -638,8 +644,8 @@ io.on('connection', socket => {
 
     const color = String(payload.color || '');
     const portrait = String(payload.portrait || '');
-    if (!COLORS.includes(color)) return rejectGameAction(ack, 'Couleur invalide.');
-    if (!PORTRAITS.includes(portrait)) return rejectGameAction(ack, 'Faction invalide.');
+    if (!corruptionOptions.colors(room.gameVersion).includes(color)) return rejectGameAction(ack, 'Couleur invalide.');
+    if (!corruptionOptions.portraits(room.gameVersion).includes(portrait)) return rejectGameAction(ack, 'Faction invalide.');
     if (game.players.some((p, i) => i !== index && p.color === color)) return rejectGameAction(ack, 'Cette couleur est déjà prise.');
     if (game.players.some((p, i) => i !== index && p.portrait === portrait)) return rejectGameAction(ack, 'Cet encart de faction est déjà pris.');
 
