@@ -71,3 +71,11 @@ Corruption setup launch allowed only with BOTH TRIBU_CORRUPTION_PREVIEW=1 and TR
 Server initializes permanent NPC allocation once after all placements, copies allocation flag into legacy bootstrap, adds independent second portal to version deck. All six clients receive identical board/deck state.
 check-six-online.cjs PASS six actual sockets, duplicate refusal, two setup routes, versioned factions/colors, NPC counts and portal count; base setup regression. Existing launch gate and two-browser Morcatt reconnect/Embuscade tests PASS.
 Next: alliance cards and peaceful conquest, Corruption loss selection, remaining Oracle/heroes; spectator summaries and full bot game checks still pending.
+
+## Faction portraits
+Egnorax A/B and Morcatt A/B supplied BMPs optimized q90 WebP at 3000x3000. Both variants registered client/server. Info lenses checked; full Morcatt explanation restored. Commit d81d1419276113c7ea810e77d4ab5cb445c5f7b7.
+
+## Checkpoint 10 — shared alliance loss planning
+assets/corruption-alliances.js provides alliance lookup, peaceful NPC target eligibility including buildings, tribe-owned bonus queries and immutable loss selection plans. Plan includes stationed and all committed groups per original region; required min(5,total), auto-select <=5, choose/reset for >5. Validate rejects stale troop counts and forged choices before any engine mutation.
+Seven Node scenario tests PASS: user example 1 stationed +4 committed, two battles, separate quota per region, emptied committed origin, opponent exclusion, stale/forged selection, building conquest and immediate bonus loss without alliance.
+NOT YET CONNECTED: module not loaded by index; card play/replacement/theft, green map links, final loss application and battle/NPC reconciliation remain next. Do not claim alliances playable.
