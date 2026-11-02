@@ -2066,6 +2066,7 @@ function chooseShadowTarget(r){
  log('Section de l’ombre ouvre une nouvelle bataille en '+r+' : '+n+' Att contre '+defBase+' Déf.');startReactionWindow();render();
 }
 function resumeBattleTimer(){if(allianceLossActive())return false;
+ if(battle?.elfChoice){renderElfFlee();if(battle?.elfChoice)return false;}
  if(commerceClocksPaused())return;
  clearInterval(battleTick);clearTimeout(botReactionTimer);botReactionTimer=null;if(!battle)return;
  // En Online, une résolution prioritaire qui vient juste de se fermer doit d'abord
@@ -3524,11 +3525,68 @@ function buildPriorityOrder(){
   G.players.forEach((pl,i)=>{if(!order.includes(i)&&!isDecimated(i))order.push(i)});
   return order;
 }
+function elfFleeDestinations(b=battle){
+ if(!b||b.environmentResolved||b.defender===null||!Number.isInteger(b.defender)||!['land','sea'].includes(b.kind))return [];
+ if(!TribuAlliances.bonus(G,b.defender,CARDS,'elves',1)||units(b.target,b.defender)<=0)return [];
+ return neighbors(b.target).filter(r=>{
+  if(isSea(r))return true;
+  const c=G.b[r];return c.owner===b.defender||(c.owner===null&&(!effectiveHostile(r)||TribuAlliances.peaceful(G,b.defender,r,CARDS)));
+ });
+}
+function maybeBeginElfFlee(){
+ if(!battle||battle.elfChecked||G.online||!TribuCorruption.enabled(G))return false;
+ battle.elfChecked=true;
+ if(!elfFleeDestinations().length||p(battle.defender).bot)return false;
+ battle.elfChoice={player:battle.defender,stage:'choice'};
+ clearInterval(battleTick);clearTimeout(botReactionTimer);
+ if(isHotseatMode())hotseatViewerOverride=battle.defender;
+ render();return true;
+}
+function renderElfFlee(){
+ $('elfFleeControls')?.remove();
+ if(!battle?.elfChoice)return false;
+ const options=elfFleeDestinations();
+ if(!options.length){
+  delete battle.elfChoice;
+  if(!priorityCardResolutionActive())startReactionWindow();
+  return false;
+ }
+ const state=battle.elfChoice,host=document.createElement('div');host.id='elfFleeControls';
+ const title=document.createElement('p');title.textContent=localViewer()===state.player?'Cohabitation elfique — fuir ou défendre cette région ?':'En attente du choix de '+p(state.player).name;host.appendChild(title);
+ if(localViewer()===state.player&&!priorityCardResolutionActive()){
+  const add=(text,fn)=>{const b=document.createElement('button');b.textContent=text;b.onclick=fn;host.appendChild(b)};
+  if(state.stage==='choice')add('Fuir',()=>{state.stage='destination';render()});
+  else{const text=document.createElement('p');text.textContent='Choisissez une destination verte sur la carte.';host.appendChild(text);}
+  add('Défendre cette région',()=>{delete battle.elfChoice;startReactionWindow();render()});
+ }
+ $('status').after(host);
+ if(state.stage==='destination'&&localViewer()===state.player&&!priorityCardResolutionActive())options.forEach(r=>map.querySelector('[data-region="'+r+'"]')?.classList.add('shadowTarget'));
+ $('battlePanel').classList.add('hidden');$('battleBanner').classList.add('hidden');return true;
+}
+function fleeElfTo(destination){
+ const b=battle,state=b?.elfChoice;
+ if(!state||state.stage!=='destination'||localViewer()!==state.player||priorityCardResolutionActive()||!elfFleeDestinations().includes(destination))return false;
+ const defender=b.defender,n=units(b.target,defender),carried=defender===G.active?(movable[b.target]||[]).slice(0,n):[];
+ if(isSea(b.target))G.sea[b.target].fleets[defender]=0;
+ else G.b[b.target].units=0;
+ if(defender===G.active)movable[b.target]=[];
+ if(isSea(destination))G.sea[destination].fleets[defender]=(G.sea[destination].fleets[defender]||0)+n;
+ else{const c=G.b[destination];c.owner=defender;c.units+=n;c.hostile=false;const building=defensiveBuildingAt(destination);if(building&&building.owner!==defender)transferBuildingCard(building,defender)}
+ if(defender===G.active)movable[destination]=(movable[destination]||[]).concat(carried);
+ if(isSea(b.target))G.sea[b.target].fleets[b.attacker]=(G.sea[b.target].fleets[b.attacker]||0)+b.attackUnits;
+ else{const c=G.b[b.target];c.owner=b.attacker;c.units=b.attackUnits;c.hostile=false;const building=defensiveBuildingAt(b.target);if(building)transferBuildingCard(building,b.attacker)}
+ if(b.attacker===G.active)movable[b.target]=(movable[b.target]||[]).concat(b.fromShadow?(b.shadowMove||[]):(b.attackMove||[]));
+ finishBattleCards();b.stack=[];b.environmentResolved=true;delete b.elfChoice;
+ log(p(defender).name+' fuit vers '+destination+' avec '+n+' unité(s). '+p(b.attacker).name+' conquiert '+b.target+'.');
+ finishDestroyedBattle();render();queueBot('après fuite elfique');return true;
+}
 function startReactionWindow(){
+ if(battle?.elfChoice)return;
   commerceClocksPaused();
   battle.priorityOrder=buildPriorityOrder();
   battle.priorityIndex=0;
   battle.consecutivePasses=0;
+  if(maybeBeginElfFlee())return;
   battle.seconds=battleReactionSeconds();
   clearInterval(battleTick);
   if(isHotseatMode()){
@@ -3553,7 +3611,7 @@ function startReactionWindow(){
   if(G&&G.online&&G.online.legacySync&&!onlineLegacyOwnsBattlePriority())onlineLegacyResumeBattleView();
 }
 function prepareCurrentBattleReaction(){
- if(!battle||isHotseatMode())return;
+ if(!battle||battle.elfChoice||isHotseatMode())return;
  const priority=currentPriorityPlayer();
  if(G.players[priority].bot)queueBotReaction();
 }
@@ -3583,12 +3641,13 @@ function battleReactionSeconds(player=currentPriorityPlayer()){
   return player===battle.attacker||player===battle.defender?seconds:({15:5,20:10,30:15}[seconds]);
 }
 function advancePriority(resetPasses){
+ if(battle?.elfChoice)return;
   if(resetPasses) battle.consecutivePasses=0;
   battle.priorityIndex=(battle.priorityIndex+1)%battle.priorityOrder.length;
   battle.seconds=battleReactionSeconds();
   if(G&&G.online&&G.online.legacySync)onlineLegacyResumeBattleView();
 }
-function passPriority(){if(allianceLossActive())return false;
+function passPriority(){if(allianceLossActive()||battle?.elfChoice)return false;
   // Une résolution prioritaire suspend réellement la fenêtre de réaction : son chrono
   // ne doit ni avancer la priorité ni rester bloqué à 0 pendant cette résolution.
   if(priorityCardResolutionActive())return;
@@ -3738,6 +3797,7 @@ function queueBotReaction(){
 }
 
 function renderBattle(){
+ if(renderElfFlee())return;
   if(!battle || battle.kind==='seaChoice'){
     renderBattleBanner();
     if(!battle){hideBattle();const t=$('tacticalButtons');if(t)t.innerHTML='';const pi=$('priorityInfo');if(pi)pi.innerHTML='';const pt=$('priorityTimer');if(pt)pt.textContent='';}
@@ -3976,6 +4036,7 @@ function startSeaBattle(target,n,defender,attackMove=[],attackOrigins=[]){
  startReactionWindow();
 }
 function resolveBattle(){
+ if(battle?.elfChoice)return false;
  clearHotseatReaction();
  clearInterval(battleTick);
  const a=battlePower('attacker'),d=battlePower('defender'),target=battle.target;
@@ -4475,6 +4536,7 @@ function oracleDestLocked(id){return !!(seaStormState&&seaStormState.locked&&sea
 
 function dragonTargets(){return physicalNeighbors(G.dragon)}
 function clickSpot(id){if(allianceLossActive())return false;
+ if(battle?.elfChoice){fleeElfTo(id);return;}
  if(G&&G.online&&onlineGameState&&!(G.online&&G.online.legacySync)){if(onlineGameState.status==='setup')onlineSetupRegionClick(id);else if(onlineGameState.status==='playing'&&onlineGameState.phase==='recruit'&&onlineGameState.active===onlineGameState.youIndex)recruitAt(id);else if(onlineGameState.status==='playing'&&onlineGameState.phase==='play'&&onlineGameState.active===onlineGameState.youIndex)onlineMoveClick(id);else if(onlineGameState.status==='playing'&&onlineGameState.phase==='oracleMove'&&onlineGameState.active===onlineGameState.youIndex)onlineDragonClick(id);return}
  if(G&&G.online&&G.online.legacySync){
    const me=G.online.myPlayerIndex;
@@ -5473,7 +5535,7 @@ function render(){
  wireCardConfirmations();
  if(portalMode)renderPortalBanner();else if(dragonRichState)renderRichDragonBanner();else if(returnState)renderReturnBanner();else if(egnoState)renderEgnobombeBanner();else if(shadowState)renderShadowBanner();else if(battle && battle.kind!=='seaChoice')renderBattle();else clearTopBanner();
  renderFullJournal($('log'),G.log,G.players,COLORS);
- renderTutorial();renderSoloPlacement();renderAllianceLossSelection();
+ renderTutorial();renderSoloPlacement();renderAllianceLossSelection();renderElfFlee();
 }
 audioLoadPrefs();audioWireControls();document.addEventListener('pointerdown',()=>audioMaybeWelcome(),{passive:true});
 const ONLINE_RANDOM_NAMES=['Valkor','Xodia','Oldirn','Mundris','Ferna','Dronk','Spoltreg','Nimun','Raenura','Keplet'];
