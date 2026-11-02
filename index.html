@@ -665,6 +665,8 @@ TribuAlliances.definitions.forEach(d=>{
  OFFICIAL_CARD_ART[d.name]='assets/images/cards/'+d.image;
  CARD_ZOOM_RULES[d.name]=d.effect;
 });
+OFFICIAL_CARD_ART.Corruption='assets/images/cards/corruption.webp';
+CARD_ZOOM_RULES.Corruption=CARDS.find(c=>c.extensionKey==='corruption-theft').effect;
 function openOfficialCard(name,type,effect){
  const src=OFFICIAL_CARD_ART[name];if(!src)return;
  const ov=$('cardZoomOverlay'),patch=ov.querySelector('.cardRulePatch');
@@ -2290,6 +2292,36 @@ function availableAgentIndex(i,name){
 function inPlayCountByName(i,name){
  return (G.players[i].inPlay||[]).filter(id=>CARDS[id]&&CARDS[id].name===name).length;
 }
+function corruptionTargets(actor){
+ return G.players.flatMap((pl,i)=>{
+  if(i===actor||pl.decimated)return [];
+  const a=TribuAlliances.alliance(pl,CARDS);return a?[{player:i,id:a.id,tribe:a.card.allianceTribe}]:[];
+ });
+}
+function startCorruption(handIndex){
+ const actor=localViewer(),id=p(actor).hand[handIndex];
+ if(gameOverState||G.phase==='setup'||G.online||!TribuCorruption.enabled(G)||CARDS[id]?.extensionKey!=='corruption-theft'||p(actor).gold<5||p(actor).bot||p(actor).decimated||allianceLossActive()||priorityCardResolutionActive()||oracleState||morcattAuctionActive())return false;
+ const targets=corruptionTargets(actor);if(!targets.length)return false;
+ const pauseContext={goldWasPaused:!!goldReaction?.pausedByCard,paidWasPaused:!!paidDrawState?.pausedByCard};
+ agentModalState={kind:'corruption',actor,cardId:id,pauseContext};
+ pauseGameForPriorityCard();pauseGoldReactionForCard();pausePaidDrawForCard();
+ openAgentModal('Corruption','Choisissez une alliance adverse. Les 5 Or seront dépensés uniquement lorsque vous aurez choisi.');
+ targets.forEach(t=>addAgentChoice(p(t.player).name+' — '+CARDS[t.id].name,()=>resolveCorruption(t.player,t.id)));
+ return true;
+}
+function resolveCorruption(victim,id){
+ const state=agentModalState;if(state?.kind!=='corruption'||state.actor!==localViewer())return false;
+ const actor=state.actor,pl=p(actor),at=pl.hand.indexOf(state.cardId),target=corruptionTargets(actor).find(t=>t.player===victim&&t.id===id);
+ if(at<0||pl.gold<5||!target)return false;
+ pl.hand.splice(at,1);G.discard.push(state.cardId);pl.gold-=5;
+ const old=p(victim).inPlay.indexOf(id);p(victim).inPlay.splice(old,1);if(p(victim).inPlayUID)p(victim).inPlayUID.splice(old,1);pl.hand.push(id);
+ closeAgentModal(true);audioCardMove();
+ log(pl.name+' joue Corruption et vole '+CARDS[id].name+' à '+p(victim).name+'.');
+ refreshPendingAllianceGold();
+ if(isHotseatMode()&&!p(victim).bot)hotseatViewerOverride=victim;
+ beginAllianceLossSelection(victim,target.tribe,state.pauseContext);
+ return true;
+}
 function playAllianceFromHand(handIndex){
  const actor=localViewer(),pl=p(actor),id=pl.hand[handIndex],card=CARDS[id];
  if(!card?.allianceTribe||!TribuCorruption.enabled(G)||G.online||G.phase!=='play'||G.active!==actor||pl.bot||pl.decimated||allianceLossActive()||priorityCardResolutionActive()||oracleState||morcattAuctionActive())return false;
@@ -2319,9 +2351,11 @@ function closeAgentModal(force=false){
    log('Caravane de commerce : chaque joueur doit choisir une carte avant de continuer.');
    showCaravanChoice();return;
  }
+ const corruptionPause=agentModalState?.kind==='corruption'?agentModalState.pauseContext:null;
  const closedAgentKind=agentModalState&&agentModalState.kind;
  agentModalState=null;$('agentOverlay').classList.add('hidden');$('agentChoices').innerHTML='';
  if(!force)resumeGameAfterPriorityCard('reprise après fermeture Agent');
+ if(!force&&corruptionPause){if(!corruptionPause.goldWasPaused&&!battle)resumeGoldReactionAfterCard();if(!corruptionPause.paidWasPaused&&!battle)resumePaidDrawAfterCard()}
 }
 function addAgentChoice(label,fn,disabled=false){
  const b=document.createElement('button');b.textContent=label;b.disabled=disabled;b.onclick=fn;$('agentChoices').appendChild(b);
@@ -3038,12 +3072,12 @@ function engagedUnitCount(player){
 // effect for a partial loss, since surviving attackers may still face returning NPCs.
 let allianceLossView=null;
 function allianceLossActive(){return !!(G&&G.allianceLoss)}
-function beginAllianceLossSelection(player,tribe){
+function beginAllianceLossSelection(player,tribe,pauseContext=null){
  // Online entry remains gated until its authoritative command is installed.
  if(!Number.isInteger(player)||!G.players[player]||!TribuAlliances.definitions.some(d=>d.tribe===tribe))return false;
  if(!TribuCorruption.enabled(G)||G.online||allianceLossActive()||priorityCardResolutionActive()||oracleState||morcattAuctionActive())return false;
  const plan=TribuAlliances.createLossPlan(G,player,tribe,engagedBattles());
- G.allianceLoss={plan,goldWasPaused:!!goldReaction?.pausedByCard,paidWasPaused:!!paidDrawState?.pausedByCard};
+ G.allianceLoss={plan,...(pauseContext||{goldWasPaused:!!goldReaction?.pausedByCard,paidWasPaused:!!paidDrawState?.pausedByCard})};
  pauseGameForPriorityCard();pauseGoldReactionForCard();pausePaidDrawForCard();
  render();
  if(G.players[player].bot){
@@ -5364,6 +5398,7 @@ function render(){
  }
  const isViewerHand=handPlayer===localViewer()&&!G.players[handPlayer].bot&&!isDecimated(handPlayer);
  if(isViewerHand&&c.allianceTribe&&!G.online&&G.phase==='play'&&G.active===handPlayer&&!priorityCardResolutionActive()){d.classList.add('playablePermanent');d.onclick=()=>playAllianceFromHand(handIndex)}
+ if(isViewerHand&&c.extensionKey==='corruption-theft'&&!G.online){d.classList.add('playablePermanent');d.onclick=()=>startCorruption(handIndex)}
  if(isViewerHand&&!choiceState&&c.name==='Taxe'){d.classList.add('playablePermanent');d.title='Jouer Taxe maintenant';d.onclick=()=>playTax(handIndex)}
  if(isViewerHand&&!choiceState&&c.name==='Conseil de guerre'){d.classList.add('playablePermanent');d.title='Jouer Conseil de guerre maintenant';d.onclick=()=>playCouncil(handIndex)}
  if(isViewerHand&&!choiceState&&c.name==='Portails'){d.classList.add('playablePermanent');d.title='Poser les Portails maintenant';d.onclick=()=>beginPortals(handIndex)}

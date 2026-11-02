@@ -4,11 +4,13 @@
 'use strict';
 const definitions=[{"name": "Accord avec les nains", "tribe": "dwarves", "count": 3, "image": "accord_avec_les_nains.webp", "effect": "Vous pouvez conquérir les nains sans combattre. Chaque région PNJ Naine que vous contrôlez vous confère 5 Or supplémentaires lors de vos phases de récolte."}, {"name": "Armistice avec les humains", "tribe": "humans", "count": 3, "image": "armistice_avec_les_humains.webp", "effect": "Vous pouvez conquérir les humains sans combattre. Chaque région PNJ Humaine que vous contrôlez vous confère +1 d’Attaque sur chacune de vos batailles."}, {"name": "Cohabitation elfique", "tribe": "elves", "count": 4, "image": "cohabitation_elfique.webp", "effect": "Vous pouvez conquérir les Elfes sans combattre. Si vous possédez au moins une région PNJ Elfe, chaque fois que vous êtes attaqué, il vous est proposé de fuir sur une région non hostile."}, {"name": "Pacte avec les Ogres", "tribe": "ogres", "count": 1, "image": "pacte_avec_les_ogres.webp", "effect": "Vous pouvez conquérir les ogres sans combattre. Tant que vous contrôlez les Ogres, une fois par tour, durant une bataille, vous pouvez lancer le dé : +X d’attaque sur cette bataille, X étant le résultat du dé. Chaque région adjacente à la bataille perd 1 unité."}];
 function install(cards){
- return definitions.map(d=>{
+ const ids=definitions.map(d=>{
   const key='alliance-'+d.tribe,existing=cards.findIndex(c=>c.extensionKey===key);
   if(existing>=0)return existing;
   return cards.push({name:d.name,type:'Alliance',count:d.count,effect:d.effect,allianceTribe:d.tribe,extension:'corruption',extensionKey:key})-1;
  });
+ if(!cards.some(c=>c.extensionKey==='corruption-theft'))cards.push({name:'Corruption',type:'Tactique',count:4,effect:'Dépensez 5 Or pour voler une carte Alliance en jeu chez un adversaire et la placer dans votre main. Cet adversaire perd 5 unités par région de son ancien peuple allié.',extension:'corruption',extensionKey:'corruption-theft'});
+ return ids;
 }
 
 function alliance(player,cards){

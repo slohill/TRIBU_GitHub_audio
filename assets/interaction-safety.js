@@ -101,9 +101,9 @@ function wireCardConfirmations(){
  [...$('hand').children].forEach((el,index)=>{
    const id=G.players[owner].hand[index],c=CARDS[id];if(!c)return;
    const key='card:'+owner+':'+index+':'+id;
-   if(c.allianceTribe&&el.onclick){
+   if((c.allianceTribe||c.extensionKey==='corruption-theft')&&el.onclick){
      const action=el.onclick;
-     const old=TribuAlliances.alliance(G.players[owner],CARDS);
+     const old=c.allianceTribe?TribuAlliances.alliance(G.players[owner],CARDS):null;
      const text=c.effect+(old?' Votre alliance actuelle sera défaussée et vous perdrez 5 unités par région de son peuple que vous contrôlez.':'');
      bindActionGesture(el,key,c.name,text,event=>action.call(el,event),()=>localViewer()===owner&&!allianceLossActive()&&G.players[owner].hand[index]===id);return;
    }
