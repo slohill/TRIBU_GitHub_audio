@@ -3576,6 +3576,19 @@ function fleeElfTo(destination){
  if(isSea(b.target))G.sea[b.target].fleets[b.attacker]=(G.sea[b.target].fleets[b.attacker]||0)+b.attackUnits;
  else{const c=G.b[b.target];c.owner=b.attacker;c.units=b.attackUnits;c.hostile=false;const building=defensiveBuildingAt(b.target);if(building)transferBuildingCard(building,b.attacker)}
  if(b.attacker===G.active)movable[b.target]=(movable[b.target]||[]).concat(b.fromShadow?(b.shadowMove||[]):(b.attackMove||[]));
+ // A destination may be defended in a suspended battle. Its new garrison
+ // must be reflected before that battle resumes (including faction rounding).
+ for(const pending of engagedBattles()){
+  if(pending===b||pending.environmentResolved||pending.target!==destination)continue;
+  if(pending.kind==='land'){
+   pending.defender=defender;pending.hostile=false;
+   pending.defOriginalUnits=G.b[destination].units;pending.epicDefenderUnits=pending.defOriginalUnits;
+   pending.defenseBase=defendingUnits(defender,pending.defOriginalUnits)+buildingDefense(destination);
+  }else if(pending.kind==='sea'&&pending.defender===defender){
+   pending.defOriginalUnits=G.sea[destination].fleets[defender];pending.epicDefenderUnits=pending.defOriginalUnits;
+   pending.defenseBase=defendingUnits(defender,pending.defOriginalUnits);
+  }
+ }
  finishBattleCards();b.stack=[];b.environmentResolved=true;delete b.elfChoice;
  log(p(defender).name+' fuit vers '+destination+' avec '+n+' unité(s). '+p(b.attacker).name+' conquiert '+b.target+'.');
  finishDestroyedBattle();render();queueBot('après fuite elfique');return true;

@@ -121,3 +121,8 @@ Battle opening offers eligible human defender Fuir/Defendre in right column; cho
 Removing alliance before commit cancels flight; Corruption remains playable during decision. Bots currently always defend. Online entry stays disabled pending authoritative actions.
 check-elf-flight.cjs PASS full-unit flight/Elf NPC conquest/building transfer/no epic, invalid target rejection, removal cancellation, actual Corruption during choice -> losses -> NPC defense5, valid portal pair accepted/mixed pair rejected, bot no-block. Corruption, decimation and foundations regression PASS.
 Remaining verification: full sea-origin and nested Shadow-flight browser scenarios, multi-browser authoritative sync; Ogre ability and heroes/Oracle. Main unchanged.
+
+## Checkpoint 19 — maritime/nested flight validation
+Fixed receiving garrison reconciliation when Elf flight reinforces a suspended battle destination: refresh defender/hostile status and actual/faction-adjusted defense plus existing building, including sea fleet defense for same defender. Parent battle cards/time remain unchanged; no new battle resolution is invented.
+check-elf-nested.cjs PASS sea-origin flight preserving unrelated third-party fleet, nested Shadow flight back to parent (9s, original attack card preserved, child card discarded once), destination 2+4 units/fortress =>16defense; real browser clicks Fuir then C2 relocate4 and remove controls. check-elf-flight.cjs regression PASS including actual Corruption and paired portals.
+Remaining next: Ogre active ability, authoritative online extension actions, Oracle/heroes. Main unchanged.
