@@ -652,6 +652,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 <script src="assets/audio-effects.js?v=1"></script>
 <script src="assets/corruption.js?v=1"></script>
 <script src="assets/corruption-alliances.js?v=1"></script>
+<script src="assets/corruption-revolts.js?v=1"></script>
 <script src="assets/corruption-alliance-loss-ui.js?v=1"></script>
 <script src="assets/corruption-auction.js?v=1"></script>
 <script>
@@ -3139,7 +3140,15 @@ function renderAllianceLossSelection(){
 function applyAllianceLossPlan(plan){
  const battles=engagedBattles();
  if(!TribuAlliances.validate(plan,G,battles))return false;
- const commands=TribuAlliances.commands(plan);
+ return applyMandatoryLossCommands(plan,TribuAlliances.commands(plan),plan.player,battles);
+}
+function applyRevoltLossPlan(plan){
+ if(!TribuCorruption.enabled(G)||G.online)return false;
+ const battles=engagedBattles();
+ if(!TribuRevolts.validate(plan,G,battles))return false;
+ return applyMandatoryLossCommands(plan,TribuRevolts.commands(plan),plan.target,battles,true);
+}
+function applyMandatoryLossCommands(plan,commands,player,battles,revolt=false){
  const affectedBattles=new Set(commands.filter(c=>c.kind==='attacking').map(c=>battles[c.battleIndex]));
  for(const b of affectedBattles){
   if(b.attackUnits!==(b.attackOrigins||[]).reduce((n,o)=>n+o.moves.length,0))return false;
@@ -3147,8 +3156,12 @@ function applyAllianceLossPlan(plan){
  const changedRegions=new Set();
  for(const c of commands){
   if(c.kind==='stationed'){
-   G.b[c.region].units-=c.loss;changedRegions.add(c.region);
-   if(plan.player===G.active&&movable[c.region])movable[c.region].splice(0,c.loss);
+   if(c.sea){
+    const fleets=G.sea[c.region].fleets;fleets[player]-=c.loss;
+    if(fleets[player]===0)delete fleets[player];
+   }else G.b[c.region].units-=c.loss;
+   changedRegions.add(c.region);
+   if(player===G.active&&movable[c.region])movable[c.region].splice(0,c.loss);
   }else{
    const b=battles[c.battleIndex];b.attackOrigins[c.originIndex].moves.splice(0,c.loss);
   }
@@ -3158,11 +3171,19 @@ function applyAllianceLossPlan(plan){
   const moves=b.attackOrigins.flatMap(o=>o.moves);b.attackUnits=moves.length;
   if(b.fromShadow)b.shadowMove=moves;else b.attackMove=moves;
  }
- for(const r of changedRegions){if(G.b[r].units===0)destroyUnitsOnRegion(r)}
+ for(const r of changedRegions){if(G.b[r]&&G.b[r].units===0)destroyUnitsOnRegion(r)}
  for(const b of battles){
-  if(b.environmentResolved||b.kind!=='land'||!changedRegions.has(b.target))continue;
+  if(b.environmentResolved||!changedRegions.has(b.target))continue;
+  if(b.kind==='sea'){
+   if(b.defender!==player)continue;
+   const units=G.sea[b.target].fleets[player]||0;
+   b.defOriginalUnits=units;b.epicDefenderUnits=units;b.defenseBase=defendingUnits(player,units);
+   if(revolt&&units===0)settleDestroyedBattle(b);
+   continue;
+  }
+  if(b.kind!=='land')continue;
   const c=G.b[b.target];
-  if(b.defender===plan.player&&c.owner===null){
+  if(b.defender===player&&c.owner===null){
    // Defender's cards leave the battle; attack cards remain against the NPCs.
    const removed=(b.stack||[]).filter(x=>x.side==='defender');
    removed.forEach(x=>G.discard.push(x.cardId));
@@ -3171,6 +3192,7 @@ function applyAllianceLossPlan(plan){
   }
   b.defOriginalUnits=c.units;b.epicDefenderUnits=c.units;
   b.defenseBase=(effectiveHostile(b.target)?5:(c.owner===null?0:defendingUnits(c.owner,c.units)))+buildingDefense(b.target);
+  if(revolt&&c.owner===null&&!effectiveHostile(b.target))settleDestroyedBattle(b);
  }
  // Existing engine handles battles with no surviving attacker and card discards.
  applyBattleRegionDestruction([]);
@@ -3192,6 +3214,12 @@ function applyBattleRegionDestruction(regions,onlyBattle=null){
      log(lost+' unité(s) attaquante(s) détruite(s) dans leur région d’origine.');
    }
    if(b.attackUnits>0&&!hit.has(b.target))continue;
+   settleDestroyedBattle(b);
+ }
+}
+// Finalize an already-empty battle without destroying other groups from its region.
+function settleDestroyedBattle(b){
+ if(b.environmentResolved)return false;
    if(b.attackUnits>0){
      if(b.kind==='land'){
        const c=G.b[b.target];c.owner=b.attacker;c.units=b.attackUnits;c.hostile=false;
@@ -3202,7 +3230,7 @@ function applyBattleRegionDestruction(regions,onlyBattle=null){
    }else log('Bataille en '+b.target+' annulée : aucun attaquant survivant.');
    (b.stack||[]).forEach(x=>G.discard.push(x.cardId));b.stack=[];
    b.environmentResolved=true;
- }
+ return true;
 }
 function finishDestroyedBattle(){
  if(!battle||!battle.environmentResolved)return false;
