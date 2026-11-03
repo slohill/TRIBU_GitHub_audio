@@ -1560,7 +1560,7 @@ function resolveAssassin(target){
  // le gain d'Or est interrompu, puis il reprendra à 10 s après résolution.
  if(goldReaction)pauseGoldReactionForCard();
  discardHandCard(actor,idx);
- const roll=1+Math.floor(Math.random()*6);
+ const roll=1+Math.floor(Math.random()*6),revoltToken=captureRevoltRoll(actor,roll);
  let killed=false;
  const pl=G.players[target.owner];agentDefaults(target.owner);
  const current=pl.inPlay[target.index];
@@ -1585,6 +1585,7 @@ function resolveAssassin(target){
    });
    return;
  }
+ if(resolveRevoltAfterAction(revoltToken,{goldWasPaused:false,paidWasPaused:false}))return;
  render();
  resumeGameAfterPriorityCard('reprise après Assassin');
 }
@@ -1787,7 +1788,7 @@ function divinationSetVisible(oracleId){
  // On reconstruit donc le paquet canonique depuis ORACLES plutôt que depuis les zones
  // courantes, qui peuvent provenir d'un ancien état Online incomplet/incompatible.
  let pool=ORACLES.map((_,i)=>i);
- G.oracleActive=null;G.oracleDiscard=[];
+ G.oracleActive=null;G.oracleDiscard=[];if(G.revolts)TribuRevolts.replace(G.revolts);
  oracleClimateVisual=null;oraclePendingNormalMap=false;oracleResolutionAfter=null;
  applyOracleMapVisual();
 
@@ -2414,7 +2415,7 @@ function chooseThiefRandomTarget(){
 }
 function rollThief(target){
  const actor=localViewer();agentDefaults(actor);const usedIndex=agentModalState&&agentModalState.kind==='thief'?agentModalState.agentIndex:availableAgentIndex(actor,'Voleur');if(usedIndex<0)return;markAgentUsed(actor,usedIndex);
- const n=1+Math.floor(Math.random()*6);
+ const n=1+Math.floor(Math.random()*6),revoltToken=captureRevoltRoll(actor,n);
  log(p(actor).name+' utilise Voleur contre '+p(target).name+' : dé '+n+'.');
  if(n===1){
    const idx=usedIndex,vid=G.players[actor].inPlay[idx];
@@ -2429,6 +2430,7 @@ function rollThief(target){
  }
  if(n>=2&&n<=4){
    audioPlaySfx('fail',.75);
+   if(revoltToken){closeAgentModal(true);if(resolveRevoltAfterAction(revoltToken,{goldWasPaused:false,paidWasPaused:false}))return;}
    openAgentModal('Voleur — '+n,'Rien ne se passe.');
    agentModalState=null;render();return;
  }
@@ -3081,6 +3083,19 @@ function beginAllianceLossSelection(player,tribe,pauseContext=null){
  const plan=TribuAlliances.createLossPlan(G,player,tribe,engagedBattles());
  return startMandatoryLossPlan(plan,pauseContext);
 }
+function captureRevoltRoll(actor,value){
+ if(!TribuCorruption.enabled(G)||G.online||!G.revolts)return null;
+ G.revoltRollSequence=(G.revoltRollSequence||0)+1;
+ return TribuRevolts.capture(G.revolts,actor,value,'roll:'+G.revoltRollSequence);
+}
+function resolveRevoltAfterAction(token,pauseContext=null){
+ if(!token||!G.revolts)return false;
+ const hasTargets=TribuRevolts.plan(G,token.target,engagedBattles()).regions.length>0;
+ if(!TribuRevolts.afterAction(G.revolts,token,hasTargets))return false;
+ const pending=TribuRevolts.next(G.revolts);
+ if(!pending)return false;
+ return beginRevoltSelection(pending.actor,pending.target,pauseContext);
+}
 function beginRevoltSelection(actor,target,pauseContext=null){
  if(!G.players[actor]||!G.players[target]||!TribuCorruption.enabled(G)||G.online||allianceLossActive()||priorityCardResolutionActive()||oracleState||oracleNoticeState||morcattAuctionActive())return false;
  const plan=TribuRevolts.plan(G,target,engagedBattles());
@@ -3580,9 +3595,9 @@ function canUseOgres(actor){
 }
 function useOgres(actor){
  if(actor!==localViewer()||p(actor).bot||!canUseOgres(actor))return false;
- const roll=1+Math.floor(Math.random()*6);
+ const roll=1+Math.floor(Math.random()*6),revoltToken=captureRevoltRoll(actor,roll);
  p(actor).ogreUsedEpoch=turnEpoch;battle.ogrePower={actor,roll,cancelled:false,settled:false};
- log(p(actor).name+' invoque les Ogres : dé '+roll+', +'+roll+' Attaque pour cette bataille.');render();return true;
+ log(p(actor).name+' invoque les Ogres : dé '+roll+', +'+roll+' Attaque pour cette bataille.');resolveRevoltAfterAction(revoltToken);render();return true;
 }
 function ogreBattleBonus(b){
  const power=b?.ogrePower;if(!power||power.cancelled||power.settled)return 0;
@@ -4503,6 +4518,10 @@ function activateOracle(afterResolution=null,activator=G.active){
  const prev=beginOracleReplacement(nextName);
  if(G.oracleActive!==null)G.oracleDiscard.push(G.oracleActive);
  G.oracleActive=id;const o=ORACLES[id];
+ if(TribuCorruption.enabled(G)&&!G.online){
+  G.revolts=G.revolts||TribuRevolts.create();
+  if(o.kind==='revolts')TribuRevolts.activate(G.revolts,activator,id);else TribuRevolts.replace(G.revolts);
+ }
  G.oraclePresentation={seq:Number(G.oraclePresentation&&G.oraclePresentation.seq||0)+1,name:o.name,at:Date.now()};
  onlineOraclePresentationSeenSeq=Number(G.oraclePresentation.seq);
  log('🔮 Oracle activé : '+o.name+'.');
