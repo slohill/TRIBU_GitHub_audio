@@ -3081,6 +3081,26 @@ function beginAllianceLossSelection(player,tribe,pauseContext=null){
  const plan=TribuAlliances.createLossPlan(G,player,tribe,engagedBattles());
  return startMandatoryLossPlan(plan,pauseContext);
 }
+function beginRevoltSelection(actor,target,pauseContext=null){
+ if(!G.players[actor]||!G.players[target]||!TribuCorruption.enabled(G)||G.online||allianceLossActive()||priorityCardResolutionActive()||oracleState||oracleNoticeState||morcattAuctionActive())return false;
+ const plan=TribuRevolts.plan(G,target,engagedBattles());
+ if(!plan.regions.length)return false;
+ plan.kind='revolts';plan.player=actor;
+ G.allianceLoss={plan,stage:'instructions',queue:[],...(pauseContext||{goldWasPaused:!!goldReaction?.pausedByCard,paidWasPaused:!!paidDrawState?.pausedByCard})};
+ const state=G.allianceLoss;
+ pauseGameForPriorityCard();pauseGoldReactionForCard();pausePaidDrawForCard();
+ if(isHotseatMode()&&!p(actor).bot)hotseatViewerOverride=actor;
+ render();
+ showOracleNotice('Révoltes',()=>{
+  if(G.allianceLoss!==state)return;
+  state.stage='selection';render();
+  if(p(actor).bot){
+   const row=plan.regions[0];for(const group of row.groups)while(TribuRevolts.choose(plan,row.region,group.key)){}
+   confirmAllianceLossSelection(actor,true);
+  }
+ },{seconds:10,title:'Révolte !',text:'Choisissez une Région de '+p(target).name+'. Cliquez une fois pour retirer une unité, ou deux fois pour en retirer deux, puis cliquez sur OK. Après cette explication, vous avez tout votre temps pour choisir.'});
+ return true;
+}
 function startMandatoryLossPlan(plan,pauseContext=null,queue=[]){
  const player=plan.player;
  G.allianceLoss={plan,queue,...(pauseContext||{goldWasPaused:!!goldReaction?.pausedByCard,paidWasPaused:!!paidDrawState?.pausedByCard})};
@@ -3094,10 +3114,26 @@ function startMandatoryLossPlan(plan,pauseContext=null,queue=[]){
 }
 function confirmAllianceLossSelection(actor=localViewer(),bot=false){
  const state=G.allianceLoss;if(!state||actor!==state.plan.player||(!bot&&G.players[actor].bot))return false;
+ if(state.plan.kind==='revolts'){
+  if(state.stage!=='selection')return false;
+  if(!applyRevoltLossPlan(state.plan)){
+   const refreshed=TribuRevolts.plan(G,state.plan.target,engagedBattles());
+   if(!refreshed.regions.length)return finishMandatoryLossSelection(state);
+   state.plan={...refreshed,kind:'revolts',player:actor};render();return false;
+  }
+  state.stage='announcement';render();audioPlaySfx('oracle',.82);
+  showOracleNotice('Révoltes',()=>{if(G.allianceLoss===state)finishMandatoryLossSelection(state)},
+   {title:'Révolte !',text:'Le royaume de '+p(state.plan.target).name+' est en proie à de violentes rébellions !'});
+  return true;
+ }
  if(!applyAllianceLossPlan(state.plan)){
   state.plan=state.plan.kind==='ogre'?TribuAlliances.createOgreLossPlan(G,actor,state.plan.eligibleRegions,engagedBattles()):TribuAlliances.createLossPlan(G,actor,state.plan.tribe,engagedBattles());
   render();return false;
  }
+ return finishMandatoryLossSelection(state);
+}
+function finishMandatoryLossSelection(state){
+ if(G.allianceLoss!==state)return false;
  delete G.allianceLoss;
  if(state.queue?.length){
   const next=state.queue.shift(),plan=TribuAlliances.createOgreLossPlan(G,next.player,next.regions,engagedBattles());
@@ -3130,9 +3166,11 @@ function renderAllianceLossSelection(){
  const panel=$('allianceLossControls');if(panel)panel.remove();
  if(!allianceLossActive())return;
  const state=G.allianceLoss,plan=state.plan,host=document.createElement('div');host.id='allianceLossControls';$('status').after(host);
- allianceLossView=TribuAllianceLossUI.mount({map,panel:host,plan,viewer:localViewer(),playerName:p(plan.player).name,dieImage:factionDieImage(plan.player),
-  onChoose:(region,key)=>{if(localViewer()!==plan.player)return;TribuAlliances.choose(plan,region,key);renderAllianceLossSelection()},
-  onReset:()=>{if(localViewer()!==plan.player)return;plan.regions.forEach(r=>TribuAlliances.reset(plan,r.region));renderAllianceLossSelection()},
+ const revolt=plan.kind==='revolts';
+ if(revolt&&state.stage!=='selection'){host.textContent='Révolte en cours — résolution en attente.';return}
+ allianceLossView=TribuAllianceLossUI.mount({map,panel:host,plan,mode:revolt?'revolts':'alliance',actor:plan.player,viewer:localViewer(),playerName:p(plan.player).name,dieImage:factionDieImage(revolt?plan.target:plan.player),
+  onChoose:(region,key)=>{if(localViewer()!==plan.player)return;(revolt?TribuRevolts:TribuAlliances).choose(plan,region,key);renderAllianceLossSelection()},
+  onReset:()=>{if(localViewer()!==plan.player)return;if(revolt)TribuRevolts.reset(plan);else plan.regions.forEach(r=>TribuAlliances.reset(plan,r.region));renderAllianceLossSelection()},
   onConfirm:()=>confirmAllianceLossSelection()
  });
  ['draw','harvest','recruit','endRecruit','resetRecruit','toOracle','roll','buyDraw'].forEach(id=>{const b=$(id);if(b)b.disabled=true});
@@ -4387,12 +4425,12 @@ function oracleNoticeTitle(name){
  if(name==='En quête de destruction')return 'En quête de destruction activée';
  return name+' activé';
 }
-function showOracleNotice(name,after){
+function showOracleNotice(name,after,options={}){
  clearInterval(oracleNoticeTick);
- oracleNoticeState={seconds:5,after};
- $('oracleNoticeTitle').textContent=oracleNoticeTitle(name);
- $('oracleNoticeText').innerHTML=oracleEffectText(name);
- $('oracleNoticeTimer').textContent='5 s';
+ oracleNoticeState={seconds:options.seconds??5,after};
+ $('oracleNoticeTitle').textContent=options.title??oracleNoticeTitle(name);
+ if(options.text!==undefined)$('oracleNoticeText').textContent=options.text;else $('oracleNoticeText').innerHTML=oracleEffectText(name);
+ $('oracleNoticeTimer').textContent=oracleNoticeState.seconds+' s';
  $('oracleNoticeOverlay').classList.remove('hidden');
  oracleNoticeTick=setInterval(()=>{
    if(!oracleNoticeState){clearInterval(oracleNoticeTick);return}
