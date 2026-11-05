@@ -1262,7 +1262,7 @@ function clearGoldReactionTimer(){
  stopGoldReactionSfx();
 }
 function pauseGoldReactionForCard(){if(!goldReaction)return false;clearGoldReactionTimer();goldReaction.pausedByCard=true;return true}
-function resumeGoldReactionAfterCard(){if(allianceLossActive())return false;if(!goldReaction||!goldReaction.pausedByCard)return;goldReaction.seconds=10;delete goldReaction.pausedByCard;startGoldReactionTimer();render();if(G&&G.online&&G.online.legacySync)onlineLegacyPushGoldReactionNow()}
+function resumeGoldReactionAfterCard(){if(allianceLossActive()||guideDivinationActive())return false;if(!goldReaction||!goldReaction.pausedByCard)return;goldReaction.seconds=10;delete goldReaction.pausedByCard;startGoldReactionTimer();render();if(G&&G.online&&G.online.legacySync)onlineLegacyPushGoldReactionNow()}
 function resumeGoldReactionStack(){
  if(!goldReactionStack.length)return false;
  goldReaction=goldReactionStack.pop();goldReaction.seconds=10;delete goldReaction.pausedByCard;
@@ -1432,7 +1432,7 @@ function renderRichDragonBanner(){
  ' a perdu tout son Or. Plusieurs régions ont le même nombre maximal d’unités : choisissez celle que le Dragon va détruire.</div>';
  return true;
 }
-function resolveGoldGain(){if(allianceLossActive())return false;
+function resolveGoldGain(){if(allianceLossActive()||guideDivinationActive())return false;
  if(!goldReaction)return;
  clearHotseatReaction();
  clearGoldReactionTimer();
@@ -1458,7 +1458,7 @@ function resolveGoldGain(){if(allianceLossActive())return false;
  continueAfterGold(r.after);
  queueBot('après gain or');
 }
-function playAmbush(playerIndex){if(morcattAuctionActive()||allianceLossActive())return false;
+function playAmbush(playerIndex){if(morcattAuctionActive()||allianceLossActive()||guideDivinationActive())return false;
  if(!goldReaction||playerIndex===goldReaction.receiver)return;
  clearHotseatReaction();
  const idx=embuscadeIndex(playerIndex);if(idx<0)return;
@@ -1508,7 +1508,7 @@ function offerGoldGain(receiver,amount,source,after,details={}){
  render();
  maybeBotAmbush();
 }
-function cardFromViewerHand(handIndex,name){if(morcattAuctionActive()||allianceLossActive())return false;
+function cardFromViewerHand(handIndex,name){if(morcattAuctionActive()||allianceLossActive()||guideDivinationActive())return false;
  const v=localViewer(),id=G.players[v].hand[handIndex];
  return id!==undefined&&CARDS[id].name===name?{viewer:v,id}:null;
 }
@@ -1543,7 +1543,7 @@ function showAssassinMapMessage(targetOwner,targetName,actor,killed){
  el.onclick=()=>{clearTimeout(assassinMessageTick);el.classList.add('hidden')};
  assassinMessageTick=setTimeout(()=>el.classList.add('hidden'),9000);
 }
-function startAssassin(handIndex){if(morcattAuctionActive()||allianceLossActive())return false;
+function startAssassin(handIndex){if(morcattAuctionActive()||allianceLossActive()||guideDivinationActive())return false;
  const actor=localViewer(),id=G.players[actor].hand[handIndex];
  if(id===undefined||CARDS[id].name!=='Assassin'||isDecimated(actor))return;
  const targets=assassinTargets(actor);
@@ -1604,7 +1604,7 @@ function drawOneToPool(){
  if(!G.deck.length)refillDeckFromDiscard();
  const id=G.deck.length?G.deck.pop():null;if(id!==null)audioCardMove();return id;
 }
-function startCaravan(handIndex){if(morcattAuctionActive()||allianceLossActive())return false;
+function startCaravan(handIndex){if(morcattAuctionActive()||allianceLossActive()||guideDivinationActive())return false;
  const actor=localViewer(),id=G.players[actor].hand[handIndex];
  if(id===undefined||CARDS[id].name!=='Caravane de commerce'||isDecimated(actor)||caravanState)return;
  if(goldReaction)pauseGoldReactionForCard();
@@ -1721,7 +1721,7 @@ function resetRecruitmentForPriorityCard(actor,label){
  return true;
 }
 function resetRecruitmentForDivination(s){return !!s&&resetRecruitmentForPriorityCard(s.actor,'Divination de l’Oracle')}
-function openDivination(handIndex){if(morcattAuctionActive()||allianceLossActive())return false;
+function openDivination(handIndex){if(morcattAuctionActive()||allianceLossActive()||guideDivinationActive())return false;
  if(goldReaction)pauseGoldReactionForCard();
  const actor=localViewer(),id=G.players[actor].hand[handIndex];
  if(id===undefined||CARDS[id].name!=='Divination de l’Oracle'||isDecimated(actor)||divinationState)return;
@@ -1835,7 +1835,7 @@ function invalidateMovementOnDestroyedCase(r){
 function canPlayEgnobombe(i=localViewer()){
  return !!G&&!G.players[i].bot&&egnoEligibleRegions(i).length>0&&!egnoState&&!shadowState&&!choiceState;
 }
-function startEgnobombe(handIndex){if(morcattAuctionActive()||allianceLossActive())return false;
+function startEgnobombe(handIndex){if(morcattAuctionActive()||allianceLossActive()||guideDivinationActive())return false;
  const actor=localViewer(),id=G.players[actor].hand[handIndex];
  if(id===undefined||CARDS[id].name!=='Egnobombe'||!canPlayEgnobombe(actor))return;
  if(goldReaction)pauseGoldReactionForCard();
@@ -1942,7 +1942,7 @@ function shadowSourceMax(r){
  if(!shadowState)return 0;
  return units(r,shadowState.player);
 }
-function startShadow(handIndex){if(morcattAuctionActive()||allianceLossActive())return false;
+function startShadow(handIndex){if(morcattAuctionActive()||allianceLossActive()||guideDivinationActive())return false;
  if(goldReaction)pauseGoldReactionForCard();
  if(shadowState||choiceState||paidDrawState)return;
  const actor=localViewer(),id=G.players[actor].hand[handIndex];
@@ -2077,7 +2077,7 @@ function chooseShadowTarget(r){
  battle={kind:'land',target:r,attacker:actor,defender,attackUnits:n,defenseBase:defBase,defOriginalUnits:c.units,epicDefenderUnits:c.units,hostile:hostile,stack:[],seconds:15,reactionSide:'defender',fromShadow:true,attackOrigins:s.attackOrigins,shadowMove:(s.carriedMove||[]).slice()};
  log('Section de l’ombre ouvre une nouvelle bataille en '+r+' : '+n+' Att contre '+defBase+' Déf.');startReactionWindow();render();
 }
-function resumeBattleTimer(){if(allianceLossActive())return false;
+function resumeBattleTimer(){if(allianceLossActive()||guideDivinationActive())return false;
  if(battle?.elfChoice){renderElfFlee();if(battle?.elfChoice)return false;}
  if(commerceClocksPaused())return;
  clearInterval(battleTick);clearTimeout(botReactionTimer);botReactionTimer=null;if(!battle)return;
@@ -2130,13 +2130,13 @@ function pausePaidDrawForCard(){
  if(!paidDrawState)return false;
  clearInterval(paidDrawTick);paidDrawState.pausedByCard=true;return true;
 }
-function resumePaidDrawAfterCard(){if(allianceLossActive())return false;
+function resumePaidDrawAfterCard(){if(allianceLossActive()||guideDivinationActive())return false;
  if(!paidDrawState||!paidDrawState.pausedByCard)return false;
  paidDrawState.seconds=10;delete paidDrawState.pausedByCard;startPaidDrawTimer();render();
  if(G&&G.online&&G.online.legacySync)onlineLegacyPushNow();
  return true;
 }
-function spendDraw(){if(morcattAuctionActive()||allianceLossActive())return false;
+function spendDraw(){if(morcattAuctionActive()||allianceLossActive()||guideDivinationActive())return false;
  if(caravanState||divinationState)return;
  const viewer=localViewer();
  if(!G||G.players[viewer].bot||G.players[viewer].gold<5||paidDrawState)return;
@@ -2169,7 +2169,7 @@ function spendDraw(){if(morcattAuctionActive()||allianceLossActive())return fals
  }
 }
 
-function playTax(handIndex){if(morcattAuctionActive()||allianceLossActive())return false;
+function playTax(handIndex){if(morcattAuctionActive()||allianceLossActive()||guideDivinationActive())return false;
  if(choiceState)return;
  const found=cardFromViewerHand(handIndex,'Taxe');if(!found)return;
  const nestedGold=!!goldReaction;
@@ -2184,7 +2184,7 @@ function playTax(handIndex){if(morcattAuctionActive()||allianceLossActive())retu
  if(G&&G.online&&G.online.legacySync)onlineLegacyPushGoldReactionNow();
 }
 function closeChoice(){choiceState=null;$('choiceOverlay').classList.add('hidden');$('choiceCards').innerHTML=''}
-function playCouncil(handIndex){if(morcattAuctionActive()||allianceLossActive())return false;
+function playCouncil(handIndex){if(morcattAuctionActive()||allianceLossActive()||guideDivinationActive())return false;
  if(choiceState)return;
  const found=cardFromViewerHand(handIndex,'Conseil de guerre');if(!found)return;
  const actor=found.viewer;
@@ -2335,6 +2335,53 @@ function resolveCorruption(victim,id){
  beginAllianceLossSelection(victim,target.tribe,state.pauseContext);
  return true;
 }
+function guideDivinationActive(){return agentModalState?.kind==='guideDivination'}
+function guideBuildersBonus(b=battle){
+ return b?.kind==='land'&&factionName(b.attacker)==='Yonkaïs'&&TribuHeroes.hasPassive(G,b.attacker,CARDS,'guide')?buildingDefense(b.target):0;
+}
+function canGuideDivination(actor){
+ return !G.online&&actor===localViewer()&&!gameOverState&&!priorityCardResolutionActive()&&!oracleState&&!oracleNoticeState&&!goldReaction&&!paidDrawState&&!morcattAuctionActive()&&TribuHeroes.current(G,actor,CARDS)?.card.heroKey==='guide'&&TribuHeroes.activeReady(G,actor,CARDS,turnEpoch,'divination');
+}
+function startGuideDivination(){
+ const actor=localViewer();if(!canGuideDivination(actor))return false;
+ if(!TribuHeroes.consumeActive(G,actor,CARDS,turnEpoch,'divination'))return false;
+ if(G.oracleDeck.length<3){
+  const kept=G.oracleDeck.slice(),others=oracleDeckIds().filter(id=>!kept.includes(id));
+  G.oracleDeck=shuffleArray(others).concat(kept);G.oracleDiscard=[];G.oracleActive=null;
+  if(G.revolts)TribuRevolts.replace(G.revolts);
+  oracleClimateVisual=null;oraclePendingNormalMap=false;applyOracleMapVisual();
+ }
+ agentModalState={kind:'guideDivination',actor,cards:G.oracleDeck.slice(-3).reverse(),order:[]};
+ pauseGameForPriorityCard();render();showGuideDivination();return true;
+}
+function showGuideDivination(){
+ const state=agentModalState;if(state?.kind!=='guideDivination'||state.actor!==localViewer())return;
+ openAgentModal('Divination — Guide Ancestrale','Choisissez les positions 1, 2 et 3. La position 1 sera la prochaine carte Oracle.');
+ state.cards.forEach((id,index)=>{
+  const rank=state.order.indexOf(index),button=document.createElement('button');button.type='button';button.dataset.guideIndex=index;
+  button.textContent=(rank>=0?(rank+1)+' — ':'')+ORACLES[id].name;button.disabled=rank>=0;
+  const img=document.createElement('img');img.src=ORACLE_CARD_ART[ORACLES[id].name];img.alt=ORACLES[id].name;img.style.cssText='display:block;max-width:100px;max-height:140px';button.prepend(img);
+  button.onclick=()=>{if(agentModalState!==state||localViewer()!==state.actor)return;state.order.push(index);showGuideDivination()};$('agentChoices').appendChild(button);
+ });
+ addAgentChoice('Recommencer mon ordre',()=>{state.order=[];showGuideDivination()});
+ addAgentChoice('Garder cet ordre',()=>{state.order=[0,1,2];confirmGuideDivination()});
+ addAgentChoice('Valider',confirmGuideDivination,state.order.length!==3);
+}
+function confirmGuideDivination(){
+ const state=agentModalState;if(state?.kind!=='guideDivination'||state.actor!==localViewer()||state.order.length!==3||new Set(state.order).size!==3||state.order.some(i=>!Number.isInteger(i)||i<0||i>2))return false;
+ if(JSON.stringify(G.oracleDeck.slice(-3).reverse())!==JSON.stringify(state.cards))return false;
+ G.oracleDeck.splice(-3,3,...state.order.map(i=>state.cards[i]).reverse());closeAgentModal(true);render();queueBot('après Divination');return true;
+}
+let guideExplanationKey=null;
+function renderGuideDivination(){
+ $('guideControls')?.remove();
+ const actor=localViewer();if(G.online||actor!==G.active||G.phase!=='start'||p(actor).bot||TribuHeroes.current(G,actor,CARDS)?.card.heroKey!=='guide'||!TribuHeroes.passiveReady(G,actor,CARDS))return;
+ const box=document.createElement('div');box.id='guideControls';const button=document.createElement('button');button.textContent='Divination';button.style.background='#a62626';button.disabled=!canGuideDivination(actor);box.appendChild(button);
+ const key=actor+':'+turnEpoch;
+ if(guideExplanationKey===key){const info=document.createElement('p');info.textContent='Regardez et changez l’ordre des 3 prochaines cartes Oracle. Recliquez pour utiliser Divination.';box.appendChild(info)}
+ button.onclick=()=>{if(!canGuideDivination(actor))return;if(guideExplanationKey!==key){guideExplanationKey=key;renderGuideDivination()}else startGuideDivination()};
+ $('startTurn').appendChild(box);
+}
 function heroManagementAllowed(actor,replacing=false){
  const ownReplacement=replacing&&agentModalState?.kind==='heroReplacement'&&agentModalState.actor===actor;
  return !G.online&&TribuCorruption.enabled(G)&&actor===localViewer()&&actor===G.active&&G.phase==='play'&&!p(actor).bot&&!isDecimated(actor)&&!gameOverState&&!oracleState&&!oracleNoticeState&&!morcattAuctionActive()&&!allianceLossActive()&&(!priorityCardResolutionActive()||ownReplacement);
@@ -2373,7 +2420,7 @@ function playAllianceFromHand(handIndex){
  if(old)beginAllianceLossSelection(actor,old.card.allianceTribe);else render();
  return true;
 }
-function playAgentFromHand(handIndex,name){if(morcattAuctionActive()||allianceLossActive())return false;
+function playAgentFromHand(handIndex,name){if(morcattAuctionActive()||allianceLossActive()||guideDivinationActive())return false;
  if(G.phase!=='play'||G.active!==localViewer()||isBot()||isDecimated(G.active))return;
  const id=p().hand[handIndex];if(id===undefined||CARDS[id].name!==name)return;
  p().hand.splice(handIndex,1);p().inPlay.push(id);audioCardMove();agentDefaults(G.active);p().inPlayUID[p().inPlay.length-1]='a'+G.active+'_'+(++p().agentSeq);
@@ -2387,6 +2434,7 @@ function openAgentModal(title,text){
 }
 function closeAgentModal(force=false){
  force=force===true;
+ if(!force&&guideDivinationActive()){showGuideDivination();return}
  if(!force&&caravanState&&agentModalState&&agentModalState.kind==='caravan'){
    log('Caravane de commerce : chaque joueur doit choisir une carte avant de continuer.');
    showCaravanChoice();return;
@@ -2401,7 +2449,7 @@ function addAgentChoice(label,fn,disabled=false){
  const b=document.createElement('button');b.textContent=label;b.disabled=disabled;b.onclick=fn;$('agentChoices').appendChild(b);
 }
 function opponentIndexes(i){return G.players.map((_,j)=>j).filter(j=>j!==i&&!isDecimated(j))}
-function useSpy(preferredIndex=null){if(allianceLossActive())return false;
+function useSpy(preferredIndex=null){if(allianceLossActive()||guideDivinationActive())return false;
  const actor=localViewer();agentDefaults(actor);
  if(actor!==G.active||G.phase!=='play'||isDecimated(actor))return;
  const spyIndex=preferredIndex!==null&&CARDS[G.players[actor].inPlay[preferredIndex]]?.name==='Espion'&&!agentUsed(actor,preferredIndex)?preferredIndex:availableAgentIndex(actor,'Espion');
@@ -2432,7 +2480,7 @@ function validSeenCards(actor){
 function objectCardsInPlay(target){
  return (G.players[target].inPlay||[]).map((id,index)=>({id,index})).filter(x=>CARDS[x.id].type.includes('Objet'));
 }
-function useThief(preferredIndex=null){if(allianceLossActive())return false;
+function useThief(preferredIndex=null){if(allianceLossActive()||guideDivinationActive())return false;
  const actor=localViewer();agentDefaults(actor);
  if(actor!==G.active||G.phase!=='play'||isDecimated(actor))return;
  const thiefIndex=preferredIndex!==null&&CARDS[G.players[actor].inPlay[preferredIndex]]?.name==='Voleur'&&!agentUsed(actor,preferredIndex)?preferredIndex:availableAgentIndex(actor,'Voleur');
@@ -2524,12 +2572,12 @@ function portalMate(r){
  return mate&&mate.type==='Portail'&&mate.pair===r&&mate.cardId===b.cardId?b.pair:null;
 }
 function portalRegions(){return Object.keys(G.b).filter(r=>G.b[r].building&&G.b[r].building.type==='Portail')}
-function beginWalls(handIndex){if(morcattAuctionActive()||allianceLossActive())return false;
+function beginWalls(handIndex){if(morcattAuctionActive()||allianceLossActive()||guideDivinationActive())return false;
  if(isBot()||G.phase!=='play')return;const id=p().hand[handIndex];if(id===undefined||CARDS[id].name!=='Murs frontaliers')return;
  p().hand.splice(handIndex,1);p().inPlay.push(id);audioCardMove();audioConstruction();
  log(p().name+' pose Murs frontaliers : bonus global de Défense désormais +'+wallCount(G.active)+'.');render();
 }
-function beginPortals(handIndex){if(morcattAuctionActive()||allianceLossActive())return false;
+function beginPortals(handIndex){if(morcattAuctionActive()||allianceLossActive()||guideDivinationActive())return false;
  if(portalMode||buildingMode||choiceState)return;
  const found=cardFromViewerHand(handIndex,'Portails');if(!found)return;
  portalMode={cardId:found.id,first:null,owner:found.viewer};dest=null;picks={};
@@ -2626,7 +2674,7 @@ function neutralizeSurvivingDefensiveBuilding(r){
  c.hostile=!!c.originalHostile;
  return !c.hostile;
 }
-function beginBuildingPlacement(handIndex){if(allianceLossActive())return false;
+function beginBuildingPlacement(handIndex){if(allianceLossActive()||guideDivinationActive())return false;
  if(isBot()||G.phase!=='play')return;
  const id=p().hand[handIndex];if(id===undefined)return;
  const name=CARDS[id].name;
@@ -2665,7 +2713,7 @@ function trebuchetBonus(){
  if(fortressAt(battle.target)||cityAt(battle.target))bonus+=5;
  return bonus;
 }
-function activateTrebuchets(){if(morcattAuctionActive()||allianceLossActive())return false;
+function activateTrebuchets(){if(morcattAuctionActive()||allianceLossActive()||guideDivinationActive())return false;
  if(!battle||battle.kind!=='land')return;
  const actor=localViewer();
  if(battle.attacker!==actor)return;
@@ -3541,7 +3589,7 @@ function tacticalIndexes(playerIndex){
 function canUseMonturesMove(i){
  return i===G.active&&G.phase==='play'&&!battle&&!isDecimated(i);
 }
-function playMonturesMovement(handIndex){if(morcattAuctionActive()||allianceLossActive())return false;
+function playMonturesMovement(handIndex){if(morcattAuctionActive()||allianceLossActive()||guideDivinationActive())return false;
  const i=localViewer();if(!canUseMonturesMove(i))return;
  const id=G.players[i].hand[handIndex];if(id===undefined||CARDS[id].name!=='Montures')return;
  G.players[i].hand.splice(handIndex,1);G.discard.push(id);
@@ -3685,7 +3733,7 @@ function battlePower(side){
     if(entry.side===side) bonus+=battleBonusFor(cardDef(entry.cardId),side);
   });
   if(side==='attacker'&&battle.kind==='land'&&battle.trebuchetsUsed)bonus+=trebuchetBonus();
-  return base+bonus;
+  return base+bonus-(side==='defender'?guideBuildersBonus():0);
 }
 function showBattle(){
   $('battlePanel').classList.remove('hidden');
@@ -3862,7 +3910,7 @@ function playBattleCard(handIndex){
   const owner=isHotseatMode()?localViewer():currentPriorityPlayer();
   return playBattleCardForOwner(owner,handIndex);
 }
-function playBattleCardForOwner(owner,handIndex){if(morcattAuctionActive()||allianceLossActive())return false;
+function playBattleCardForOwner(owner,handIndex){if(morcattAuctionActive()||allianceLossActive()||guideDivinationActive())return false;
   if(caravanState||divinationState||!battle)return;
   // 0 seconde équivaut exactement à « Passer » : aucune carte ne peut être engagée
   // dans l'ancienne fenêtre après son expiration.
@@ -3917,7 +3965,7 @@ function battleBreakdown(side){
    bits.push(battle.attackUnits+' unité(s)');const ogre=ogreBattleBonus(battle);if(ogre)bits.push('🎲 Ogres +'+ogre);
    const tb=p(battle.attacker).attackTurnBonus||0;if(tb)bits.push('Balistes +'+tb);if(battle.trebuchetsUsed)bits.push('Plan des trébuchets +'+trebuchetBonus());
  }else{
-   bits.push(battle.defenseBase+' Défense totale');
+   bits.push(battle.defenseBase+' Défense totale');const culture=guideBuildersBonus();if(culture)bits.push('Culture des bâtisseurs −'+culture);
    const union=battle.kind==='land'&&battle.defender!==null?TribuHeroes.unionDefense(G,battle.defender,battle.target,CARDS):0;if(union)bits.push('L’union fait la force +'+union);
    if(battle.kind==='sea'&&battle.defender!==null&&FACTIONS[p(battle.defender).faction].def>1)
      bits.push(battle.defOriginalUnits+' unité(s) ×'+FACTIONS[p(battle.defender).faction].def);if(battle.kind==='land'&&fortressAt(battle.target))bits.push('Forteresse +10 incluse');if(battle.kind==='land'&&cityAt(battle.target))bits.push(cityAt(battle.target).type+' +10 incluse');
@@ -4323,7 +4371,7 @@ function resolveBattle(){
  }
  render();queueBot('après bataille');
 }
-function beginPlay(){if(allianceLossActive())return false;if(G&&G.online&&!G.online.legacySync){if(onlineGameState&&onlineGameState.phase==='recruit')return onlineGameAction('END_RECRUIT');return}if(paidDrawState)return;recruitSnapshot=null;G.phase='play';setMovable();render()}
+function beginPlay(){if(allianceLossActive()||guideDivinationActive())return false;if(G&&G.online&&!G.online.legacySync){if(onlineGameState&&onlineGameState.phase==='recruit')return onlineGameAction('END_RECRUIT');return}if(paidDrawState)return;recruitSnapshot=null;G.phase='play';setMovable();render()}
 function completeStartDraw(source,actor=G.active){
  if(G.active!==actor||G.phase!=='start'||paidDrawState||goldReaction)return;
  if(source==='discard'){
@@ -4334,7 +4382,7 @@ function completeStartDraw(source,actor=G.active){
  }else{draw(actor,2);log(p(actor).name+' pioche 2 cartes.')}
  beginPlay();
 }
-function doDraw(){if(allianceLossActive())return false;
+function doDraw(){if(allianceLossActive()||guideDivinationActive())return false;
  if(G&&G.online&&!G.online.legacySync)return onlineGameAction('DRAW_START');
  if(G.phase!=='start'||paidDrawState||goldReaction)return;
  if(isEgnorax(G.active)&&!isBot()){
@@ -4358,7 +4406,7 @@ function refreshDwarfHarvestGain(reaction){
 function refreshPendingAllianceGold(){
  [goldReaction,...goldReactionStack].forEach(refreshDwarfHarvestGain);
 }
-function doHarvest(){if(allianceLossActive())return false;if(G&&G.online&&!G.online.legacySync)return onlineGameAction('HARVEST_START');if(G.phase!=='start'||paidDrawState||goldReaction)return;
+function doHarvest(){if(allianceLossActive()||guideDivinationActive())return false;if(G&&G.online&&!G.online.legacySync)return onlineGameAction('HARVEST_START');if(G.phase!=='start'||paidDrawState||goldReaction)return;
  const receiver=G.active;
  let gain=ownRegs(receiver)*2,cityBonus=0;
  Object.keys(G.b).forEach(r=>{const b=cityAt(r);if(b&&b.owner===receiver)cityBonus+=5});
@@ -4368,7 +4416,7 @@ function doHarvest(){if(allianceLossActive())return false;if(G&&G.online&&!G.onl
  log(p(receiver).name+' lance une Récolte de '+gain+' Or'+(cityBonus?' dont +'+cityBonus+' grâce aux Cités.':'.'));
  offerGoldGain(receiver,gain,'Récolte','beginPlay',{dwarfHarvest});
 }
-function doRecruit(){if(allianceLossActive())return false;
+function doRecruit(){if(allianceLossActive()||guideDivinationActive())return false;
  if(G&&G.online&&!G.online.legacySync)return onlineGameAction('RECRUIT_START');
  if(G.phase!=='start'||paidDrawState||goldReaction)return;
  const reasons=[];
@@ -4379,7 +4427,7 @@ function doRecruit(){if(allianceLossActive())return false;
  Object.keys(G.b).forEach(r=>recruitSnapshot.units[r]=G.b[r].units);
  G.phase='recruit';render();
 }
-function resetRecruitment(){if(allianceLossActive())return false;
+function resetRecruitment(){if(allianceLossActive()||guideDivinationActive())return false;
  if(G&&G.online&&!G.online.legacySync)return onlineGameAction('RESET_RECRUIT');
  if(!recruitSnapshot||recruitSnapshot.player!==G.active||G.phase!=='recruit')return;
  p().gold=recruitSnapshot.gold;
@@ -4387,7 +4435,7 @@ function resetRecruitment(){if(allianceLossActive())return false;
  log('Recrutement recommencé : Or et unités reviennent au début de la phase de recrutement.');
  render();
 }
-function recruitAt(r){if(allianceLossActive())return false;
+function recruitAt(r){if(allianceLossActive()||guideDivinationActive())return false;
  if(G&&G.online&&!G.online.legacySync)return onlineGameAction('RECRUIT_AT',{region:r});
  const c=G.b[r];if(c.owner!==G.active)return;
  if(p().gold<1){log('Pas assez d’Or.');render();return}
@@ -4419,7 +4467,7 @@ function mount(){
  log('Montures : toutes vos unités gagnent +1 point de déplacement. Chaque région peut recevoir jusqu’à 2 déplacements ce tour, mais une même région ne peut toujours être attaquée qu’une seule fois.');
  render();
 }
-function toOracle(){if(allianceLossActive())return false;
+function toOracle(){if(allianceLossActive()||guideDivinationActive())return false;
  if(G&&G.online&&!G.online.legacySync)return onlineGameAction('END_PLAY');
  if(battle||caravanState||paidDrawState||isBot()||isDecimated(G.active))return;
  if(!oraclePassArmed){
@@ -4737,7 +4785,7 @@ function oracleDragon5Click(id){
 function oracleDestLocked(id){return !!(seaStormState&&seaStormState.locked&&seaStormState.locked.has(id))}
 
 function dragonTargets(){return physicalNeighbors(G.dragon)}
-function clickSpot(id){if(allianceLossActive())return false;
+function clickSpot(id){if(allianceLossActive()||guideDivinationActive())return false;
  if(battle?.elfChoice){fleeElfTo(id);return;}
  if(G&&G.online&&onlineGameState&&!(G.online&&G.online.legacySync)){if(onlineGameState.status==='setup')onlineSetupRegionClick(id);else if(onlineGameState.status==='playing'&&onlineGameState.phase==='recruit'&&onlineGameState.active===onlineGameState.youIndex)recruitAt(id);else if(onlineGameState.status==='playing'&&onlineGameState.phase==='play'&&onlineGameState.active===onlineGameState.youIndex)onlineMoveClick(id);else if(onlineGameState.status==='playing'&&onlineGameState.phase==='oracleMove'&&onlineGameState.active===onlineGameState.youIndex)onlineDragonClick(id);return}
  if(G&&G.online&&G.online.legacySync){
@@ -4832,7 +4880,7 @@ function destroyDragonRegionAndEnd(){
  }
  checkDecimations();advanceTurn('nouveau tour');
 }
-function roll(){if(allianceLossActive())return false;
+function roll(){if(allianceLossActive()||guideDivinationActive())return false;
  if(G&&G.online&&!G.online.legacySync)return onlineGameAction('ORACLE_ROLL');
  // Un seul lancer Oracle par tour. Dès qu'un 1 lance une résolution, aucun
  // second lancer (humain, bot ou ancien timer) ne peut entrer ici.
@@ -5212,7 +5260,7 @@ function renderPlayerRail(){
 }
 let inPlaySelected=null,inPlayHoldTimer=null,inPlayLongTriggered=false;
 
-function inPlayCardUsable(i,id,index=null){if(morcattAuctionActive()||allianceLossActive())return false;
+function inPlayCardUsable(i,id,index=null){if(morcattAuctionActive()||allianceLossActive()||guideDivinationActive())return false;
  const name=CARDS[id].name;
  if(i!==localViewer()||isDecimated(i))return false;
  agentDefaults(i);
@@ -5230,7 +5278,7 @@ function inPlayCardUsable(i,id,index=null){if(morcattAuctionActive()||allianceLo
 
  return false;
 }
-function activateInPlayCard(i,id,index=null){if(morcattAuctionActive()||allianceLossActive())return false;
+function activateInPlayCard(i,id,index=null){if(morcattAuctionActive()||allianceLossActive()||guideDivinationActive())return false;
  if(!inPlayCardUsable(i,id,index))return false;
  const name=CARDS[id].name;
  hideInPlayPreview();
@@ -5750,7 +5798,7 @@ function render(){
  wireCardConfirmations();
  if(portalMode)renderPortalBanner();else if(dragonRichState)renderRichDragonBanner();else if(returnState)renderReturnBanner();else if(egnoState)renderEgnobombeBanner();else if(shadowState)renderShadowBanner();else if(battle && battle.kind!=='seaChoice')renderBattle();else clearTopBanner();
  renderFullJournal($('log'),G.log,G.players,COLORS);
- renderTutorial();renderSoloPlacement();renderAllianceLossSelection();renderElfFlee();
+ renderTutorial();renderSoloPlacement();renderAllianceLossSelection();renderElfFlee();renderGuideDivination();
 }
 audioLoadPrefs();audioWireControls();document.addEventListener('pointerdown',()=>audioMaybeWelcome(),{passive:true});
 const ONLINE_RANDOM_NAMES=['Valkor','Xodia','Oldirn','Mundris','Ferna','Dronk','Spoltreg','Nimun','Raenura','Keplet'];
