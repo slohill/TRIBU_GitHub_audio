@@ -1718,7 +1718,7 @@ function resetRecruitmentForPriorityCard(actor,label){
  if(G.phase!=='recruit'||!recruitSnapshot||recruitSnapshot.player!==G.active)return false;
  const recruiter=G.active;
  G.players[recruiter].gold=recruitSnapshot.gold;
- Object.keys(recruitSnapshot.units).forEach(r=>G.b[r].units=recruitSnapshot.units[r]);
+ Object.keys(recruitSnapshot.units).forEach(r=>G.b[r].units=recruitSnapshot.units[r]);delete recruitSnapshot.colony;
  const who=(actor===recruiter?'':(' jouée par '+p(actor).name));
  
  return true;
@@ -2338,6 +2338,64 @@ function resolveCorruption(victim,id){
  beginAllianceLossSelection(victim,target.tribe,state.pauseContext);
  return true;
 }
+function canUseGuild(actor){
+ return !G.online&&actor===localViewer()&&!gameOverState&&!priorityCardResolutionActive()&&!oracleState&&!oracleNoticeState&&!morcattAuctionActive()&&TribuHeroes.current(G,actor,CARDS)?.card.heroKey==='guild'&&TribuHeroes.activeReady(G,actor,CARDS,turnEpoch,'fury');
+}
+function useGuild(actor){
+ if(!canUseGuild(actor)||!TribuHeroes.consumeActive(G,actor,CARDS,turnEpoch,'fury'))return false;
+ const roll=1+Math.floor(Math.random()*6),token=captureRevoltRoll(actor,roll);
+ const pauseContext={goldWasPaused:!!goldReaction?.pausedByCard,paidWasPaused:!!paidDrawState?.pausedByCard};
+ agentModalState={kind:'guildFury',actor,roll,token,pauseContext};G.pendingGuildFury=agentModalState;pauseGameForPriorityCard();pauseGoldReactionForCard();pausePaidDrawForCard();
+ log(p(actor).name+' utilise Furie Nocturne : dé '+roll+'.');showGuildFury();return true;
+}
+function showGuildFury(){
+ const s=agentModalState;if(s?.kind!=='guildFury')return;
+ const targets=s.roll===6?assassinTargets(s.actor):(s.roll>=4?opponentIndexes(s.actor).filter(i=>p(i).hand.length):[]);
+ if(!targets.length){finishGuildFury(false);return}
+ openAgentModal('Furie Nocturne — '+s.roll,s.roll===6?'Choisissez un Agent ou un Héros à éliminer.':'Choisissez un adversaire : une carte sera volée au hasard dans sa main.');
+ targets.forEach(t=>addAgentChoice(s.roll===6?p(t.owner).name+' — '+t.name:p(t).name,()=>resolveGuildFury(t)));
+}
+function resolveGuildFury(target){
+ const s=agentModalState;if(s?.kind!=='guildFury'||s.actor!==localViewer())return false;
+ if(s.roll===6){
+  const t=assassinTargets(s.actor).find(t=>t.owner===target.owner&&t.id===target.id&&t.uid===target.uid);if(!t){showGuildFury();return false}
+  p(t.owner).inPlay.splice(t.index,1);p(t.owner).inPlayUID.splice(t.index,1);G.discard.push(t.id);
+  log(p(s.actor).name+' élimine '+t.name+' de '+p(t.owner).name+'.');
+ }else{
+  if(!opponentIndexes(s.actor).includes(target)||!p(target).hand.length){showGuildFury();return false}
+  const at=Math.floor(Math.random()*p(target).hand.length),id=p(target).hand.splice(at,1)[0];p(s.actor).hand.push(id);
+  log(p(s.actor).name+' vole une carte dans la main de '+p(target).name+'.');
+ }
+ finishGuildFury(true);return true;
+}
+function finishGuildFury(success){
+ const s=agentModalState;if(s?.kind!=='guildFury')return false;
+ delete G.pendingGuildFury;closeAgentModal(true);audioPlaySfx(success?(s.roll===6?'assassin':'thief'):'fail',.82);
+ if(resolveRevoltAfterAction(s.token,s.pauseContext))return true;
+ if(!s.pauseContext.goldWasPaused)resumeGoldReactionAfterCard();if(!s.pauseContext.paidWasPaused)resumePaidDrawAfterCard();
+ render();resumeGameAfterPriorityCard('après Furie Nocturne');return true;
+}
+function colonyReady(actor){return !G.online&&isEgnorax(actor)&&TribuHeroes.hasPassive(G,actor,CARDS,'guild')}
+function colonyRegionEligible(region){
+ const c=G.b[region];return !!c&&c.owner===null&&c.units===0&&!effectiveHostile(region)&&!engagedBattles().some(b=>!b.environmentResolved&&(b.attackOrigins||[]).some(o=>o.region===region&&o.moves.length));
+}
+function refreshColonyRecruitment(){
+ const s=recruitSnapshot;if(G.phase!=='recruit'||!s?.colonyUid)return;
+ if(!colonyReady(s.player)||TribuHeroes.current(G,s.player,CARDS)?.uid!==s.colonyUid){
+  resetRecruitmentForPriorityCard(s.player,'Guilde éliminée');delete s.colonyUid;log('Colonie de rats annulée : le recrutement est remis à zéro.');return;
+ }
+ if(s.colony&&!colonyRegionEligible(s.colony.region)){p(s.player).gold+=s.colony.count;delete s.colony;log('La région de Colonie de rats n’est plus libre : ces unités sont remboursées.')}
+}
+function recruitColonyAt(region){
+ refreshColonyRecruitment();const s=recruitSnapshot;
+ if(G.phase!=='recruit'||!s?.colonyUid||!colonyReady(G.active)||!colonyRegionEligible(region)||p().gold<1||s.colony&&s.colony.region!==region)return false;
+ if(!s.colony)s.colony={region,count:0};s.colony.count++;p().gold--;render();return true;
+}
+function commitColonyRecruitment(){
+ refreshColonyRecruitment();const s=recruitSnapshot;if(!s?.colony)return;
+ const c=G.b[s.colony.region];c.owner=s.player;c.units=s.colony.count;c.hostile=false;
+ if(c.building&&c.building.type!=='Portail')transferBuildingCard(c.building,s.player);delete s.colony;
+}
 function noblesseImmune(actor){return Number.isInteger(actor)&&!!G.players[actor]&&factionName(actor)==='Morcatt'&&TribuHeroes.hasPassive(G,actor,CARDS,'noblesse')}
 function suppressProtectedRevolts(){if(G.revolts?.active&&noblesseImmune(G.revolts.active.target))TribuRevolts.suppress(G.revolts)}
 function canUseNoblesse(actor){
@@ -2453,6 +2511,7 @@ function openAgentModal(title,text){
 }
 function closeAgentModal(force=false){
  force=force===true;
+ if(!force&&agentModalState?.kind==='guildFury'){showGuildFury();return}
  if(!force&&guideDivinationActive()){showGuideDivination();return}
  if(!force&&caravanState&&agentModalState&&agentModalState.kind==='caravan'){
    log('Caravane de commerce : chaque joueur doit choisir une carte avant de continuer.');
@@ -4392,7 +4451,7 @@ function resolveBattle(){
  }
  render();queueBot('après bataille');
 }
-function beginPlay(){if(allianceLossActive()||guideDivinationActive())return false;if(G&&G.online&&!G.online.legacySync){if(onlineGameState&&onlineGameState.phase==='recruit')return onlineGameAction('END_RECRUIT');return}if(paidDrawState)return;recruitSnapshot=null;G.phase='play';setMovable();render()}
+function beginPlay(){if(allianceLossActive()||guideDivinationActive())return false;if(G&&G.online&&!G.online.legacySync){if(onlineGameState&&onlineGameState.phase==='recruit')return onlineGameAction('END_RECRUIT');return}if(paidDrawState)return;commitColonyRecruitment();recruitSnapshot=null;G.phase='play';setMovable();render()}
 function completeStartDraw(source,actor=G.active){
  if(G.active!==actor||G.phase!=='start'||paidDrawState||goldReaction)return;
  if(source==='discard'){
@@ -4445,6 +4504,7 @@ function doRecruit(){if(allianceLossActive()||guideDivinationActive())return fal
  if(totalUnits()>=cap())reasons.push('plafond déjà atteint');
  if(reasons.length){log(reasons.join(' / '));render();return}
  recruitSnapshot={player:G.active,gold:p().gold,units:{}};
+ if(colonyReady(G.active))recruitSnapshot.colonyUid=TribuHeroes.current(G,G.active,CARDS).uid;
  Object.keys(G.b).forEach(r=>recruitSnapshot.units[r]=G.b[r].units);
  G.phase='recruit';render();
 }
@@ -4452,13 +4512,13 @@ function resetRecruitment(){if(allianceLossActive()||guideDivinationActive())ret
  if(G&&G.online&&!G.online.legacySync)return onlineGameAction('RESET_RECRUIT');
  if(!recruitSnapshot||recruitSnapshot.player!==G.active||G.phase!=='recruit')return;
  p().gold=recruitSnapshot.gold;
- Object.keys(recruitSnapshot.units).forEach(r=>G.b[r].units=recruitSnapshot.units[r]);
+ Object.keys(recruitSnapshot.units).forEach(r=>G.b[r].units=recruitSnapshot.units[r]);delete recruitSnapshot.colony;
  log('Recrutement recommencé : Or et unités reviennent au début de la phase de recrutement.');
  render();
 }
 function recruitAt(r){if(allianceLossActive()||guideDivinationActive())return false;
  if(G&&G.online&&!G.online.legacySync)return onlineGameAction('RECRUIT_AT',{region:r});
- const c=G.b[r];if(c.owner!==G.active)return;
+ const c=G.b[r];if(c.owner!==G.active)return recruitColonyAt(r);
  if(p().gold<1){log('Pas assez d’Or.');render();return}
  if(totalUnits()>=cap()){log('Plafond atteint.');render();return}
  let q=1,cl=currentTerrain(r),f=FACTIONS[p().faction].name;
@@ -5055,7 +5115,9 @@ function renderMap(){
    }
  }
  if(!isSea(id)&&defenseuseSnow(id)){const snow=document.createElement('span');snow.className='cityTerrainOverlay snow defenseuseSnow';snow.style.zIndex='1';b.appendChild(snow)}
+ if(G.phase==='recruit'&&recruitSnapshot?.colonyUid&&colonyRegionEligible(id)&&(!recruitSnapshot.colony||recruitSnapshot.colony.region===id))b.classList.add('src');
  const st=document.createElement('span');st.className='stack';
+ if(G.phase==='recruit'&&recruitSnapshot?.colony?.region===id){const ghost=die(G.active,recruitSnapshot.colony.count);ghost.style.opacity='.6';ghost.title='Recrutement provisoire';st.appendChild(ghost)}
  const isPvpBattle=battle&&battle.target===id&&battle.defender!==null&&!battle.hostile&&(battle.kind==='land'||battle.kind==='sea');
  const previewDefenders=previewBattleDefenders(id),isPvpPreview=previewDefenders.length>0;
  if(isSea(id)){
@@ -5286,6 +5348,7 @@ function inPlayCardUsable(i,id,index=null){if(morcattAuctionActive()||allianceLo
  if(i!==localViewer()||isDecimated(i))return false;
  agentDefaults(i);
 
+ if(CARDS[id].heroKey==='guild')return canUseGuild(i);
  if(CARDS[id].heroKey==='noblesse')return canUseNoblesse(i);
  if(CARDS[id].allianceTribe==='ogres')return canUseOgres(i);
  if(name==='Espion')
@@ -5304,6 +5367,7 @@ function activateInPlayCard(i,id,index=null){if(morcattAuctionActive()||alliance
  if(!inPlayCardUsable(i,id,index))return false;
  const name=CARDS[id].name;
  hideInPlayPreview();
+ if(CARDS[id].heroKey==='guild')return useGuild(i);
  if(CARDS[id].heroKey==='noblesse')return useNoblesse(i);
  if(CARDS[id].allianceTribe==='ogres')return useOgres(i);
  if(name==='Espion'||name==='Voleur'){
@@ -5631,6 +5695,8 @@ function commerceClock(){if(!G)return;let changed=false;const now=Date.now();com
 setInterval(commerceClock,1000);
 
 function render(){
+ if(G?.pendingGuildFury&&!priorityCardResolutionActive()&&!oracleNoticeState&&!oracleState){agentModalState=G.pendingGuildFury;showGuildFury()}
+ if(G)refreshColonyRecruitment();
  if(drainNoblesseRevolts())return;
  if(finishAllianceLossTurnIfReady())return;
  refreshPendingAllianceGold();
