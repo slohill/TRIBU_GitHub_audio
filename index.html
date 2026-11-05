@@ -1255,6 +1255,7 @@ function embuscadeIndex(i){
  return G.players[i].hand.findIndex(id=>CARDS[id]&&CARDS[id].name==='Embuscade');
 }
 function eligibleAmbushers(receiver){
+ if(noblesseImmune(receiver))return [];
  return G.players.map((pl,i)=>i).filter(i=>i!==receiver&&embuscadeIndex(i)>=0);
 }
 function clearGoldReactionTimer(){
@@ -1446,6 +1447,7 @@ function resolveGoldGain(){if(allianceLossActive()||guideDivinationActive())retu
    render();
    return;
  }
+ if(r.heroRevolt)(G.noblesseRevolts||(G.noblesseRevolts=[])).push(r.heroRevolt);
  G.players[r.receiver].gold+=r.amount;
  audioPlaySfx('gold',.78);
  log(p(r.receiver).name+' reçoit finalement '+r.amount+' Or'+(r.source?' ('+r.source+')':'')+'.');
@@ -1459,7 +1461,7 @@ function resolveGoldGain(){if(allianceLossActive()||guideDivinationActive())retu
  queueBot('après gain or');
 }
 function playAmbush(playerIndex){if(morcattAuctionActive()||allianceLossActive()||guideDivinationActive())return false;
- if(!goldReaction||playerIndex===goldReaction.receiver)return;
+ if(!goldReaction||playerIndex===goldReaction.receiver||noblesseImmune(goldReaction.receiver))return;
  clearHotseatReaction();
  const idx=embuscadeIndex(playerIndex);if(idx<0)return;
  clearGoldReactionTimer();
@@ -1468,6 +1470,7 @@ function playAmbush(playerIndex){if(morcattAuctionActive()||allianceLossActive()
  goldReaction={
    receiver:playerIndex,
    dwarfHarvest:r.dwarfHarvest,
+   heroRevolt:r.heroRevolt,
    amount:r.amount,
    source:'Embuscade sur '+r.source,
    after:r.after,
@@ -2307,7 +2310,7 @@ function inPlayCountByName(i,name){
 }
 function corruptionTargets(actor){
  return G.players.flatMap((pl,i)=>{
-  if(i===actor||pl.decimated)return [];
+  if(i===actor||pl.decimated||noblesseImmune(i))return [];
   const a=TribuAlliances.alliance(pl,CARDS);return a?[{player:i,id:a.id,tribe:a.card.allianceTribe}]:[];
  });
 }
@@ -2334,6 +2337,22 @@ function resolveCorruption(victim,id){
  if(isHotseatMode()&&!p(victim).bot)hotseatViewerOverride=victim;
  beginAllianceLossSelection(victim,target.tribe,state.pauseContext);
  return true;
+}
+function noblesseImmune(actor){return Number.isInteger(actor)&&!!G.players[actor]&&factionName(actor)==='Morcatt'&&TribuHeroes.hasPassive(G,actor,CARDS,'noblesse')}
+function suppressProtectedRevolts(){if(G.revolts?.active&&noblesseImmune(G.revolts.active.target))TribuRevolts.suppress(G.revolts)}
+function canUseNoblesse(actor){
+ return !G.online&&actor===localViewer()&&!gameOverState&&!priorityCardResolutionActive()&&!oracleState&&!oracleNoticeState&&!goldReaction&&!paidDrawState&&!morcattAuctionActive()&&TribuHeroes.current(G,actor,CARDS)?.card.heroKey==='noblesse'&&TribuHeroes.activeReady(G,actor,CARDS,turnEpoch,'mercantile');
+}
+function useNoblesse(actor){
+ if(!canUseNoblesse(actor)||!TribuHeroes.consumeActive(G,actor,CARDS,turnEpoch,'mercantile'))return false;
+ const roll=1+Math.floor(Math.random()*6),heroRevolt=captureRevoltRoll(actor,roll);
+ log(p(actor).name+' utilise Doigté mercantile : dé '+roll+', gain de '+(roll*2)+' Or.');
+ offerGoldGain(actor,roll*2,'Doigté mercantile','play',{heroRevolt});return true;
+}
+function drainNoblesseRevolts(){
+ if(!G?.noblesseRevolts?.length||goldReaction||paidDrawState||priorityCardResolutionActive()||oracleState||oracleNoticeState||dragonRichState||dragonCurseState||dragonPublicState||dragonSixState||gameOverState)return false;
+ while(G.noblesseRevolts.length){const token=G.noblesseRevolts.shift();if(resolveRevoltAfterAction(token))return true}
+ return false;
 }
 function guideDivinationActive(){return agentModalState?.kind==='guideDivination'}
 function guideBuildersBonus(b=battle){
@@ -3181,11 +3200,13 @@ function beginAllianceLossSelection(player,tribe,pauseContext=null){
 }
 function captureRevoltRoll(actor,value){
  if(!TribuCorruption.enabled(G)||G.online||!G.revolts)return null;
+ suppressProtectedRevolts();
  G.revoltRollSequence=(G.revoltRollSequence||0)+1;
  return TribuRevolts.capture(G.revolts,actor,value,'roll:'+G.revoltRollSequence);
 }
 function resolveRevoltAfterAction(token,pauseContext=null){
  if(!token||!G.revolts)return false;
+ suppressProtectedRevolts();
  const hasTargets=TribuRevolts.plan(G,token.target,engagedBattles()).regions.length>0;
  if(!TribuRevolts.afterAction(G.revolts,token,hasTargets))return false;
  const pending=TribuRevolts.next(G.revolts);
@@ -3466,7 +3487,7 @@ function advanceTurn(reason='nouveau tour'){
  clearTimeout(botTimer);botToken++;dest=null;picks={};returnState=null;
  G.players.forEach(pl=>{pl.attackTurnBonus=0;pl.defenseTurnBonus=0});
  G.active=(G.active+1)%G.players.length;if(G.active===0)G.turn++;
- resetAgentUses(G.active);TribuHeroes.beginOwnerTurn(G,G.active,CARDS,turnEpoch);botActionsThisTurn=0;
+ resetAgentUses(G.active);TribuHeroes.beginOwnerTurn(G,G.active,CARDS,turnEpoch);suppressProtectedRevolts();botActionsThisTurn=0;
  G.phase='start';resetMove();
  log('▶ Tour de '+p().name+'.');
  if(isDecimated(G.active)){
@@ -4619,7 +4640,7 @@ function activateOracle(afterResolution=null,activator=G.active){
  G.oracleActive=id;const o=ORACLES[id];
  if(TribuCorruption.enabled(G)&&!G.online){
   G.revolts=G.revolts||TribuRevolts.create();
-  if(o.kind==='revolts')TribuRevolts.activate(G.revolts,activator,id);else TribuRevolts.replace(G.revolts);
+  if(o.kind==='revolts'){TribuRevolts.activate(G.revolts,activator,id);suppressProtectedRevolts()}else TribuRevolts.replace(G.revolts);
  }
  G.oraclePresentation={seq:Number(G.oraclePresentation&&G.oraclePresentation.seq||0)+1,name:o.name,at:Date.now()};
  onlineOraclePresentationSeenSeq=Number(G.oraclePresentation.seq);
@@ -5265,6 +5286,7 @@ function inPlayCardUsable(i,id,index=null){if(morcattAuctionActive()||allianceLo
  if(i!==localViewer()||isDecimated(i))return false;
  agentDefaults(i);
 
+ if(CARDS[id].heroKey==='noblesse')return canUseNoblesse(i);
  if(CARDS[id].allianceTribe==='ogres')return canUseOgres(i);
  if(name==='Espion')
    return i===G.active&&G.phase==='play'&&index!==null&&!agentUsed(i,index);
@@ -5282,6 +5304,7 @@ function activateInPlayCard(i,id,index=null){if(morcattAuctionActive()||alliance
  if(!inPlayCardUsable(i,id,index))return false;
  const name=CARDS[id].name;
  hideInPlayPreview();
+ if(CARDS[id].heroKey==='noblesse')return useNoblesse(i);
  if(CARDS[id].allianceTribe==='ogres')return useOgres(i);
  if(name==='Espion'||name==='Voleur'){
    if(goldReaction)pauseGoldReactionForCard();
@@ -5608,6 +5631,7 @@ function commerceClock(){if(!G)return;let changed=false;const now=Date.now();com
 setInterval(commerceClock,1000);
 
 function render(){
+ if(drainNoblesseRevolts())return;
  if(finishAllianceLossTurnIfReady())return;
  refreshPendingAllianceGold();
  applyOracleMapVisual();

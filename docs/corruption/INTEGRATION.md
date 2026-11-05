@@ -189,3 +189,8 @@ One Guide registered with prepared optimized art and prescribed named text. Hold
 Yonkai Culture dynamically subtracts target buildingDefense (cities/fortresses/walls) from defender battlePower including Shadow, leaves regional visuals intact, disappears with hero.
 check-guide.cjs PASS real double-click UI/order, lock/close refusal, consumed button, short-deck nine unique IDs/active clear, Yonkaï+Shadow cancellation, other faction/removal restoration. Defenseuse, Revolts Oracle/bots, foundations regressions PASS; extension TRIBU deck base+18.
 Three heroes remain (Golem/Haute/Guilde); authoritative multiplayer extension pending. Public main unchanged.
+
+## Checkpoint 32 — Haute Noblesse local abilities
+Registered one Haute noblesse with optimized art/named zoom text. Mercantile uses hero once-per-epoch own-play gate, rolls d6 and offers2X via existing gold engine/sound. Captured Revolts token survives Embuscade in gold metadata and hero assassination; queued only after payout, drains after Dragon/mandatory notices finish. Passive Morcatt immunity filters eligible Ambushers and revalidates play, excludes Corruption targets, suppresses active Revolts target at next owner turn/activation. Removal immediately disables Embuscade/Corruption protection; no retroactive die trigger. Bots passives only.
+check-noblesse.cjs PASS delayed activation/once, forced4=8 gold, Embuscade recipient, actual Assassin after roll retains gain, Revolts after payout, delayed immunity and loss, gold44->Dragon0 and destruction before Revolts choice. Guide and Corruption theft regressions PASS. Deck expectation base+19.
+Remaining heroes Golem/Guilde; verify broader battle/gold interruption cases and online authoritative flow before public release. Main unchanged.
