@@ -419,6 +419,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 @keyframes revoltPulse{0%,100%{box-shadow:0 0 3px 2px #ef4444}50%{box-shadow:0 0 16px 5px #ef4444}}
 .revoltDie{animation:revoltPulse 1.2s ease-in-out infinite}
 @media(prefers-reduced-motion:reduce){.revoltDie{animation:none;box-shadow:0 0 8px 3px #ef4444}}
+.heroDormant{filter:grayscale(1);opacity:.55}
 </style><link rel="stylesheet" href="assets/tutorial.css?v=2">
 <link rel="stylesheet" href="assets/interaction-safety.css?v=2">
 <link rel="stylesheet" href="assets/spectator.css?v=3">
@@ -656,6 +657,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 <script src="assets/corruption.js?v=1"></script>
 <script src="assets/corruption-alliances.js?v=1"></script>
 <script src="assets/corruption-revolts.js?v=1"></script>
+<script src="assets/corruption-heroes.js?v=1"></script>
 <script src="assets/corruption-alliance-loss-ui.js?v=1"></script>
 <script src="assets/corruption-auction.js?v=1"></script>
 <script>
@@ -2331,6 +2333,33 @@ function resolveCorruption(victim,id){
  beginAllianceLossSelection(victim,target.tribe,state.pauseContext);
  return true;
 }
+function heroManagementAllowed(actor,replacing=false){
+ const ownReplacement=replacing&&agentModalState?.kind==='heroReplacement'&&agentModalState.actor===actor;
+ return !G.online&&TribuCorruption.enabled(G)&&actor===localViewer()&&actor===G.active&&G.phase==='play'&&!p(actor).bot&&!isDecimated(actor)&&!gameOverState&&!oracleState&&!oracleNoticeState&&!morcattAuctionActive()&&!allianceLossActive()&&(!priorityCardResolutionActive()||ownReplacement);
+}
+function playHeroFromHand(handIndex){
+ const actor=localViewer();if(!heroManagementAllowed(actor))return false;
+ agentDefaults(actor);const intent=TribuHeroes.preparePlacement(G,actor,handIndex,CARDS);if(!intent)return false;
+ if(intent.requiresConfirmation){
+  agentModalState={kind:'heroReplacement',actor,intent};pauseGameForPriorityCard();
+  openAgentModal('Remplacer votre Héros',TribuHeroes.replacementMessage);
+  addAgentChoice('Remplacer',confirmHeroReplacement);addAgentChoice('Annuler',()=>{closeAgentModal();render()});return true;
+ }
+ if(!TribuHeroes.place(G,intent,CARDS,turnEpoch))return false;
+ audioCardMove();log(p(actor).name+' met '+CARDS[intent.id].name+' en jeu.');render();return true;
+}
+function confirmHeroReplacement(){
+ const state=agentModalState;if(state?.kind!=='heroReplacement'||!heroManagementAllowed(state.actor,true))return false;
+ agentDefaults(state.actor);
+ if(!TribuHeroes.place(G,state.intent,CARDS,turnEpoch,true)){closeAgentModal();render();return false}
+ closeAgentModal(true);audioCardMove();log(p(state.actor).name+' remplace son Héros par '+CARDS[state.intent.id].name+'.');
+ render();resumeGameAfterPriorityCard('après remplacement du Héros');return true;
+}
+function returnHeroToHand(actor,id){
+ if(!heroManagementAllowed(actor)||TribuHeroes.current(G,actor,CARDS)?.id!==id)return false;
+ if(!TribuHeroes.returnToHand(G,actor,CARDS))return false;
+ hideInPlayPreview();audioCardMove();log(p(actor).name+' reprend '+CARDS[id].name+' en main.');render();return true;
+}
 function playAllianceFromHand(handIndex){
  const actor=localViewer(),pl=p(actor),id=pl.hand[handIndex],card=CARDS[id];
  if(!card?.allianceTribe||!TribuCorruption.enabled(G)||G.online||G.phase!=='play'||G.active!==actor||pl.bot||pl.decimated||allianceLossActive()||priorityCardResolutionActive()||oracleState||morcattAuctionActive())return false;
@@ -3378,7 +3407,7 @@ function advanceTurn(reason='nouveau tour'){
  clearTimeout(botTimer);botToken++;dest=null;picks={};returnState=null;
  G.players.forEach(pl=>{pl.attackTurnBonus=0;pl.defenseTurnBonus=0});
  G.active=(G.active+1)%G.players.length;if(G.active===0)G.turn++;
- resetAgentUses(G.active);botActionsThisTurn=0;
+ resetAgentUses(G.active);TribuHeroes.beginOwnerTurn(G,G.active,CARDS,turnEpoch);botActionsThisTurn=0;
  G.phase='start';resetMove();
  log('▶ Tour de '+p().name+'.');
  if(isDecimated(G.active)){
@@ -5214,6 +5243,7 @@ function showInPlayPreview(i,id,key,index=null){
    '<div class="previewHint">'+
      (usable?'Recliquez sur le titre pour utiliser la carte · loupe ou appui long = agrandir':'Carte actuellement non activable.')+
    '</div>';
+ if(c.heroKey&&heroManagementAllowed(i)){const back=document.createElement('button');back.textContent='Reprendre en main';back.dataset.heroReturn='';back.onclick=()=>returnHeroToHand(i,id);box.appendChild(back)}
 }
 function hideInPlayPreview(){
  inPlaySelected=null;
@@ -5241,6 +5271,7 @@ function renderInPlay(i){
      const b=document.createElement('div');
      b.className='inPlayTitleBtn'+(inPlayCardUsable(i,id,index)?' usable':'')+((['Espion','Voleur'].includes(c.name)&&agentUsed(i,index))?' usedAgent':'')+(key===inPlaySelected?' selected':'');
      b.dataset.key=key;b.textContent=c.name;
+     if(c.heroKey&&!TribuHeroes.passiveReady(G,i,CARDS)){b.classList.add('heroDormant');b.title='Héros actif à partir de votre prochain tour';}
      const lens=document.createElement('button');lens.className='inPlayZoom';lens.textContent='⌕';
      lens.setAttribute('aria-label','Agrandir '+c.name);lens.title='Agrandir la carte';
      lens.onpointerdown=e=>{e.stopPropagation();clearTimeout(inPlayHoldTimer)};
@@ -5644,6 +5675,7 @@ function render(){
    d.onclick=()=>playAmbush(handPlayer);
  }
  const isViewerHand=handPlayer===localViewer()&&!G.players[handPlayer].bot&&!isDecimated(handPlayer);
+ if(isViewerHand&&c.heroKey&&heroManagementAllowed(handPlayer)){d.classList.add('playablePermanent');d.onclick=()=>playHeroFromHand(handIndex)}
  if(isViewerHand&&c.allianceTribe&&!G.online&&G.phase==='play'&&G.active===handPlayer&&!priorityCardResolutionActive()){d.classList.add('playablePermanent');d.onclick=()=>playAllianceFromHand(handIndex)}
  if(isViewerHand&&c.extensionKey==='corruption-theft'&&!G.online){d.classList.add('playablePermanent');d.onclick=()=>startCorruption(handIndex)}
  if(isViewerHand&&!choiceState&&c.name==='Taxe'){d.classList.add('playablePermanent');d.title='Jouer Taxe maintenant';d.onclick=()=>playTax(handIndex)}
