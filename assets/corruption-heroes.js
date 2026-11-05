@@ -2,6 +2,8 @@
 (function(root){
 'use strict';
 const replacementMessage='Vous ne pouvez avoir qu’un seul Héros en jeu. Celui en jeu va regagner votre main. Êtes-vous sûr.e de vouloir le remplacer ?';
+const definitions=[{"name": "Défenseuse du peuple", "heroKey": "defenseuse", "type": "Agent — Héros", "count": 1, "extension": "corruption", "extensionKey": "hero-defenseuse", "activeAbilities": [], "effect": "Capacité « L’union fait la force » : Toutes vos Régions munies d’une seule unité ont +2 de défense.<br><br>Capacité « Givre de guerre » : Si vous êtes Griffe-Blanche, toutes vos Régions sont enneigées.", "image": "assets/images/cards/defenseuse_du_peuple.webp"}];
+function install(cards){return definitions.map(d=>{const at=cards.findIndex(c=>c.extensionKey===d.extensionKey);return at>=0?at:cards.push({...d})-1})}
 function current(game,actor,cards){
  const p=game.players[actor];if(!p)return null;
  const found=p.inPlay.map((id,index)=>({id,index,card:cards[id],uid:p.inPlayUID?.[index]})).filter(x=>x.card?.heroKey);
@@ -55,6 +57,10 @@ function returnToHand(game,actor,cards){
  const held=current(game,actor,cards);if(!held)return false;
  const p=game.players[actor];p.inPlay.splice(held.index,1);p.inPlayUID.splice(held.index,1);p.hand.push(held.id);delete p.heroDeployment;return true;
 }
-const api=Object.freeze({replacementMessage,current,preparePlacement,place,beginOwnerTurn,passiveReady,activeReady,consumeActive,returnToHand});
+function hasPassive(game,actor,cards,key){return passiveReady(game,actor,cards)&&current(game,actor,cards)?.card.heroKey===key}
+function unionDefense(game,actor,region,cards){
+ const cell=game.b[region];return cell&&cell.owner===actor&&cell.units===1&&hasPassive(game,actor,cards,'defenseuse')?2:0;
+}
+const api=Object.freeze({definitions,install,hasPassive,unionDefense,replacementMessage,current,preparePlacement,place,beginOwnerTurn,passiveReady,activeReady,consumeActive,returnToHand});
 root.TribuHeroes=api;if(typeof module==='object'&&module.exports)module.exports=api;
 })(typeof globalThis==='object'?globalThis:this);

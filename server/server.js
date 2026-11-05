@@ -36,6 +36,7 @@ const auctionHtml=require('fs').readFileSync(path.join(CLIENT_ROOT,'index.html')
 const auctionCardCatalog=JSON.parse(auctionHtml.match(/const DATA=(\{[^\r\n]+\}),POS=DATA/)[1]).cards;
 require('../assets/corruption').installPortal(auctionCardCatalog);
 require('../assets/corruption-alliances').install(auctionCardCatalog);
+require('../assets/corruption-heroes').install(auctionCardCatalog);
 const auctionSync=createAuctionSync({publish:room=>emitLegacy(room)});
 setInterval(()=>{for(const room of rooms.values())auctionSync.tick(room,auctionCardCatalog)},500).unref();
 
