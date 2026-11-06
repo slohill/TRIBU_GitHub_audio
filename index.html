@@ -661,6 +661,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 <script src="assets/corruption-golem.js?v=1"></script>
 <script src="assets/corruption-guide.js?v=1"></script>
 <script src="assets/gold-reaction-state.js?v=1"></script>
+<script src="assets/corruption-guild.js?v=1"></script>
 <script src="assets/corruption-alliance-loss-ui.js?v=1"></script>
 <script src="assets/corruption-auction.js?v=1"></script>
 <script>
@@ -2360,34 +2361,32 @@ function restoreRecruitSea(){
  Object.entries(recruitSnapshot.sea).forEach(([r,n])=>{if(n)G.sea[r].fleets[actor]=n;else delete G.sea[r].fleets[actor]});
 }
 function canUseGuild(actor){
- return !G.online&&actor===localViewer()&&!gameOverState&&!priorityCardResolutionActive()&&!oracleState&&!oracleNoticeState&&!morcattAuctionActive()&&TribuHeroes.current(G,actor,CARDS)?.card.heroKey==='guild'&&TribuHeroes.activeReady(G,actor,CARDS,turnEpoch,'fury');
+ return (!G.online||G.online.legacySync)&&actor===localViewer()&&!gameOverState&&!priorityCardResolutionActive()&&!oracleState&&!oracleNoticeState&&!morcattAuctionActive()&&TribuHeroes.current(G,actor,CARDS)?.card.heroKey==='guild'&&TribuHeroes.activeReady(G,actor,CARDS,turnEpoch,'fury');
 }
 function useGuild(actor){
- if(!canUseGuild(actor)||!TribuHeroes.consumeActive(G,actor,CARDS,turnEpoch,'fury'))return false;
+ if(!canUseGuild(actor))return false;
+ if(G.online?.legacySync)return onlineHeroAction({kind:'guildStart'});
+ if(!TribuHeroes.consumeActive(G,actor,CARDS,turnEpoch,'fury'))return false;
  const roll=1+Math.floor(Math.random()*6),token=captureRevoltRoll(actor,roll);
  const pauseContext={goldWasPaused:!!goldReaction?.pausedByCard,paidWasPaused:!!paidDrawState?.pausedByCard};
  agentModalState={kind:'guildFury',actor,roll,token,pauseContext};G.pendingGuildFury=agentModalState;pauseGameForPriorityCard();pauseGoldReactionForCard();pausePaidDrawForCard();
  log(p(actor).name+' utilise Furie Nocturne : dé '+roll+'.');showGuildFury();return true;
 }
 function showGuildFury(){
- const s=agentModalState;if(s?.kind!=='guildFury')return;
+ const s=agentModalState;if(s?.kind!=='guildFury'||(G.online&&s.actor!==localViewer()))return;
  const targets=s.roll===6?assassinTargets(s.actor):(s.roll>=4?opponentIndexes(s.actor).filter(i=>p(i).hand.length):[]);
- if(!targets.length){finishGuildFury(false);return}
+ if(!targets.length){if(G.online?.legacySync){if(!onlineHeroPending&&!onlineLegacyApplying)onlineHeroAction({kind:'guildResolve'});return}finishGuildFury(false);return}
  openAgentModal('Furie Nocturne — '+s.roll,s.roll===6?'Choisissez un Agent ou un Héros à éliminer.':'Choisissez un adversaire : une carte sera volée au hasard dans sa main.');
  targets.forEach(t=>addAgentChoice(s.roll===6?p(t.owner).name+' — '+t.name:p(t).name,()=>resolveGuildFury(t)));
 }
 function resolveGuildFury(target){
  const s=agentModalState;if(s?.kind!=='guildFury'||s.actor!==localViewer())return false;
- if(s.roll===6){
-  const t=assassinTargets(s.actor).find(t=>t.owner===target.owner&&t.id===target.id&&t.uid===target.uid);if(!t){showGuildFury();return false}
-  p(t.owner).inPlay.splice(t.index,1);p(t.owner).inPlayUID.splice(t.index,1);G.discard.push(t.id);
-  log(p(s.actor).name+' élimine '+t.name+' de '+p(t.owner).name+'.');
- }else{
-  if(!opponentIndexes(s.actor).includes(target)||!p(target).hand.length){showGuildFury();return false}
-  const at=Math.floor(Math.random()*p(target).hand.length),id=p(target).hand.splice(at,1)[0];p(s.actor).hand.push(id);
-  log(p(s.actor).name+' vole une carte dans la main de '+p(target).name+'.');
- }
- finishGuildFury(true);return true;
+ if(G.online?.legacySync)return onlineHeroAction({kind:'guildResolve',target});
+ G.players.forEach((_,i)=>agentDefaults(i));
+ const result=TribuGuild.resolve(G,s,target,CARDS,n=>Math.floor(Math.random()*n));
+ if(!result){showGuildFury();return false}
+ if(result.success)log(s.roll===6?p(s.actor).name+' élimine '+result.name+' de '+p(result.owner).name+'.':p(s.actor).name+' vole une carte dans la main de '+p(result.owner).name+'.');
+ finishGuildFury(result.success);return true;
 }
 function finishGuildFury(success){
  const s=agentModalState;if(s?.kind!=='guildFury')return false;
@@ -2396,7 +2395,14 @@ function finishGuildFury(success){
  if(!s.pauseContext.goldWasPaused)resumeGoldReactionAfterCard();if(!s.pauseContext.paidWasPaused)resumePaidDrawAfterCard();
  render();resumeGameAfterPriorityCard('après Furie Nocturne');return true;
 }
-function colonyReady(actor){return !G.online&&isEgnorax(actor)&&TribuHeroes.hasPassive(G,actor,CARDS,'guild')}
+function drainGuildCompletion(){
+ const s=G?.guildCompletion;if(!s||!G.online?.legacySync||onlineLegacyApplying||s.actor!==localViewer()||onlineHeroPending)return false;
+ delete G.guildCompletion;
+ if(resolveRevoltAfterAction(s.token,s.pauseContext))return true;
+ if(!s.pauseContext.goldWasPaused)resumeGoldReactionAfterCard();if(!s.pauseContext.paidWasPaused)resumePaidDrawAfterCard();
+ render();resumeGameAfterPriorityCard('après Furie Nocturne');return true;
+}
+function colonyReady(actor){return (!G.online||G.online.legacySync)&&isEgnorax(actor)&&TribuHeroes.hasPassive(G,actor,CARDS,'guild')}
 function colonyRegionEligible(region){
  const c=G.b[region];return !!c&&c.owner===null&&c.units===0&&!effectiveHostile(region)&&!engagedBattles().some(b=>!b.environmentResolved&&(b.attackOrigins||[]).some(o=>o.region===region&&o.moves.length));
 }
@@ -2890,10 +2896,11 @@ function revealHotseatHand(){return}
 function showHotseatHandoff(){return}
 
 function priorityCardResolutionActive(){
- return !!(onlineHeroPending||allianceLossActive()||divinationState||caravanState||egnoState||shadowState||portalMode||
+ return !!(onlineHeroPending||G?.guildCompletion||allianceLossActive()||divinationState||caravanState||egnoState||shadowState||portalMode||
    (choiceState&&choiceState.kind==='council')||agentModalState);
 }
 function priorityCardResolutionActor(){
+ if(G?.guildCompletion)return G.guildCompletion.actor;
  if(allianceLossActive())return G.allianceLoss.plan.player;
  if(divinationState&&Number.isInteger(divinationState.actor))return divinationState.actor;
  if(choiceState&&choiceState.kind==='council'&&Number.isInteger(choiceState.player))return choiceState.player;
@@ -5778,6 +5785,7 @@ function commerceClock(){if(!G)return;let changed=false;const now=Date.now();com
 setInterval(commerceClock,1000);
 
 function render(){
+ if(drainGuildCompletion())return;
  if(G?.pendingGuildFury&&!priorityCardResolutionActive()&&!oracleNoticeState&&!oracleState){agentModalState=G.pendingGuildFury;showGuildFury()}
  if(G)refreshColonyRecruitment();
  if(drainNoblesseRevolts())return;
@@ -6288,13 +6296,14 @@ function onlineLegacyApply(packet){
  // un état local plus récent qu'un snapshot serveur venant juste d'être confirmé.
  // Ne pas réappliquer visuellement cet état intermédiaire : on avance seulement la
  // révision, puis le debounce publiera l'état local complet le plus récent.
- const localRecruitDirty=!battle&&!packet.snapshot.rule?.battle&&!goldReaction&&!packet.snapshot.rule?.goldReaction&&(G.phase==='recruit'||G.phase==='play')&&G.active===G.online.myPlayerIndex&&!priorityCardResolutionActive()&&onlineLegacyCanPublish()&&onlineLegacyDigest()!==onlineLegacyLastDigest;
+ const colonyInvalidated=recruitSnapshot?.colonyUid&&!packet.snapshot.g?.players?.[G.active]?.inPlayUID?.includes(recruitSnapshot.colonyUid);
+ const localRecruitDirty=!colonyInvalidated&&!packet.snapshot.rule?.agentModalState&&!packet.snapshot.g?.guildCompletion&&!battle&&!packet.snapshot.rule?.battle&&!goldReaction&&!packet.snapshot.rule?.goldReaction&&(G.phase==='recruit'||G.phase==='play')&&G.active===G.online.myPlayerIndex&&!priorityCardResolutionActive()&&onlineLegacyCanPublish()&&onlineLegacyDigest()!==onlineLegacyLastDigest;
  if(localRecruitDirty&&Number.isInteger(packet.revision)&&packet.revision>=onlineLegacyRevision){
    onlineLegacyRevision=packet.revision;G.online.revision=packet.revision;return;
  }
  oracleSacrificeSyncPending=false;
  const me=packet.youIndex;
- const hadCaravan=!!caravanState,hadGuide=guideDivinationActive();
+ const hadCaravan=!!caravanState,hadGuide=guideDivinationActive(),hadGuild=agentModalState?.kind==='guildFury';
  onlineLegacyApplying=true;
  const localOnline={code:G.online.code,seed:G.online.seed,mySocketId:onlineSocket&&onlineSocket.id,myPlayerIndex:me,hostId:onlineRoom&&onlineRoom.hostId,legacySync:true,revision:packet.revision};
  const decoded=onlineLegacyDecode(packet.snapshot),next=decoded.g||{};next.online=localOnline;G=next;
@@ -6311,12 +6320,13 @@ function onlineLegacyApply(packet){
  if(priorityCardResolutionActive()){clearTimeout(botTimer);botTimer=null;botToken++}
  const incomingSfx=onlineSfxEvents.slice(),incomingSfxSeq=onlineSfxSeq;
  onlineLegacyLastDigest=onlineLegacyDigest();
- if((!caravanState&&hadCaravan)||(!guideDivinationActive()&&hadGuide))closeAgentModal(true);
+ if((!caravanState&&hadCaravan)||(!guideDivinationActive()&&hadGuide)||(hadGuild&&agentModalState?.kind!=='guildFury'))closeAgentModal(true);
  render();
  if(paidDrawState&&paidDrawState.player===me&&!paidDrawState.pausedByCard)startPaidDrawTimer();
  else if(!paidDrawState||paidDrawState.player!==me)clearInterval(paidDrawTick);
  if(caravanState)showCaravanChoice();
  if(guideDivinationActive())showGuideDivination();
+ if(agentModalState?.kind==='guildFury')showGuildFury();
  applyOracleMapVisual();
  onlineApplyPrivatePresentations(me);
  onlineLegacyLastDigest=onlineLegacyDigest();onlineLegacyApplying=false;onlineLegacyLockControls();
@@ -6324,7 +6334,9 @@ function onlineLegacyApply(packet){
  onlineLegacyResumeBattleView();
  onlineLegacyResumeGoldView();
  onlineLegacyEnsureBotProgress();
- if(G.noblesseRevolts?.[0]?.actor===localViewer())setTimeout(()=>render(),0);
+ if(G.noblesseRevolts?.[0]?.actor===localViewer()||G.guildCompletion?.actor===localViewer())setTimeout(()=>render(),0);
+ if(G.pendingGuildFury?.actor===localViewer())setTimeout(()=>showGuildFury(),0);
+ if(colonyInvalidated&&localViewer()===G.active){onlineLegacyLastDigest='';setTimeout(()=>onlineLegacyMaybePush(),0)}
  // Le dernier sacrifice peut être validé par n'importe quel joueur. Seul le
  // propriétaire canonique du tour ferme ensuite l'Oracle et publie le passage de tour.
  if(oracleSacrificeAllDone()&&onlineLegacyCanPublish())setTimeout(()=>{if(oracleSacrificeAllDone()&&onlineLegacyCanPublish())finishSimultaneousOracleSacrifice()},0);
