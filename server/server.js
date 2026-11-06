@@ -34,7 +34,8 @@ const io = new Server(server, {
 
 const rooms = new Map();
 const auctionHtml=require('fs').readFileSync(path.join(CLIENT_ROOT,'index.html'),'utf8');
-const auctionCardCatalog=JSON.parse(auctionHtml.match(/const DATA=(\{[^\r\n]+\}),POS=DATA/)[1]).cards;
+const legacyMapData=JSON.parse(auctionHtml.match(/const DATA=(\{[^\r\n]+\}),POS=DATA/)[1]);
+const auctionCardCatalog=legacyMapData.cards;
 require('../assets/corruption').installPortal(auctionCardCatalog);
 require('../assets/corruption-alliances').install(auctionCardCatalog);
 require('../assets/corruption-heroes').install(auctionCardCatalog);
@@ -750,7 +751,7 @@ io.on('connection', socket => {
   socket.on('corruptionHeroAction',(payload={},ack=()=>{})=>{
     const room=roomForSocket(socket),actor=room?humanGameIndex(room,socket.id):-1;
     if(!room||actor<0)return ack({ok:false,error:'Joueur introuvable.'});
-    const result=heroSync.action(room,actor,payload,auctionCardCatalog);
+    const result=heroSync.action(room,actor,payload,auctionCardCatalog,legacyMapData);
     const current=room.legacySnapshot?{serverTime:Date.now(),snapshot:room.legacySnapshot,revision:room.legacyRevision,youIndex:actor}:null;
     ack({...result,current});if(result.ok)emitLegacy(room,socket.id);
   });
@@ -770,6 +771,10 @@ io.on('connection', socket => {
       return ack({ok:false,error:'État de partie plus récent disponible.',current:room.legacySnapshot?{snapshot:room.legacySnapshot,revision:current,youIndex:index}:null});
     }
     if(!payload.snapshot||typeof payload.snapshot!=='object'||!payload.snapshot.g||!Array.isArray(payload.snapshot.g.players)||!payload.snapshot.rule||typeof payload.snapshot.rule!=='object')return rejectGameAction(ack,'État de jeu invalide.');
+    if(heroSync.golemActive(room)&&!heroSync.acceptGolemResolution(room,index,payload.snapshot)){
+      if(!heroSync.mergeProposals(room,payload.snapshot))return ack({ok:false,error:'Violence aveugle en cours : échange indisponible.'});
+      room.legacyRevision=current+1;ack({ok:true,revision:room.legacyRevision,recovery:roomRecoveryCapsule(room)});emitLegacy(room);return;
+    }
     if(heroSync.active(room)){
       if(!heroSync.mergeProposals(room,payload.snapshot))return ack({ok:false,error:'Divination en cours : échange indisponible.'});
       room.legacyRevision=current+1;

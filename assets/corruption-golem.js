@@ -1,5 +1,12 @@
 /* Golem selections: actual player units, one nonadjacent land origin. */
 (function(root){'use strict';
+function neighbors(game,data,id){
+ const n=data.SEA[id]?[...data.SEA[id],...data.PORTS[id]]:[...data.R[id][3],...data.R[id][4]];
+ const building=game.b[id]?.building,mate=game.b[building?.pair]?.building;
+ if(building?.type==='Portail'&&mate?.type==='Portail'&&mate.pair===id&&mate.cardId===building.cardId&&!n.includes(building.pair))n.push(building.pair);
+ return n;
+}
+function battles(rule){return [...new Set([rule.battle,...(rule.battleStack||[]).map(x=>x.battle),rule.egnoState?.parentBattle].filter(Boolean))]}
 function plan(game,actor,roll,battles,neighbors){
  const own=new Set(Object.keys(game.b).filter(r=>game.b[r].owner===actor));
  Object.keys(game.sea).forEach(r=>{if(game.sea[r].fleets[actor]>0)own.add(r)});
@@ -32,5 +39,5 @@ function validate(p,game,battles,neighbors){
  const fresh=plan(game,p.player,p.roll,battles,neighbors).regions.find(r=>r.region===p.origin);
  return !!fresh&&JSON.stringify(fresh)===JSON.stringify(p.regions.find(r=>r.region===p.origin));
 }
-const api=Object.freeze({plan,choose,reset,commands,validate});root.TribuGolem=api;if(typeof module==='object'&&module.exports)module.exports=api;
+const api=Object.freeze({plan,choose,reset,commands,validate,neighbors,battles});root.TribuGolem=api;if(typeof module==='object'&&module.exports)module.exports=api;
 })(typeof globalThis==='object'?globalThis:this);
