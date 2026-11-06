@@ -241,3 +241,7 @@ Server owns roll, once-per-turn consumption, provisional grouped selection/reset
 Online partial selections restore after reload; black chips/links retained; captured Revolts follows losses with Gold remaining paused until both complete. Ready Reptone Golem sea recruitment enabled on legacy synchronization path, cap and reset preserved.
 Checks PASS: corruption-golem-sync.test.js (grouped selection, portal exclusion/no use, reset/stale/replay validation, authorized owner), corruption-golem.test.js; check-golem-online-browser.cjs two browsers (partial reload, 4 losses + Revolts, Gold pause/resume, capped sea recruitment/reset); check-golem.cjs, check-golem-battles.cjs (multi-origin battle/NPC15/capture), check-guild-online-browser.cjs regression.
 Main/public unchanged. Remaining work is global Corruption integration audit, especially online alliance/Oracle roll sources, bots, simultaneous battles and release validation; hero hookups alone do not mean the whole extension is ready.
+
+
+## Checkpoint 40 — Global audit and real online Oracle activation (2026-11-06)
+See AUDIT-2026-11-06.md for scope, evidence and remaining online gates. 47 unit tests plus seven integration scenarios pass. Fixed actual Oracle activation/replacement not updating Revolts online; new two-browser test activates the Oracle through activateOracle rather than injecting active state, then verifies hero/Embuscade/Revolts and replacement. Alliances, Corruption theft, Elf/Ogre powers, legacy roll capture and bot hero placement remain gated online and block release. Main unchanged.

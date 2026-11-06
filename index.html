@@ -4791,7 +4791,7 @@ function activateOracle(afterResolution=null,activator=G.active){
  const prev=beginOracleReplacement(nextName);
  if(G.oracleActive!==null)G.oracleDiscard.push(G.oracleActive);
  G.oracleActive=id;const o=ORACLES[id];
- if(TribuCorruption.enabled(G)&&!G.online){
+ if(TribuCorruption.enabled(G)&&(!G.online||G.online.legacySync)){
   G.revolts=G.revolts||TribuRevolts.create();
   if(o.kind==='revolts'){TribuRevolts.activate(G.revolts,activator,id);suppressProtectedRevolts()}else TribuRevolts.replace(G.revolts);
  }
