@@ -1,5 +1,6 @@
 'use strict';
 const H=require('../assets/corruption-heroes');
+const Gold=require('../assets/gold-reaction-state');
 const Guide=require('../assets/corruption-guide'),Revolts=require('../assets/corruption-revolts');
 const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=require('crypto').randomInt(i+1);[a[i],a[j]]=[a[j],a[i]]}return a};
 function action(room,actor,payload,cards){
@@ -34,7 +35,16 @@ function action(room,actor,payload,cards){
   room.legacyRevision=(room.legacyRevision||0)+1;return {ok:true};
  }
 
- if(payload.kind==='place'){
+ if(payload.kind==='noblesse'){
+  if(r.goldReaction||r.paidDrawState||H.current(next,actor,cards)?.card.heroKey!=='noblesse'||!H.consumeActive(next,actor,cards,r.turnEpoch,'mercantile'))return fail('Doigté mercantile indisponible.');
+  const roll=require('crypto').randomInt(1,7);
+  const target=next.revolts?.active?.target;
+  if(Number.isInteger(target)&&next.players[target]?.faction===6&&H.hasPassive(next,target,cards,'noblesse'))Revolts.suppress(next.revolts);
+  next.revoltRollSequence=(next.revoltRollSequence||0)+1;
+  const heroRevolt=next.revolts?Revolts.capture(next.revolts,actor,roll,'roll:'+next.revoltRollSequence):null;
+  r.goldReaction=Gold.create(actor,roll*2,'Doigté mercantile','play',next.active,r.turnEpoch,!!r.battle,{heroRevolt});
+  label=next.players[actor].name+' utilise Doigté mercantile : dé '+roll+', gain de '+(roll*2)+' Or.';
+ }else if(payload.kind==='place'){
   const intent=payload.intent;
   if(!intent||intent.actor!==actor||!H.place(next,intent,cards,r.turnEpoch,payload.confirmed===true))return fail('Ce Héros ou ce remplacement n’est plus disponible.');
   label=next.players[actor].name+' met '+cards[intent.id].name+' en jeu.';
@@ -57,3 +67,4 @@ function mergeProposals(room,incoming){
  rule.commerceDeals=deals;rule.commerceSeq=incoming.rule.commerceSeq;return true;
 }
 module.exports={action,active,mergeProposals};
+

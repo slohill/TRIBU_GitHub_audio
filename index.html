@@ -660,6 +660,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 <script src="assets/corruption-heroes.js?v=1"></script>
 <script src="assets/corruption-golem.js?v=1"></script>
 <script src="assets/corruption-guide.js?v=1"></script>
+<script src="assets/gold-reaction-state.js?v=1"></script>
 <script src="assets/corruption-alliance-loss-ui.js?v=1"></script>
 <script src="assets/corruption-auction.js?v=1"></script>
 <script>
@@ -1507,7 +1508,7 @@ function offerGoldGain(receiver,amount,source,after,details={}){
  }
  const pausedBattle=!!battle;
  if(pausedBattle){clearInterval(battleTick);clearTimeout(botReactionTimer)}
- goldReaction={...details,receiver,amount,source,after,seconds:10,turnOwner:G.active,turnEpoch,pausedBattle};
+ goldReaction=TribuGoldReactionState.create(receiver,amount,source,after,G.active,turnEpoch,pausedBattle,details);
  log(p(receiver).name+' doit recevoir '+amount+' Or : '+(isHotseatMode()?'réactions hot-seat sans chrono.':'fenêtre de réaction de 10 secondes.')+(pausedBattle?' La bataille est mise en pause.':''));
  startGoldReactionTimer();
  render();
@@ -2419,15 +2420,18 @@ function commitColonyRecruitment(){
 function noblesseImmune(actor){return Number.isInteger(actor)&&!!G.players[actor]&&factionName(actor)==='Morcatt'&&TribuHeroes.hasPassive(G,actor,CARDS,'noblesse')}
 function suppressProtectedRevolts(){if(G.revolts?.active&&noblesseImmune(G.revolts.active.target))TribuRevolts.suppress(G.revolts)}
 function canUseNoblesse(actor){
- return !G.online&&actor===localViewer()&&!gameOverState&&!priorityCardResolutionActive()&&!oracleState&&!oracleNoticeState&&!goldReaction&&!paidDrawState&&!morcattAuctionActive()&&TribuHeroes.current(G,actor,CARDS)?.card.heroKey==='noblesse'&&TribuHeroes.activeReady(G,actor,CARDS,turnEpoch,'mercantile');
+ return (!G.online||G.online.legacySync)&&actor===localViewer()&&!gameOverState&&!priorityCardResolutionActive()&&!oracleState&&!oracleNoticeState&&!goldReaction&&!paidDrawState&&!morcattAuctionActive()&&TribuHeroes.current(G,actor,CARDS)?.card.heroKey==='noblesse'&&TribuHeroes.activeReady(G,actor,CARDS,turnEpoch,'mercantile');
 }
 function useNoblesse(actor){
- if(!canUseNoblesse(actor)||!TribuHeroes.consumeActive(G,actor,CARDS,turnEpoch,'mercantile'))return false;
+ if(!canUseNoblesse(actor))return false;
+ if(G.online?.legacySync)return onlineHeroAction({kind:'noblesse'});
+ if(!TribuHeroes.consumeActive(G,actor,CARDS,turnEpoch,'mercantile'))return false;
  const roll=1+Math.floor(Math.random()*6),heroRevolt=captureRevoltRoll(actor,roll);
  log(p(actor).name+' utilise Doigté mercantile : dé '+roll+', gain de '+(roll*2)+' Or.');
  offerGoldGain(actor,roll*2,'Doigté mercantile','play',{heroRevolt});return true;
 }
 function drainNoblesseRevolts(){
+ if(G?.online&&(onlineLegacyApplying||G.noblesseRevolts?.[0]?.actor!==localViewer()))return false;
  if(!G?.noblesseRevolts?.length||((goldReaction||paidDrawState)&&!G.noblesseRevolts[0].golemPause)||priorityCardResolutionActive()||oracleState||oracleNoticeState||dragonRichState||dragonCurseState||dragonPublicState||dragonSixState||gameOverState)return false;
  while(G.noblesseRevolts.length){const token=G.noblesseRevolts.shift();if(resolveRevoltAfterAction(token,token.golemPause||null))return true}
  return false;
@@ -3317,15 +3321,16 @@ function resolveRevoltAfterAction(token,pauseContext=null){
  return beginRevoltSelection(pending.actor,pending.target,pauseContext);
 }
 function beginRevoltSelection(actor,target,pauseContext=null){
- if(!G.players[actor]||!G.players[target]||!TribuCorruption.enabled(G)||G.online||allianceLossActive()||priorityCardResolutionActive()||oracleState||oracleNoticeState||morcattAuctionActive())return false;
+ if(!G.players[actor]||!G.players[target]||!TribuCorruption.enabled(G)||(G.online&&(!G.online.legacySync||actor!==localViewer()))||allianceLossActive()||priorityCardResolutionActive()||oracleState||oracleNoticeState||morcattAuctionActive())return false;
  const plan=TribuRevolts.plan(G,target,engagedBattles());
  if(!plan.regions.length)return false;
- plan.kind='revolts';plan.player=actor;
- G.allianceLoss={plan,stage:'instructions',queue:[],...(pauseContext||{goldWasPaused:!!goldReaction?.pausedByCard,paidWasPaused:!!paidDrawState?.pausedByCard})};
+ plan.kind='revolts';plan.player=actor;plan.revoltKey=turnEpoch+':'+(G.revoltRollSequence||0)+':'+actor+':'+target;
+ G.allianceLoss={plan,stage:'instructions',noticeDeadline:Date.now()+10000,queue:[],...(pauseContext||{goldWasPaused:!!goldReaction?.pausedByCard,paidWasPaused:!!paidDrawState?.pausedByCard})};
  const state=G.allianceLoss;
  pauseGameForPriorityCard();pauseGoldReactionForCard();pausePaidDrawForCard();
  if(isHotseatMode()&&!p(actor).bot)hotseatViewerOverride=actor;
  render();
+ if(G.online?.legacySync)return true;
  showOracleNotice('Révoltes',()=>{
   if(G.allianceLoss!==state)return;
   state.stage='selection';render();
@@ -3362,7 +3367,8 @@ function confirmAllianceLossSelection(actor=localViewer(),bot=false){
    if(!refreshed.regions.length)return finishMandatoryLossSelection(state);
    state.plan={...refreshed,kind:'revolts',player:actor};render();return false;
   }
-  state.stage='announcement';render();audioPlaySfx('oracle',.82);
+  state.stage='announcement';state.noticeDeadline=Date.now()+5000;render();audioPlaySfx('oracle',.82);
+  if(G.online?.legacySync)return true;
   showOracleNotice('Révoltes',()=>{if(G.allianceLoss===state)finishMandatoryLossSelection(state)},
    {title:'Révolte !',text:'Le royaume de '+p(state.plan.target).name+' est en proie à de violentes rébellions !'});
   return true;
@@ -3403,7 +3409,27 @@ function finishAllianceLossTurnIfReady(){
  delete G.allianceLossTurnEnd;
  advanceTurn(pending.reason||'joueur décimé après perte d’alliance');return true;
 }
+let onlineRevoltNoticeKey=null;
+function restoreOnlineRevoltNotice(){
+ if(!G?.online?.legacySync)return;
+ const state=G.allianceLoss,stage=state?.stage;
+ if(state?.plan.kind!=='revolts'||stage==='selection'){
+  if(onlineRevoltNoticeKey&&oracleNoticeState){clearInterval(oracleNoticeTick);oracleNoticeState=null;$('oracleNoticeOverlay').classList.add('hidden')}
+  onlineRevoltNoticeKey=null;return;
+ }
+ const key=state.plan.revoltKey+':'+stage;
+ if(onlineRevoltNoticeKey===key)return;
+ onlineRevoltNoticeKey=key;
+ const actor=state.plan.player,target=state.plan.target;
+ showOracleNotice('Révoltes',()=>{
+  const current=G.allianceLoss;
+  if(localViewer()!==actor||current?.plan.revoltKey!==state.plan.revoltKey||current.stage!==stage)return;
+  if(stage==='instructions'){current.stage='selection';render()}
+  else finishMandatoryLossSelection(current);
+ },{seconds:Math.max(1,Math.ceil(((state.noticeDeadline||Date.now()+5000)-Date.now())/1000)),title:'Révolte !',text:stage==='instructions'?'Choisissez une Région de '+p(target).name+'. Retirez une ou deux unités puis cliquez sur OK. Vous avez tout votre temps pour choisir.':'Le royaume de '+p(target).name+' est en proie à de violentes rébellions !'});
+}
 function renderAllianceLossSelection(){
+ restoreOnlineRevoltNotice();
  allianceLossView?.destroy();allianceLossView=null;
  const panel=$('allianceLossControls');if(panel)panel.remove();
  if(!allianceLossActive())return;
@@ -3423,7 +3449,7 @@ function applyAllianceLossPlan(plan){
  return applyMandatoryLossCommands(plan,TribuAlliances.commands(plan),plan.player,battles);
 }
 function applyRevoltLossPlan(plan){
- if(!TribuCorruption.enabled(G)||G.online)return false;
+ if(!TribuCorruption.enabled(G)||(G.online&&!G.online.legacySync))return false;
  const battles=engagedBattles();
  if(!TribuRevolts.validate(plan,G,battles))return false;
  return applyMandatoryLossCommands(plan,TribuRevolts.commands(plan),plan.target,battles,true);
@@ -6298,6 +6324,7 @@ function onlineLegacyApply(packet){
  onlineLegacyResumeBattleView();
  onlineLegacyResumeGoldView();
  onlineLegacyEnsureBotProgress();
+ if(G.noblesseRevolts?.[0]?.actor===localViewer())setTimeout(()=>render(),0);
  // Le dernier sacrifice peut être validé par n'importe quel joueur. Seul le
  // propriétaire canonique du tour ferme ensuite l'Oracle et publie le passage de tour.
  if(oracleSacrificeAllDone()&&onlineLegacyCanPublish())setTimeout(()=>{if(oracleSacrificeAllDone()&&onlineLegacyCanPublish())finishSimultaneousOracleSacrifice()},0);
