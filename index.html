@@ -658,6 +658,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 <script src="assets/corruption-alliances.js?v=1"></script>
 <script src="assets/corruption-revolts.js?v=1"></script>
 <script src="assets/corruption-heroes.js?v=1"></script>
+<script src="assets/corruption-golem.js?v=1"></script>
 <script src="assets/corruption-alliance-loss-ui.js?v=1"></script>
 <script src="assets/corruption-auction.js?v=1"></script>
 <script>
@@ -1718,7 +1719,7 @@ function resetRecruitmentForPriorityCard(actor,label){
  if(G.phase!=='recruit'||!recruitSnapshot||recruitSnapshot.player!==G.active)return false;
  const recruiter=G.active;
  G.players[recruiter].gold=recruitSnapshot.gold;
- Object.keys(recruitSnapshot.units).forEach(r=>G.b[r].units=recruitSnapshot.units[r]);delete recruitSnapshot.colony;
+ Object.keys(recruitSnapshot.units).forEach(r=>G.b[r].units=recruitSnapshot.units[r]);delete recruitSnapshot.colony;restoreRecruitSea();
  const who=(actor===recruiter?'':(' jouée par '+p(actor).name));
  
  return true;
@@ -2338,6 +2339,24 @@ function resolveCorruption(victim,id){
  beginAllianceLossSelection(victim,target.tribe,state.pauseContext);
  return true;
 }
+function canUseGolem(actor){
+ return !G.online&&actor===localViewer()&&!gameOverState&&!priorityCardResolutionActive()&&!oracleState&&!oracleNoticeState&&!morcattAuctionActive()&&TribuHeroes.current(G,actor,CARDS)?.card.heroKey==='golem'&&TribuHeroes.activeReady(G,actor,CARDS,turnEpoch,'violence')&&TribuGolem.plan(G,actor,6,engagedBattles(),neighbors).regions.length>0;
+}
+function useGolem(actor){
+ if(!canUseGolem(actor)||!TribuHeroes.consumeActive(G,actor,CARDS,turnEpoch,'violence'))return false;
+ const roll=1+Math.floor(Math.random()*6),plan=TribuGolem.plan(G,actor,roll,engagedBattles(),neighbors);
+ plan.revoltToken=captureRevoltRoll(actor,roll);
+ log(p(actor).name+' utilise Violence aveugle : dé '+roll+'.');
+ return startMandatoryLossPlan(plan);
+}
+function golemSeaRecruitReady(actor){
+ return !G.online&&TribuCorruption.enabled(G)&&FACTIONS[p(actor).faction].name==='Reptones'&&TribuHeroes.hasPassive(G,actor,CARDS,'golem');
+}
+function restoreRecruitSea(){
+ if(!recruitSnapshot?.sea)return;
+ const actor=recruitSnapshot.player;
+ Object.entries(recruitSnapshot.sea).forEach(([r,n])=>{if(n)G.sea[r].fleets[actor]=n;else delete G.sea[r].fleets[actor]});
+}
 function canUseGuild(actor){
  return !G.online&&actor===localViewer()&&!gameOverState&&!priorityCardResolutionActive()&&!oracleState&&!oracleNoticeState&&!morcattAuctionActive()&&TribuHeroes.current(G,actor,CARDS)?.card.heroKey==='guild'&&TribuHeroes.activeReady(G,actor,CARDS,turnEpoch,'fury');
 }
@@ -2408,8 +2427,8 @@ function useNoblesse(actor){
  offerGoldGain(actor,roll*2,'Doigté mercantile','play',{heroRevolt});return true;
 }
 function drainNoblesseRevolts(){
- if(!G?.noblesseRevolts?.length||goldReaction||paidDrawState||priorityCardResolutionActive()||oracleState||oracleNoticeState||dragonRichState||dragonCurseState||dragonPublicState||dragonSixState||gameOverState)return false;
- while(G.noblesseRevolts.length){const token=G.noblesseRevolts.shift();if(resolveRevoltAfterAction(token))return true}
+ if(!G?.noblesseRevolts?.length||((goldReaction||paidDrawState)&&!G.noblesseRevolts[0].golemPause)||priorityCardResolutionActive()||oracleState||oracleNoticeState||dragonRichState||dragonCurseState||dragonPublicState||dragonSixState||gameOverState)return false;
+ while(G.noblesseRevolts.length){const token=G.noblesseRevolts.shift();if(resolveRevoltAfterAction(token,token.golemPause||null))return true}
  return false;
 }
 function guideDivinationActive(){return agentModalState?.kind==='guideDivination'}
@@ -3305,6 +3324,12 @@ function startMandatoryLossPlan(plan,pauseContext=null,queue=[]){
 }
 function confirmAllianceLossSelection(actor=localViewer(),bot=false){
  const state=G.allianceLoss;if(!state||actor!==state.plan.player||(!bot&&G.players[actor].bot))return false;
+ if(state.plan.kind==='golem'){
+  const plan=state.plan,battles=engagedBattles();
+  if(!TribuGolem.validate(plan,G,battles,neighbors)||!applyMandatoryLossCommands(plan,TribuGolem.commands(plan),actor,battles,true))return false;
+  if(plan.revoltToken)(G.noblesseRevolts||(G.noblesseRevolts=[])).push({...plan.revoltToken,golemPause:{goldWasPaused:state.goldWasPaused,paidWasPaused:state.paidWasPaused}});
+  return finishMandatoryLossSelection(state);
+ }
  if(state.plan.kind==='revolts'){
   if(state.stage!=='selection')return false;
   if(!applyRevoltLossPlan(state.plan)){
@@ -3340,6 +3365,7 @@ function finishMandatoryLossSelection(state){
  }
  finishDestroyedBattle();
  if(drainOgreLosses({goldWasPaused:state.goldWasPaused,paidWasPaused:state.paidWasPaused}))return true;
+ if(drainNoblesseRevolts())return true;
  if(battle)resumeBattleTimer();
  if(goldReaction&&!state.goldWasPaused&&!battle&&!priorityCardResolutionActive())resumeGoldReactionAfterCard();
  if(paidDrawState&&!state.paidWasPaused&&!battle&&!priorityCardResolutionActive())resumePaidDrawAfterCard();
@@ -3357,11 +3383,11 @@ function renderAllianceLossSelection(){
  const panel=$('allianceLossControls');if(panel)panel.remove();
  if(!allianceLossActive())return;
  const state=G.allianceLoss,plan=state.plan,host=document.createElement('div');host.id='allianceLossControls';$('status').after(host);
- const revolt=plan.kind==='revolts';
+ const revolt=plan.kind==='revolts',golem=plan.kind==='golem';
  if(revolt&&state.stage!=='selection'){host.textContent='Révolte en cours — résolution en attente.';return}
- allianceLossView=TribuAllianceLossUI.mount({map,panel:host,plan,mode:revolt?'revolts':'alliance',actor:plan.player,viewer:localViewer(),playerName:p(plan.player).name,dieImage:factionDieImage(revolt?plan.target:plan.player),
-  onChoose:(region,key)=>{if(localViewer()!==plan.player)return;(revolt?TribuRevolts:TribuAlliances).choose(plan,region,key);renderAllianceLossSelection()},
-  onReset:()=>{if(localViewer()!==plan.player)return;if(revolt)TribuRevolts.reset(plan);else plan.regions.forEach(r=>TribuAlliances.reset(plan,r.region));renderAllianceLossSelection()},
+ allianceLossView=TribuAllianceLossUI.mount({map,panel:host,plan,mode:golem?'golem':revolt?'revolts':'alliance',actor:plan.player,viewer:localViewer(),playerName:p(plan.player).name,dieImage:golem?(group=>factionDieImage(group.player)):factionDieImage(revolt?plan.target:plan.player),
+  onChoose:(region,key)=>{if(localViewer()!==plan.player)return;(golem?TribuGolem:revolt?TribuRevolts:TribuAlliances).choose(plan,region,key);renderAllianceLossSelection()},
+  onReset:()=>{if(localViewer()!==plan.player)return;if(golem)TribuGolem.reset(plan);else if(revolt)TribuRevolts.reset(plan);else plan.regions.forEach(r=>TribuAlliances.reset(plan,r.region));renderAllianceLossSelection()},
   onConfirm:()=>confirmAllianceLossSelection()
  });
  ['draw','harvest','recruit','endRecruit','resetRecruit','toOracle','roll','buyDraw'].forEach(id=>{const b=$(id);if(b)b.disabled=true});
@@ -3390,7 +3416,7 @@ function applyMandatoryLossCommands(plan,commands,player,battles,revolt=false){
     if(fleets[player]===0)delete fleets[player];
    }else G.b[c.region].units-=c.loss;
    changedRegions.add(c.region);
-   if(player===G.active&&movable[c.region])movable[c.region].splice(0,c.loss);
+   if((c.player??player)===G.active&&movable[c.region])movable[c.region].splice(0,c.loss);
   }else{
    const b=battles[c.battleIndex];b.attackOrigins[c.originIndex].moves.splice(0,c.loss);
   }
@@ -3412,7 +3438,7 @@ function applyMandatoryLossCommands(plan,commands,player,battles,revolt=false){
   }
   if(b.kind!=='land')continue;
   const c=G.b[b.target];
-  if(b.defender===player&&c.owner===null){
+  if(c.owner===null&&b.defender!==null){
    // Defender's cards leave the battle; attack cards remain against the NPCs.
    const removed=(b.stack||[]).filter(x=>x.side==='defender');
    removed.forEach(x=>G.discard.push(x.cardId));
@@ -4503,7 +4529,7 @@ function doRecruit(){if(allianceLossActive()||guideDivinationActive())return fal
  if(p().gold<1)reasons.push("vous n'avez pas assez d'or");
  if(totalUnits()>=cap())reasons.push('plafond déjà atteint');
  if(reasons.length){log(reasons.join(' / '));render();return}
- recruitSnapshot={player:G.active,gold:p().gold,units:{}};
+ recruitSnapshot={player:G.active,gold:p().gold,units:{},sea:Object.fromEntries(Object.entries(G.sea).map(([r,c])=>[r,c.fleets[G.active]||0]))};
  if(colonyReady(G.active))recruitSnapshot.colonyUid=TribuHeroes.current(G,G.active,CARDS).uid;
  Object.keys(G.b).forEach(r=>recruitSnapshot.units[r]=G.b[r].units);
  G.phase='recruit';render();
@@ -4512,12 +4538,16 @@ function resetRecruitment(){if(allianceLossActive()||guideDivinationActive())ret
  if(G&&G.online&&!G.online.legacySync)return onlineGameAction('RESET_RECRUIT');
  if(!recruitSnapshot||recruitSnapshot.player!==G.active||G.phase!=='recruit')return;
  p().gold=recruitSnapshot.gold;
- Object.keys(recruitSnapshot.units).forEach(r=>G.b[r].units=recruitSnapshot.units[r]);delete recruitSnapshot.colony;
+ Object.keys(recruitSnapshot.units).forEach(r=>G.b[r].units=recruitSnapshot.units[r]);delete recruitSnapshot.colony;restoreRecruitSea();
  log('Recrutement recommencé : Or et unités reviennent au début de la phase de recrutement.');
  render();
 }
 function recruitAt(r){if(allianceLossActive()||guideDivinationActive())return false;
  if(G&&G.online&&!G.online.legacySync)return onlineGameAction('RECRUIT_AT',{region:r});
+ if(isSea(r)){
+  if(G.phase!=='recruit'||r!=='Z'||!golemSeaRecruitReady(G.active)||p().gold<1||totalUnits()>=cap())return false;
+  const q=Math.min(3,cap()-totalUnits());p().gold--;G.sea[r].fleets[G.active]=(G.sea[r].fleets[G.active]||0)+q;render();return true;
+ }
  const c=G.b[r];if(c.owner!==G.active)return recruitColonyAt(r);
  if(p().gold<1){log('Pas assez d’Or.');render();return}
  if(totalUnits()>=cap()){log('Plafond atteint.');render();return}
@@ -4887,7 +4917,7 @@ function clickSpot(id){if(allianceLossActive()||guideDivinationActive())return f
  if(oracleState&&oracleState.kind==='sacrifice'){oracleSacrificeClick(id);return}
  if(divinationState)return;
  if(oracleNoticeState)return;
- if(caravanState||dragonSixState||dragonPublicState||dragonCurseState)return;if(inPlaySelected)hideInPlayPreview();if(dragonRichState){if(dragonRichState.targets.includes(id))return destroyRichDragonTarget(id);return;}if(returnState){if(returnRegions(returnState.player).includes(id))return reformAt(id);return;}if(egnoState){if(egnoTargetLegal(id))return resolveEgnobombe(id);return;}if(shadowState){if(shadowState.stage==='gather'&&shadowSourceMax(id)>0)return adjustShadow(id,1);if(shadowState.stage==='target'&&shadowTargetLegal(id))return chooseShadowTarget(id);return;}if(portalMode){if(canPortalRegion(id))return choosePortalRegion(id);return;}if(isBot()||paidDrawState||goldReaction)return;if(buildingMode){if(canPlaceBuilding(id))return placeBuilding(id);return;}if(G.phase==='recruit'&&!isSea(id))return recruitAt(id);if(G.phase==='play'){if(dest&&legalSources(dest).includes(id))return adjust(id,1);return chooseDest(id)}if(G.phase==='oracleMove'&&dragonTargets().includes(id)){G.dragon=id;G.phase='oracleRoll';log(p().name+' place le Dragon sur '+id+'.');render()}}
+ if(caravanState||dragonSixState||dragonPublicState||dragonCurseState)return;if(inPlaySelected)hideInPlayPreview();if(dragonRichState){if(dragonRichState.targets.includes(id))return destroyRichDragonTarget(id);return;}if(returnState){if(returnRegions(returnState.player).includes(id))return reformAt(id);return;}if(egnoState){if(egnoTargetLegal(id))return resolveEgnobombe(id);return;}if(shadowState){if(shadowState.stage==='gather'&&shadowSourceMax(id)>0)return adjustShadow(id,1);if(shadowState.stage==='target'&&shadowTargetLegal(id))return chooseShadowTarget(id);return;}if(portalMode){if(canPortalRegion(id))return choosePortalRegion(id);return;}if(isBot()||paidDrawState||goldReaction)return;if(buildingMode){if(canPlaceBuilding(id))return placeBuilding(id);return;}if(G.phase==='recruit'&&(!isSea(id)||(id==='Z'&&golemSeaRecruitReady(G.active))))return recruitAt(id);if(G.phase==='play'){if(dest&&legalSources(dest).includes(id))return adjust(id,1);return chooseDest(id)}if(G.phase==='oracleMove'&&dragonTargets().includes(id)){G.dragon=id;G.phase='oracleRoll';log(p().name+' place le Dragon sur '+id+'.');render()}}
 function showDragonSixNotice(victim,next,atSea=false){
  clearInterval(dragonSixTick);
  const pass=$('dragonSixPass');if(pass)pass.onclick=finishDragonSixNotice;
@@ -5348,6 +5378,7 @@ function inPlayCardUsable(i,id,index=null){if(morcattAuctionActive()||allianceLo
  if(i!==localViewer()||isDecimated(i))return false;
  agentDefaults(i);
 
+ if(CARDS[id].heroKey==='golem')return canUseGolem(i);
  if(CARDS[id].heroKey==='guild')return canUseGuild(i);
  if(CARDS[id].heroKey==='noblesse')return canUseNoblesse(i);
  if(CARDS[id].allianceTribe==='ogres')return canUseOgres(i);
@@ -5367,6 +5398,7 @@ function activateInPlayCard(i,id,index=null){if(morcattAuctionActive()||alliance
  if(!inPlayCardUsable(i,id,index))return false;
  const name=CARDS[id].name;
  hideInPlayPreview();
+ if(CARDS[id].heroKey==='golem')return useGolem(i);
  if(CARDS[id].heroKey==='guild')return useGuild(i);
  if(CARDS[id].heroKey==='noblesse')return useNoblesse(i);
  if(CARDS[id].allianceTribe==='ogres')return useOgres(i);

@@ -200,3 +200,11 @@ Registered Guild with optimized art and named text. Furie once per own play: rol
 Colony: ready Egnorax can reserve units on one empty non-NPC land excluding committed origins; neutral ownership/troops untouched until beginPlay confirms; translucent preview/highlight. Normal cost, no faction cap. Reset clears choice/refunds via legacy snapshot; loss of hero during recruitment resets all through existing helper; contested extra region refunds its reservation only. Empty building transfers through legacy helper, portal retained.
 check-guild.cjs PASS actual Assassin after roll followed by theft and Revolts, roll6 elimination/once, provisional2 on neutral region/second region refusal, reset, confirmation ownership, hero loss full reset, enemy occupation selective refund, committed source exclusion. Haute Noblesse regression PASS. Deck expectation base+20.
 Remaining Golem, broader integration/authoritative multiplayer. Main unchanged.
+
+
+## Checkpoint 34 — Golem local abilities (2026-11-06)
+Golem added as one optimized WebP card. Violence uses next-own-play readiness and once-per-turn lifecycle, excludes own/adjacent land including strict portal pairs, rolls before selecting one land origin, allows exact stationed/committed group losses and black UI. Existing mandatory casualty engine handles consequences; captured 3/4 resolves Revolts after losses. Reptone passive recruits on sea Z for 1 Gold up to 3 units with normal cap and recruitment reset.
+Checks PASS: check-golem.cjs (readiness, once, 4 losses, black chips, subsequent Revolts, capped sea recruitment/reset), corruption-golem.test.js (adjacency, groups, reset, stale selection), check-revolts-losses.cjs, check-guild.cjs, check-foundations.cjs (base deck unchanged, extension base+21).
+Still local preview only: full multiplayer hero authority and expanded simultaneous battle/Gold interruption testing remain before release. Main untouched.
+
+Additional checks PASS: check-golem-battles.cjs (mixed origins, outgoing battle cancellation, NPC15, empty conquest, stale/replay); check-golem-gold.cjs (Gold pause across Golem and Revolts, resume after both).
