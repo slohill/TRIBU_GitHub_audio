@@ -770,6 +770,11 @@ io.on('connection', socket => {
       return ack({ok:false,error:'État de partie plus récent disponible.',current:room.legacySnapshot?{snapshot:room.legacySnapshot,revision:current,youIndex:index}:null});
     }
     if(!payload.snapshot||typeof payload.snapshot!=='object'||!payload.snapshot.g||!Array.isArray(payload.snapshot.g.players)||!payload.snapshot.rule||typeof payload.snapshot.rule!=='object')return rejectGameAction(ack,'État de jeu invalide.');
+    if(heroSync.active(room)){
+      if(!heroSync.mergeProposals(room,payload.snapshot))return ack({ok:false,error:'Divination en cours : échange indisponible.'});
+      room.legacyRevision=current+1;
+      ack({ok:true,revision:room.legacyRevision,recovery:roomRecoveryCapsule(room)});emitLegacy(room);return;
+    }
     if(auctionSync.active(room)){
       if(!auctionSync.mergeProposals(room,payload.snapshot))return ack({ok:false,error:'Les échanges ne peuvent pas être exécutés pendant les enchères.'});
       room.legacyRevision=current+1;

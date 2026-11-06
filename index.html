@@ -659,6 +659,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 <script src="assets/corruption-revolts.js?v=1"></script>
 <script src="assets/corruption-heroes.js?v=1"></script>
 <script src="assets/corruption-golem.js?v=1"></script>
+<script src="assets/corruption-guide.js?v=1"></script>
 <script src="assets/corruption-alliance-loss-ui.js?v=1"></script>
 <script src="assets/corruption-auction.js?v=1"></script>
 <script>
@@ -2436,18 +2437,15 @@ function guideBuildersBonus(b=battle){
  return b?.kind==='land'&&factionName(b.attacker)==='Yonkaïs'&&TribuHeroes.hasPassive(G,b.attacker,CARDS,'guide')?buildingDefense(b.target):0;
 }
 function canGuideDivination(actor){
- return !G.online&&actor===localViewer()&&!gameOverState&&!priorityCardResolutionActive()&&!oracleState&&!oracleNoticeState&&!goldReaction&&!paidDrawState&&!morcattAuctionActive()&&TribuHeroes.current(G,actor,CARDS)?.card.heroKey==='guide'&&TribuHeroes.activeReady(G,actor,CARDS,turnEpoch,'divination');
+ return (!G.online||G.online.legacySync)&&actor===localViewer()&&!gameOverState&&!priorityCardResolutionActive()&&!oracleState&&!oracleNoticeState&&!goldReaction&&!paidDrawState&&!morcattAuctionActive()&&TribuHeroes.current(G,actor,CARDS)?.card.heroKey==='guide'&&TribuHeroes.activeReady(G,actor,CARDS,turnEpoch,'divination');
 }
 function startGuideDivination(){
  const actor=localViewer();if(!canGuideDivination(actor))return false;
+ if(G.online?.legacySync)return onlineHeroAction({kind:'guideStart'});
  if(!TribuHeroes.consumeActive(G,actor,CARDS,turnEpoch,'divination'))return false;
- if(G.oracleDeck.length<3){
-  const kept=G.oracleDeck.slice(),others=oracleDeckIds().filter(id=>!kept.includes(id));
-  G.oracleDeck=shuffleArray(others).concat(kept);G.oracleDiscard=[];G.oracleActive=null;
-  if(G.revolts)TribuRevolts.replace(G.revolts);
-  oracleClimateVisual=null;oraclePendingNormalMap=false;applyOracleMapVisual();
- }
- agentModalState={kind:'guideDivination',actor,cards:G.oracleDeck.slice(-3).reverse(),order:[]};
+ const prepared=TribuGuide.prepare(G,actor,oracleDeckIds(),shuffleArray);
+ if(prepared.recycled){if(G.revolts)TribuRevolts.replace(G.revolts);oracleClimateVisual=null;oraclePendingNormalMap=false;applyOracleMapVisual()}
+ agentModalState=prepared.state;
  pauseGameForPriorityCard();render();showGuideDivination();return true;
 }
 function showGuideDivination(){
@@ -2457,21 +2455,22 @@ function showGuideDivination(){
   const rank=state.order.indexOf(index),button=document.createElement('button');button.type='button';button.dataset.guideIndex=index;
   button.textContent=(rank>=0?(rank+1)+' — ':'')+ORACLES[id].name;button.disabled=rank>=0;
   const img=document.createElement('img');img.src=ORACLE_CARD_ART[ORACLES[id].name];img.alt=ORACLES[id].name;img.style.cssText='display:block;max-width:100px;max-height:140px';button.prepend(img);
-  button.onclick=()=>{if(agentModalState!==state||localViewer()!==state.actor)return;state.order.push(index);showGuideDivination()};$('agentChoices').appendChild(button);
+  button.onclick=()=>{if(agentModalState!==state||localViewer()!==state.actor)return;if(G.online?.legacySync){onlineHeroAction({kind:'guideSelect',index});return}TribuGuide.select(state,index);showGuideDivination()};$('agentChoices').appendChild(button);
  });
- addAgentChoice('Recommencer mon ordre',()=>{state.order=[];showGuideDivination()});
- addAgentChoice('Garder cet ordre',()=>{state.order=[0,1,2];confirmGuideDivination()});
+ addAgentChoice('Recommencer mon ordre',()=>{if(G.online?.legacySync){onlineHeroAction({kind:'guideReset'});return}state.order=[];showGuideDivination()});
+ addAgentChoice('Garder cet ordre',()=>{if(G.online?.legacySync){onlineHeroAction({kind:'guideConfirm',keep:true});return}state.order=[0,1,2];confirmGuideDivination()});
  addAgentChoice('Valider',confirmGuideDivination,state.order.length!==3);
 }
 function confirmGuideDivination(){
  const state=agentModalState;if(state?.kind!=='guideDivination'||state.actor!==localViewer()||state.order.length!==3||new Set(state.order).size!==3||state.order.some(i=>!Number.isInteger(i)||i<0||i>2))return false;
- if(JSON.stringify(G.oracleDeck.slice(-3).reverse())!==JSON.stringify(state.cards))return false;
- G.oracleDeck.splice(-3,3,...state.order.map(i=>state.cards[i]).reverse());closeAgentModal(true);render();queueBot('après Divination');return true;
+ if(G.online?.legacySync)return onlineHeroAction({kind:'guideConfirm'});
+ if(!TribuGuide.confirm(G,state))return false;
+ closeAgentModal(true);render();queueBot('après Divination');return true;
 }
 let guideExplanationKey=null;
 function renderGuideDivination(){
  $('guideControls')?.remove();
- const actor=localViewer();if(G.online||actor!==G.active||G.phase!=='start'||p(actor).bot||TribuHeroes.current(G,actor,CARDS)?.card.heroKey!=='guide'||!TribuHeroes.passiveReady(G,actor,CARDS))return;
+ const actor=localViewer();if((G.online&&!G.online.legacySync)||actor!==G.active||G.phase!=='start'||p(actor).bot||TribuHeroes.current(G,actor,CARDS)?.card.heroKey!=='guide'||!TribuHeroes.passiveReady(G,actor,CARDS))return;
  const box=document.createElement('div');box.id='guideControls';const button=document.createElement('button');button.textContent='Divination';button.style.background='#a62626';button.disabled=!canGuideDivination(actor);box.appendChild(button);
  const key=actor+':'+turnEpoch;
  if(guideExplanationKey===key){const info=document.createElement('p');info.textContent='Regardez et changez l’ordre des 3 prochaines cartes Oracle. Recliquez pour utiliser Divination.';box.appendChild(info)}
@@ -2485,7 +2484,7 @@ async function onlineHeroAction(payload){
  try{
   if(onlineLegacyPendingPush)await onlineLegacyPendingPush;
   const digest=onlineLegacyDigest();
-  if(digest!==onlineLegacyLastDigest){
+  if(digest!==onlineLegacyLastDigest&&!guideDivinationActive()){
    const res=await onlineAck('legacyCommit',{baseRevision:onlineLegacyRevision,actorIndex:localViewer(),snapshot:onlineLegacySnapshot()});
    onlineLegacyRevision=res.revision;G.online.revision=res.revision;onlineLegacyLastDigest=digest;
   }
@@ -6269,7 +6268,7 @@ function onlineLegacyApply(packet){
  }
  oracleSacrificeSyncPending=false;
  const me=packet.youIndex;
- const hadCaravan=!!caravanState;
+ const hadCaravan=!!caravanState,hadGuide=guideDivinationActive();
  onlineLegacyApplying=true;
  const localOnline={code:G.online.code,seed:G.online.seed,mySocketId:onlineSocket&&onlineSocket.id,myPlayerIndex:me,hostId:onlineRoom&&onlineRoom.hostId,legacySync:true,revision:packet.revision};
  const decoded=onlineLegacyDecode(packet.snapshot),next=decoded.g||{};next.online=localOnline;G=next;
@@ -6286,11 +6285,13 @@ function onlineLegacyApply(packet){
  if(priorityCardResolutionActive()){clearTimeout(botTimer);botTimer=null;botToken++}
  const incomingSfx=onlineSfxEvents.slice(),incomingSfxSeq=onlineSfxSeq;
  onlineLegacyLastDigest=onlineLegacyDigest();
- if(!caravanState&&hadCaravan)closeAgentModal(true);
+ if((!caravanState&&hadCaravan)||(!guideDivinationActive()&&hadGuide))closeAgentModal(true);
  render();
  if(paidDrawState&&paidDrawState.player===me&&!paidDrawState.pausedByCard)startPaidDrawTimer();
  else if(!paidDrawState||paidDrawState.player!==me)clearInterval(paidDrawTick);
  if(caravanState)showCaravanChoice();
+ if(guideDivinationActive())showGuideDivination();
+ applyOracleMapVisual();
  onlineApplyPrivatePresentations(me);
  onlineLegacyLastDigest=onlineLegacyDigest();onlineLegacyApplying=false;onlineLegacyLockControls();
  onlineLegacyApplying=true;onlinePlaySyncedSfx(incomingSfx,incomingSfxSeq);onlineLegacyApplying=false;
