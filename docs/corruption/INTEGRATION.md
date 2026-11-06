@@ -208,3 +208,9 @@ Checks PASS: check-golem.cjs (readiness, once, 4 losses, black chips, subsequent
 Still local preview only: full multiplayer hero authority and expanded simultaneous battle/Gold interruption testing remain before release. Main untouched.
 
 Additional checks PASS: check-golem-battles.cjs (mixed origins, outgoing battle cancellation, NPC15, empty conquest, stale/replay); check-golem-gold.cjs (Gold pause across Golem and Revolts, resume after both).
+
+
+## Checkpoint 35 — Online hero lifecycle (2026-11-06)
+Server corruptionHeroAction validates authenticated actor, exact legacy revision, own play phase, mandatory locks, hero instance and confirmation. Shared lifecycle module handles placement/replacement/return; no duplicate rules engine. Client flushes pending changes, prevents duplicate submission, applies canonical response; replacement preview remains private and cancellable. Cards stay dormant until next owner turn.
+Checks PASS: corruption-hero-sync.test.js (actor/revision/once, delayed readiness, replacement confirmation/UID, return, mandatory/base guards), check-heroes-online-browser.cjs (two real sockets/browser pages, placement, private cancel/replacement, page reload recovery, wrong actor/stale return rejection, synchronized return), check-hero-ui.cjs local regression.
+Scope: only hero lifecycle is newly enabled in legacy online preview. Active abilities and Golem/Guild recruitment passives remain locally gated; multiplayer integration is NOT complete. Main/public release unchanged.

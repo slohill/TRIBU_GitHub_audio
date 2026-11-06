@@ -10,6 +10,7 @@ const {createCommercePause}=require('./commerce-pause');
 
 const corruptionOptions=require('./corruption-options');
 const {createAuctionSync}=require('./corruption-auction-sync');
+const heroSync=require('./corruption-hero-sync');
 const PORT = process.env.PORT || 3000;
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || '*';
 const app = express();
@@ -746,6 +747,13 @@ io.on('connection', socket => {
     emitLegacy(room,socket.id);
   });
 
+  socket.on('corruptionHeroAction',(payload={},ack=()=>{})=>{
+    const room=roomForSocket(socket),actor=room?humanGameIndex(room,socket.id):-1;
+    if(!room||actor<0)return ack({ok:false,error:'Joueur introuvable.'});
+    const result=heroSync.action(room,actor,payload,auctionCardCatalog);
+    const current=room.legacySnapshot?{serverTime:Date.now(),snapshot:room.legacySnapshot,revision:room.legacyRevision,youIndex:actor}:null;
+    ack({...result,current});if(result.ok)emitLegacy(room,socket.id);
+  });
   socket.on('morcattAuctionAction',(payload={},ack=()=>{})=>{
     const room=roomForSocket(socket),actor=room?humanGameIndex(room,socket.id):-1;
     if(!room||actor<0)return ack({ok:false,error:'Joueur introuvable.'});

@@ -2478,13 +2478,38 @@ function renderGuideDivination(){
  button.onclick=()=>{if(!canGuideDivination(actor))return;if(guideExplanationKey!==key){guideExplanationKey=key;renderGuideDivination()}else startGuideDivination()};
  $('startTurn').appendChild(box);
 }
+let onlineHeroPending=false;
+async function onlineHeroAction(payload){
+ if(onlineHeroPending||!G?.online?.legacySync)return false;
+ onlineHeroPending=true;clearTimeout(onlineLegacyPushTimer);
+ try{
+  if(onlineLegacyPendingPush)await onlineLegacyPendingPush;
+  const digest=onlineLegacyDigest();
+  if(digest!==onlineLegacyLastDigest){
+   const res=await onlineAck('legacyCommit',{baseRevision:onlineLegacyRevision,actorIndex:localViewer(),snapshot:onlineLegacySnapshot()});
+   onlineLegacyRevision=res.revision;G.online.revision=res.revision;onlineLegacyLastDigest=digest;
+  }
+  const res=await onlineAck('corruptionHeroAction',{...payload,revision:onlineLegacyRevision});
+  if(res.current)onlineLegacyApply(res.current);
+  audioCardMove();return true;
+ }catch(err){if(err.current)onlineLegacyApply(err.current);else onlineError(err);return false}
+ finally{onlineHeroPending=false;render()}
+}
+function onlinePlaceHero(intent){
+ if(!intent.requiresConfirmation)return onlineHeroAction({kind:'place',intent});
+ // Private preview only: do not publish a card or pause other players before confirmation.
+ openAgentModal('Remplacer votre Héros',TribuHeroes.replacementMessage);
+ addAgentChoice('Remplacer',()=>{closeAgentModal(true);onlineHeroAction({kind:'place',intent,confirmed:true})});
+ addAgentChoice('Annuler',()=>closeAgentModal(true));return true;
+}
 function heroManagementAllowed(actor,replacing=false){
  const ownReplacement=replacing&&agentModalState?.kind==='heroReplacement'&&agentModalState.actor===actor;
- return !G.online&&TribuCorruption.enabled(G)&&actor===localViewer()&&actor===G.active&&G.phase==='play'&&!p(actor).bot&&!isDecimated(actor)&&!gameOverState&&!oracleState&&!oracleNoticeState&&!morcattAuctionActive()&&!allianceLossActive()&&(!priorityCardResolutionActive()||ownReplacement);
+ return (!G.online||G.online.legacySync)&&!onlineHeroPending&&TribuCorruption.enabled(G)&&actor===localViewer()&&actor===G.active&&G.phase==='play'&&!p(actor).bot&&!isDecimated(actor)&&!gameOverState&&!oracleState&&!oracleNoticeState&&!morcattAuctionActive()&&!allianceLossActive()&&(!priorityCardResolutionActive()||ownReplacement);
 }
 function playHeroFromHand(handIndex){
  const actor=localViewer();if(!heroManagementAllowed(actor))return false;
  agentDefaults(actor);const intent=TribuHeroes.preparePlacement(G,actor,handIndex,CARDS);if(!intent)return false;
+ if(G.online?.legacySync)return onlinePlaceHero(intent);
  if(intent.requiresConfirmation){
   agentModalState={kind:'heroReplacement',actor,intent};pauseGameForPriorityCard();
   openAgentModal('Remplacer votre Héros',TribuHeroes.replacementMessage);
@@ -2502,6 +2527,7 @@ function confirmHeroReplacement(){
 }
 function returnHeroToHand(actor,id){
  if(!heroManagementAllowed(actor)||TribuHeroes.current(G,actor,CARDS)?.id!==id)return false;
+ if(G.online?.legacySync){const held=TribuHeroes.current(G,actor,CARDS);return onlineHeroAction({kind:'return',id:held.id,uid:held.uid})}
  if(!TribuHeroes.returnToHand(G,actor,CARDS))return false;
  hideInPlayPreview();audioCardMove();log(p(actor).name+' reprend '+CARDS[id].name+' en main.');render();return true;
 }
@@ -2861,7 +2887,7 @@ function revealHotseatHand(){return}
 function showHotseatHandoff(){return}
 
 function priorityCardResolutionActive(){
- return !!(allianceLossActive()||divinationState||caravanState||egnoState||shadowState||portalMode||
+ return !!(onlineHeroPending||allianceLossActive()||divinationState||caravanState||egnoState||shadowState||portalMode||
    (choiceState&&choiceState.kind==='council')||agentModalState);
 }
 function priorityCardResolutionActor(){
@@ -6396,6 +6422,7 @@ function onlineLegacyTrackPriorityTerminal(){
  });
 }
 function onlineLegacyCanPublish(){
+ if(onlineHeroPending)return false;
  if(!G||!G.online||!G.online.legacySync||onlineLegacyApplying||onlineLegacyPriorityTerminalPending||onlineLegacyRecoveryPending||!onlineSocket)return false;
  const me=G.online.myPlayerIndex;if(!Number.isInteger(me)||!G.players[me]||G.players[me].bot)return false;
  if(priorityCardResolutionActor()===me)return true;
