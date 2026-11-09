@@ -1269,7 +1269,7 @@ function clearGoldReactionTimer(){
  stopGoldReactionSfx();
 }
 function pauseGoldReactionForCard(){if(!goldReaction)return false;clearGoldReactionTimer();goldReaction.pausedByCard=true;return true}
-function resumeGoldReactionAfterCard(){if(allianceLossActive()||guideDivinationActive())return false;if(!goldReaction||!goldReaction.pausedByCard)return;goldReaction.seconds=10;delete goldReaction.pausedByCard;startGoldReactionTimer();render();if(G&&G.online&&G.online.legacySync)onlineLegacyPushGoldReactionNow()}
+function resumeGoldReactionAfterCard(){if(G?.noblesseRevolts?.length||allianceLossActive()||guideDivinationActive())return false;if(!goldReaction||!goldReaction.pausedByCard)return;goldReaction.seconds=10;delete goldReaction.pausedByCard;startGoldReactionTimer();render();if(G&&G.online&&G.online.legacySync)onlineLegacyPushGoldReactionNow()}
 function resumeGoldReactionStack(){
  if(!goldReactionStack.length)return false;
  goldReaction=goldReactionStack.pop();goldReaction.seconds=10;delete goldReaction.pausedByCard;
@@ -1598,6 +1598,7 @@ function resolveAssassin(target){
  G.assassinNotice={seq:Number(G.assassinNotice&&G.assassinNotice.seq||0)+1,targetOwner:target.owner,targetName:target.name,actor,killed};
  if(!G.online||!G.online.legacySync||localViewer()===target.owner)showAssassinMapMessage(target.owner,target.name,actor,killed);
  if(G&&G.online&&G.online.legacySync){
+   if(revoltToken)(G.noblesseRevolts||(G.noblesseRevolts=[])).push({...revoltToken,golemPause:{goldWasPaused:false,paidWasPaused:false}});
    onlineLegacyPushAssassinNow(actor).then(()=>{
      render();
      resumeGameAfterPriorityCard('reprise après Assassin');
@@ -3073,7 +3074,7 @@ function botRecruitSome(){
 }
 function botPlayUsefulCard(){
  if(!isBot()||G.phase!=='play')return false;
- if(!G.online&&TribuCorruption.enabled(G)&&!priorityCardResolutionActive()&&!oracleState&&!oracleNoticeState&&!morcattAuctionActive()&&!TribuHeroes.current(G,G.active,CARDS)){
+ if((!G.online||(G.online.legacySync&&onlineLegacyCanExecuteBot()))&&TribuCorruption.enabled(G)&&!priorityCardResolutionActive()&&!oracleState&&!oracleNoticeState&&!morcattAuctionActive()&&!TribuHeroes.current(G,G.active,CARDS)){
   const at=p().hand.findIndex(id=>CARDS[id]?.heroKey);
   if(at>=0){agentDefaults(G.active);const intent=TribuHeroes.preparePlacement(G,G.active,at,CARDS);if(TribuHeroes.place(G,intent,CARDS,turnEpoch)){audioCardMove();log(p().name+' met '+CARDS[intent.id].name+' en jeu.');return true}}
  }
@@ -3231,12 +3232,14 @@ function botAdvance(){
 
  if(G.phase==='play'){
    if(botActionsThisTurn===0)setMovable();
-   if(botActionsThisTurn===0){
+   if(botActionsThisTurn===0&&(!TribuCorruption.enabled(G)||p().botOpeningDoneEpoch!==turnEpoch)){
+     if(TribuCorruption.enabled(G))p().botOpeningDoneEpoch=turnEpoch;
      botRecruitSome();
      // Peut poser plusieurs cartes utiles au lieu de s'arrêter au premier permanent.
      for(let k=0;k<3;k++){if(!botPlayUsefulCard())break}
      botUseAgentOrAssassin();
    }
+   if(priorityCardResolutionActive()||oracleNoticeState)return;
    const {attacks,moves}=botCandidates();
    const choice=attacks[0] || moves[0] || null;
 
@@ -3319,7 +3322,7 @@ function beginAllianceLossSelection(player,tribe,pauseContext=null){
  return startMandatoryLossPlan(plan,pauseContext);
 }
 function captureRevoltRoll(actor,value){
- if(!TribuCorruption.enabled(G)||G.online||!G.revolts)return null;
+ if(!TribuCorruption.enabled(G)||!G.revolts||(G.online&&(!G.online.legacySync||onlineLegacyApplying||(p(actor).bot?!onlineLegacyCanExecuteBot():actor!==localViewer()))))return null;
  suppressProtectedRevolts();
  G.revoltRollSequence=(G.revoltRollSequence||0)+1;
  return TribuRevolts.capture(G.revolts,actor,value,'roll:'+G.revoltRollSequence);
@@ -3334,7 +3337,7 @@ function resolveRevoltAfterAction(token,pauseContext=null){
  return beginRevoltSelection(pending.actor,pending.target,pauseContext);
 }
 function beginRevoltSelection(actor,target,pauseContext=null){
- if(!G.players[actor]||!G.players[target]||!TribuCorruption.enabled(G)||(G.online&&(!G.online.legacySync||actor!==localViewer()))||allianceLossActive()||priorityCardResolutionActive()||oracleState||oracleNoticeState||morcattAuctionActive())return false;
+ if(!G.players[actor]||!G.players[target]||!TribuCorruption.enabled(G)||(G.online&&(!G.online.legacySync||onlineLegacyApplying||(p(actor).bot?!onlineLegacyCanExecuteBot():actor!==localViewer())))||allianceLossActive()||priorityCardResolutionActive()||oracleState||oracleNoticeState||morcattAuctionActive())return false;
  const plan=TribuRevolts.plan(G,target,engagedBattles());
  if(!plan.regions.length)return false;
  plan.kind='revolts';plan.player=actor;plan.revoltKey=turnEpoch+':'+(G.revoltRollSequence||0)+':'+actor+':'+target;
@@ -3442,7 +3445,7 @@ function restoreOnlineRevoltNotice(){
  const actor=state.plan.player,target=state.plan.target;
  showOracleNotice('Révoltes',()=>{
   const current=G.allianceLoss;
-  if(localViewer()!==actor||current?.plan.revoltKey!==state.plan.revoltKey||current.stage!==stage)return;
+  if((p(actor).bot?!onlineLegacyCanExecuteBot():localViewer()!==actor)||current?.plan.revoltKey!==state.plan.revoltKey||current.stage!==stage)return;
   if(stage==='instructions'){current.stage='selection';render()}
   else finishMandatoryLossSelection(current);
  },{seconds:Math.max(1,Math.ceil(((state.noticeDeadline||Date.now()+5000)-Date.now())/1000)),title:'Révolte !',text:stage==='instructions'?'Choisissez une Région de '+p(target).name+'. Retirez une ou deux unités puis cliquez sur OK. Vous avez tout votre temps pour choisir.':'Le royaume de '+p(target).name+' est en proie à de violentes rébellions !'});
@@ -5795,6 +5798,11 @@ function commerceClock(){if(!G)return;let changed=false;const now=Date.now();com
 setInterval(commerceClock,1000);
 
 function render(){
+ if(G?.online?.legacySync&&!onlineLegacyApplying&&onlineLegacyCanExecuteBot()&&G.allianceLoss?.plan.kind==='revolts'&&G.allianceLoss.stage==='selection'&&p(G.allianceLoss.plan.player).bot){
+  const plan=G.allianceLoss.plan,row=plan.regions[0];
+  if(row)for(const group of row.groups)while(TribuRevolts.choose(plan,row.region,group.key)){}
+  if(confirmAllianceLossSelection(plan.player,true))return;
+ }
  if(drainOnlineElfChoice())return;
  if(G?.online?.legacySync&&!onlineLegacyApplying&&!onlineHeroPending&&G.allianceLoss?.plan.onlineId&&['golem','alliance','ogre'].includes(G.allianceLoss?.plan.kind)&&G.allianceLoss.stage==='authorized'&&(G.allianceLoss.plan.resolver??G.allianceLoss.plan.player)===localViewer()){if(confirmAllianceLossSelection(G.allianceLoss.plan.player,!!p(G.allianceLoss.plan.player).bot))return}
  if(drainGuildCompletion())return;
