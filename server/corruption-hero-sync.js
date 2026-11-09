@@ -1,6 +1,6 @@
 'use strict';
 const H=require('../assets/corruption-heroes'),Alliances=require('../assets/corruption-alliances');
-const Gold=require('../assets/gold-reaction-state');
+const Gold=require('../assets/gold-reaction-state'),Theft=require('../assets/corruption-theft');
 const Guild=require('../assets/corruption-guild'),Golem=require('../assets/corruption-golem');
 const Guide=require('../assets/corruption-guide'),Revolts=require('../assets/corruption-revolts');
 const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=require('crypto').randomInt(i+1);[a[i],a[j]]=[a[j],a[i]]}return a};
@@ -13,13 +13,40 @@ function action(room,actor,payload,cards,mapData){
  const guildContinue=payload.kind==='guildResolve'&&g.pendingGuildFury?.actor===actor&&r.agentModalState?.kind==='guildFury';
  const golemContinue=(typeof payload.kind==='string'&&payload.kind.startsWith('golem'))&&g.allianceLoss?.plan.kind==='golem'&&g.allianceLoss.plan.player===actor;
  const allianceContinue=typeof payload.kind==='string'&&payload.kind.startsWith('alliance')&&g.allianceLoss?.plan.kind==='alliance'&&g.allianceLoss.plan.player===actor;
- const continuing=guildContinue||(guide&&r.agentModalState?.kind==='guideDivination'&&r.agentModalState.actor===actor);
- if(g.active!==actor||g.phase!==(guide?'start':'play')||g.players[actor].decimated)return fail('Action réservée à votre phase de jeu.');
+ const corruption=typeof payload.kind==='string'&&payload.kind.startsWith('corruption');
+ const theftContinue=corruption&&r.agentModalState?.kind==='corruption'&&r.agentModalState.actor===actor;
+ const continuing=theftContinue||guildContinue||(guide&&r.agentModalState?.kind==='guideDivination'&&r.agentModalState.actor===actor);
+ if((!corruption&&!allianceContinue&&(g.active!==actor||g.phase!==(guide?'start':'play')))||g.phase==='setup'||g.players[actor].decimated)return fail('Action réservée à votre phase de jeu.');
  if((g.allianceLoss&&!golemContinue&&!allianceContinue)||g.guildCompletion||(g.pendingGuildFury&&!guildContinue)||(g.morcattAuction&&g.morcattAuction.stage!=='finished')||['gameOverState','oracleState','oracleNoticeState','divinationState','caravanState','egnoState','shadowState','portalMode'].some(k=>r[k])||(r.agentModalState&&!continuing)||(guide&&(r.goldReaction||r.paidDrawState||r.battle))||r.choiceState?.kind==='council')return fail('Une résolution est en cours.');
  if(!Number.isInteger(r.turnEpoch))return fail('Tour indisponible.');
  // Apply to a copy: stale identities and rejected confirmation never mutate the game.
  const next=JSON.parse(JSON.stringify(g));let label;
- if(guide){
+ if(corruption){
+  if(payload.kind==='corruptionOpen'){
+   const cardId=next.players[actor].hand[payload.handIndex],targets=Theft.targets(next,actor,cards);
+   if(theftContinue||cardId!==payload.id||cards[cardId]?.extensionKey!=='corruption-theft'||next.players[actor].gold<5||!targets.length)return fail('Corruption indisponible.');
+   r.agentModalState={kind:'corruption',actor,cardId,targets,pauseContext:{goldWasPaused:!!r.goldReaction?.pausedByCard,paidWasPaused:!!r.paidDrawState?.pausedByCard}};
+   if(r.goldReaction)r.goldReaction.pausedByCard=true;if(r.paidDrawState)r.paidDrawState.pausedByCard=true;
+   room.legacyRevision=(room.legacyRevision||0)+1;return {ok:true};
+  }
+  if(!theftContinue)return fail('Aucune Corruption à résoudre.');
+  const state=r.agentModalState;
+  if(payload.kind==='corruptionCancel'){
+   r.agentModalState=null;
+   if(r.goldReaction&&!state.pauseContext.goldWasPaused){delete r.goldReaction.pausedByCard;r.goldReaction.seconds=10}
+   if(r.paidDrawState&&!state.pauseContext.paidWasPaused){delete r.paidDrawState.pausedByCard;r.paidDrawState.seconds=10}
+   room.legacyRevision=(room.legacyRevision||0)+1;return {ok:true};
+  }
+  if(payload.kind!=='corruptionResolve')return fail('Action inconnue.');
+  const target=Theft.steal(next,state,payload.victim,payload.id,cards);if(!target)return fail('Cette alliance n’est plus disponible.');
+  r.agentModalState=null;
+  next.allianceSequence=(next.allianceSequence||0)+1;
+  const plan=Alliances.createLossPlan(next,target.player,target.tribe,Golem.battles(r));plan.kind='alliance';plan.onlineId='corruption:'+next.allianceSequence+':'+target.player;
+  next.allianceLoss={plan,stage:'selection',queue:[],...state.pauseContext};
+  if(next.players[target.player].bot){for(const row of plan.regions)for(const group of row.groups)while(Alliances.choose(plan,row.region,group.key)){}plan.resolver=actor;next.allianceLoss.stage='authorized';}
+  [r.goldReaction,...(r.goldReactionStack||[])].forEach(gain=>Theft.refreshDwarfGain(next,gain,cards));
+  label=next.players[actor].name+' joue Corruption et vole '+cards[target.id].name+' à '+next.players[target.player].name+'.';
+ }else if(guide){
   let state=r.agentModalState?JSON.parse(JSON.stringify(r.agentModalState)):null,recycled=false;
   if(payload.kind==='guideStart'){
    if(state||H.current(next,actor,cards)?.card.heroKey!=='guide'||!H.consumeActive(next,actor,cards,r.turnEpoch,'divination'))return fail('Divination indisponible.');
@@ -37,9 +64,7 @@ function action(room,actor,payload,cards,mapData){
   snap.g=next;r.agentModalState=state;
   if(recycled){r.oracleClimateVisual=null;r.oraclePendingNormalMap=false;}
   room.legacyRevision=(room.legacyRevision||0)+1;return {ok:true};
- }
-
- if(typeof payload.kind==='string'&&payload.kind.startsWith('alliance')){
+ }else if(typeof payload.kind==='string'&&payload.kind.startsWith('alliance')){
   if(payload.kind==='alliancePlace'){
    if(allianceContinue)return fail('Pertes d’alliance en cours.');
    const placed=Alliances.place(next,actor,payload.handIndex,payload.id,cards);
@@ -135,7 +160,7 @@ function mergeProposals(room,incoming){
 function golemActive(room){return ['golem','alliance'].includes(room.legacySnapshot?.g?.allianceLoss?.plan.kind)}
 function acceptGolemResolution(room,actor,incoming){
  const state=room.legacySnapshot?.g?.allianceLoss;
- return ['golem','alliance'].includes(state?.plan.kind)&&state.stage==='authorized'&&actor===state.plan.player&&incoming.g?.[state.plan.kind==='golem'?'golemResolved':'allianceResolved']===state.plan.onlineId;
+ return ['golem','alliance'].includes(state?.plan.kind)&&state.stage==='authorized'&&actor===(state.plan.resolver??state.plan.player)&&incoming.g?.[state.plan.kind==='golem'?'golemResolved':'allianceResolved']===state.plan.onlineId;
 }
 module.exports={action,active,mergeProposals,golemActive,acceptGolemResolution};
 

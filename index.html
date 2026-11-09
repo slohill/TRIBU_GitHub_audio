@@ -658,6 +658,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 <script src="assets/corruption-alliances.js?v=20261109"></script>
 <script src="assets/corruption-revolts.js?v=1"></script>
 <script src="assets/corruption-heroes.js?v=1"></script>
+<script src="assets/corruption-theft.js?v=1"></script>
 <script src="assets/corruption-golem.js?v=1"></script>
 <script src="assets/corruption-guide.js?v=1"></script>
 <script src="assets/gold-reaction-state.js?v=1"></script>
@@ -2312,18 +2313,20 @@ function availableAgentIndex(i,name){
 function inPlayCountByName(i,name){
  return (G.players[i].inPlay||[]).filter(id=>CARDS[id]&&CARDS[id].name===name).length;
 }
-function corruptionTargets(actor){
- return G.players.flatMap((pl,i)=>{
-  if(i===actor||pl.decimated||noblesseImmune(i))return [];
-  const a=TribuAlliances.alliance(pl,CARDS);return a?[{player:i,id:a.id,tribe:a.card.allianceTribe}]:[];
- });
+function corruptionTargets(actor){return TribuCorruptionTheft.targets(G,actor,CARDS)}
+function showCorruptionChoice(){
+ const state=agentModalState;if(state?.kind!=='corruption'||state.actor!==localViewer())return;
+ openAgentModal('Corruption','Choisissez une alliance adverse. Les 5 Or seront dépensés uniquement lorsque vous aurez choisi.');
+ corruptionTargets(state.actor).forEach(t=>addAgentChoice(p(t.player).name+' — '+CARDS[t.id].name,()=>resolveCorruption(t.player,t.id)));
 }
 function startCorruption(handIndex){
  const actor=localViewer(),id=p(actor).hand[handIndex];
- if(gameOverState||G.phase==='setup'||G.online||!TribuCorruption.enabled(G)||CARDS[id]?.extensionKey!=='corruption-theft'||p(actor).gold<5||p(actor).bot||p(actor).decimated||allianceLossActive()||priorityCardResolutionActive()||oracleState||morcattAuctionActive())return false;
+ if(gameOverState||G.phase==='setup'||(G.online&&!G.online.legacySync)||!TribuCorruption.enabled(G)||CARDS[id]?.extensionKey!=='corruption-theft'||p(actor).gold<5||p(actor).bot||p(actor).decimated||allianceLossActive()||priorityCardResolutionActive()||oracleState||morcattAuctionActive())return false;
+ G.players.forEach((_,i)=>agentDefaults(i));
  const targets=corruptionTargets(actor);if(!targets.length)return false;
+ if(G.online?.legacySync)return onlineHeroAction({kind:'corruptionOpen',handIndex,id});
  const pauseContext={goldWasPaused:!!goldReaction?.pausedByCard,paidWasPaused:!!paidDrawState?.pausedByCard};
- agentModalState={kind:'corruption',actor,cardId:id,pauseContext};
+ agentModalState={kind:'corruption',actor,cardId:id,targets,pauseContext};
  pauseGameForPriorityCard();pauseGoldReactionForCard();pausePaidDrawForCard();
  openAgentModal('Corruption','Choisissez une alliance adverse. Les 5 Or seront dépensés uniquement lorsque vous aurez choisi.');
  targets.forEach(t=>addAgentChoice(p(t.player).name+' — '+CARDS[t.id].name,()=>resolveCorruption(t.player,t.id)));
@@ -2331,10 +2334,8 @@ function startCorruption(handIndex){
 }
 function resolveCorruption(victim,id){
  const state=agentModalState;if(state?.kind!=='corruption'||state.actor!==localViewer())return false;
- const actor=state.actor,pl=p(actor),at=pl.hand.indexOf(state.cardId),target=corruptionTargets(actor).find(t=>t.player===victim&&t.id===id);
- if(at<0||pl.gold<5||!target)return false;
- pl.hand.splice(at,1);G.discard.push(state.cardId);pl.gold-=5;
- const old=p(victim).inPlay.indexOf(id);p(victim).inPlay.splice(old,1);if(p(victim).inPlayUID)p(victim).inPlayUID.splice(old,1);pl.hand.push(id);
+ if(G.online?.legacySync)return onlineHeroAction({kind:'corruptionResolve',victim,id});
+ const actor=state.actor,pl=p(actor),target=TribuCorruptionTheft.steal(G,state,victim,id,CARDS);if(!target)return false;
  closeAgentModal(true);audioCardMove();
  log(pl.name+' joue Corruption et vole '+CARDS[id].name+' à '+p(victim).name+'.');
  refreshPendingAllianceGold();
@@ -2568,6 +2569,7 @@ function openAgentModal(title,text){
 }
 function closeAgentModal(force=false){
  force=force===true;
+ if(!force&&G?.online?.legacySync&&agentModalState?.kind==='corruption'&&agentModalState.actor===localViewer()){onlineHeroAction({kind:'corruptionCancel'});return}
  if(!force&&agentModalState?.kind==='guildFury'){showGuildFury();return}
  if(!force&&guideDivinationActive()){showGuideDivination();return}
  if(!force&&caravanState&&agentModalState&&agentModalState.kind==='caravan'){
@@ -2904,7 +2906,7 @@ function priorityCardResolutionActive(){
 }
 function priorityCardResolutionActor(){
  if(G?.guildCompletion)return G.guildCompletion.actor;
- if(allianceLossActive())return G.allianceLoss.plan.player;
+ if(allianceLossActive())return G.allianceLoss.plan.resolver??G.allianceLoss.plan.player;
  if(divinationState&&Number.isInteger(divinationState.actor))return divinationState.actor;
  if(choiceState&&choiceState.kind==='council'&&Number.isInteger(choiceState.player))return choiceState.player;
  if(caravanState){
@@ -4568,12 +4570,7 @@ function dwarfHarvestDetails(owner,baseAmount){
  const bonus=TribuAlliances.bonus(G,owner,CARDS,'dwarves',5);
  return bonus?{owner,baseAmount,bonus,regions:TribuAlliances.ownedTribe(G,owner,'dwarves')}:null;
 }
-function refreshDwarfHarvestGain(reaction){
- const d=reaction?.dwarfHarvest;if(!d)return;
- if(!TribuAlliances.bonus(G,d.owner,CARDS,'dwarves',5))d.revoked=true;
- const bonus=d.revoked?0:d.regions.filter(r=>G.b[r]?.owner===d.owner).length*5;
- reaction.amount=Math.max(0,d.baseAmount+bonus);
-}
+function refreshDwarfHarvestGain(reaction){TribuCorruptionTheft.refreshDwarfGain(G,reaction,CARDS)}
 function refreshPendingAllianceGold(){
  [goldReaction,...goldReactionStack].forEach(refreshDwarfHarvestGain);
 }
@@ -5792,7 +5789,7 @@ function commerceClock(){if(!G)return;let changed=false;const now=Date.now();com
 setInterval(commerceClock,1000);
 
 function render(){
- if(G?.online?.legacySync&&!onlineLegacyApplying&&!onlineHeroPending&&['golem','alliance'].includes(G.allianceLoss?.plan.kind)&&G.allianceLoss.stage==='authorized'&&G.allianceLoss.plan.player===localViewer()){if(confirmAllianceLossSelection())return}
+ if(G?.online?.legacySync&&!onlineLegacyApplying&&!onlineHeroPending&&['golem','alliance'].includes(G.allianceLoss?.plan.kind)&&G.allianceLoss.stage==='authorized'&&(G.allianceLoss.plan.resolver??G.allianceLoss.plan.player)===localViewer()){if(confirmAllianceLossSelection(G.allianceLoss.plan.player,!!p(G.allianceLoss.plan.player).bot))return}
  if(drainGuildCompletion())return;
  if(G?.pendingGuildFury&&!priorityCardResolutionActive()&&!oracleNoticeState&&!oracleState){agentModalState=G.pendingGuildFury;showGuildFury()}
  if(G)refreshColonyRecruitment();
@@ -6311,7 +6308,7 @@ function onlineLegacyApply(packet){
  }
  oracleSacrificeSyncPending=false;
  const me=packet.youIndex;
- const hadCaravan=!!caravanState,hadGuide=guideDivinationActive(),hadGuild=agentModalState?.kind==='guildFury';
+ const hadCaravan=!!caravanState,hadGuide=guideDivinationActive(),hadGuild=agentModalState?.kind==='guildFury',hadCorruption=agentModalState?.kind==='corruption';
  onlineLegacyApplying=true;
  const localOnline={code:G.online.code,seed:G.online.seed,mySocketId:onlineSocket&&onlineSocket.id,myPlayerIndex:me,hostId:onlineRoom&&onlineRoom.hostId,legacySync:true,revision:packet.revision};
  const decoded=onlineLegacyDecode(packet.snapshot),next=decoded.g||{};next.online=localOnline;G=next;
@@ -6328,13 +6325,14 @@ function onlineLegacyApply(packet){
  if(priorityCardResolutionActive()){clearTimeout(botTimer);botTimer=null;botToken++}
  const incomingSfx=onlineSfxEvents.slice(),incomingSfxSeq=onlineSfxSeq;
  onlineLegacyLastDigest=onlineLegacyDigest();
- if((!caravanState&&hadCaravan)||(!guideDivinationActive()&&hadGuide)||(hadGuild&&agentModalState?.kind!=='guildFury'))closeAgentModal(true);
+ if((!caravanState&&hadCaravan)||(!guideDivinationActive()&&hadGuide)||(hadGuild&&agentModalState?.kind!=='guildFury')||(hadCorruption&&agentModalState?.kind!=='corruption'))closeAgentModal(true);
  render();
  if(paidDrawState&&paidDrawState.player===me&&!paidDrawState.pausedByCard)startPaidDrawTimer();
  else if(!paidDrawState||paidDrawState.player!==me)clearInterval(paidDrawTick);
  if(caravanState)showCaravanChoice();
  if(guideDivinationActive())showGuideDivination();
  if(agentModalState?.kind==='guildFury')showGuildFury();
+ if(agentModalState?.kind==='corruption')showCorruptionChoice();
  applyOracleMapVisual();
  onlineApplyPrivatePresentations(me);
  onlineLegacyLastDigest=onlineLegacyDigest();onlineLegacyApplying=false;onlineLegacyLockControls();
@@ -6344,7 +6342,7 @@ function onlineLegacyApply(packet){
  onlineLegacyEnsureBotProgress();
  if(G.noblesseRevolts?.[0]?.actor===localViewer()||G.guildCompletion?.actor===localViewer())setTimeout(()=>render(),0);
  if(G.pendingGuildFury?.actor===localViewer())setTimeout(()=>showGuildFury(),0);
- if(['golem','alliance'].includes(G.allianceLoss?.plan.kind)&&G.allianceLoss.stage==='authorized'&&G.allianceLoss.plan.player===localViewer())setTimeout(()=>render(),0);
+ if(['golem','alliance'].includes(G.allianceLoss?.plan.kind)&&G.allianceLoss.stage==='authorized'&&(G.allianceLoss.plan.resolver??G.allianceLoss.plan.player)===localViewer())setTimeout(()=>render(),0);
  if(colonyInvalidated&&localViewer()===G.active){onlineLegacyLastDigest='';setTimeout(()=>onlineLegacyMaybePush(),0)}
  // Le dernier sacrifice peut être validé par n'importe quel joueur. Seul le
  // propriétaire canonique du tour ferme ensuite l'Oracle et publie le passage de tour.
