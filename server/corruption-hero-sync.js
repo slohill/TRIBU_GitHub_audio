@@ -1,5 +1,6 @@
 'use strict';
 const H=require('../assets/corruption-heroes'),Alliances=require('../assets/corruption-alliances');
+const BattleAlliances=require('../assets/corruption-battle-alliances');
 const Gold=require('../assets/gold-reaction-state'),Theft=require('../assets/corruption-theft');
 const Guild=require('../assets/corruption-guild'),Golem=require('../assets/corruption-golem');
 const Guide=require('../assets/corruption-guide'),Revolts=require('../assets/corruption-revolts');
@@ -12,16 +13,39 @@ function action(room,actor,payload,cards,mapData){
  const guide=typeof payload.kind==='string'&&payload.kind.startsWith('guide');
  const guildContinue=payload.kind==='guildResolve'&&g.pendingGuildFury?.actor===actor&&r.agentModalState?.kind==='guildFury';
  const golemContinue=(typeof payload.kind==='string'&&payload.kind.startsWith('golem'))&&g.allianceLoss?.plan.kind==='golem'&&g.allianceLoss.plan.player===actor;
- const allianceContinue=typeof payload.kind==='string'&&payload.kind.startsWith('alliance')&&g.allianceLoss?.plan.kind==='alliance'&&g.allianceLoss.plan.player===actor;
+ const allianceContinue=typeof payload.kind==='string'&&payload.kind.startsWith('alliance')&&['alliance','ogre'].includes(g.allianceLoss?.plan.kind)&&g.allianceLoss.plan.player===actor;
  const corruption=typeof payload.kind==='string'&&payload.kind.startsWith('corruption');
  const theftContinue=corruption&&r.agentModalState?.kind==='corruption'&&r.agentModalState.actor===actor;
+ const elf=typeof payload.kind==='string'&&payload.kind.startsWith('elf');
+ const ogre=payload.kind==='ogreRoll';
  const continuing=theftContinue||guildContinue||(guide&&r.agentModalState?.kind==='guideDivination'&&r.agentModalState.actor===actor);
- if((!corruption&&!allianceContinue&&(g.active!==actor||g.phase!==(guide?'start':'play')))||g.phase==='setup'||g.players[actor].decimated)return fail('Action réservée à votre phase de jeu.');
+ if((!elf&&!ogre&&!corruption&&!allianceContinue&&(g.active!==actor||g.phase!==(guide?'start':'play')))||g.phase==='setup'||g.players[actor].decimated)return fail('Action réservée à votre phase de jeu.');
  if((g.allianceLoss&&!golemContinue&&!allianceContinue)||g.guildCompletion||(g.pendingGuildFury&&!guildContinue)||(g.morcattAuction&&g.morcattAuction.stage!=='finished')||['gameOverState','oracleState','oracleNoticeState','divinationState','caravanState','egnoState','shadowState','portalMode'].some(k=>r[k])||(r.agentModalState&&!continuing)||(guide&&(r.goldReaction||r.paidDrawState||r.battle))||r.choiceState?.kind==='council')return fail('Une résolution est en cours.');
  if(!Number.isInteger(r.turnEpoch))return fail('Tour indisponible.');
  // Apply to a copy: stale identities and rejected confirmation never mutate the game.
  const next=JSON.parse(JSON.stringify(g));let label;
- if(corruption){
+ if(elf){
+  const b=r.battle,state=b?.elfChoice;
+  if(!mapData||state?.player!==actor||state.stage==='authorized'||!BattleAlliances.elfDestinations(next,b,cards,mapData).length)return fail('Fuite indisponible.');
+  if(payload.kind==='elfChoose')state.stage='destination';
+  else if(payload.kind==='elfDefend'){state.stage='authorized';state.action='defend';}
+  else if(payload.kind==='elfFlee'){
+   if(state.stage!=='destination'||!BattleAlliances.elfDestinations(next,b,cards,mapData).includes(payload.destination))return fail('Destination interdite.');state.stage='authorized';state.action='flee';state.destination=payload.destination;
+  }else return fail('Action inconnue.');
+  if(state.stage==='authorized')state.onlineId='elf:'+(room.legacyRevision+1)+':'+actor;
+  room.legacyRevision=(room.legacyRevision||0)+1;return {ok:true};
+ }
+ if(ogre){
+  const b=r.battle;
+  if(!b||b.attacker!==actor||b.environmentResolved||b.elfChoice||r.goldReaction||next.players[actor].ogreUsedEpoch===r.turnEpoch||!Alliances.bonus(next,actor,cards,'ogres',1))return fail('Ogres indisponibles.');
+  const roll=require('crypto').randomInt(1,7);next.players[actor].ogreUsedEpoch=r.turnEpoch;b.ogrePower={actor,roll,cancelled:false,settled:false};
+  const target=next.revolts?.active?.target;
+  if(Number.isInteger(target)&&next.players[target]?.faction===6&&H.hasPassive(next,target,cards,'noblesse'))Revolts.suppress(next.revolts);
+  next.revoltRollSequence=(next.revoltRollSequence||0)+1;
+  const token=next.revolts?Revolts.capture(next.revolts,actor,roll,'roll:'+next.revoltRollSequence):null;
+  if(token)(next.noblesseRevolts||(next.noblesseRevolts=[])).push(token);
+  label=next.players[actor].name+' invoque les Ogres : dé '+roll+', +'+roll+' Attaque pour cette bataille.';
+ }else if(corruption){
   if(payload.kind==='corruptionOpen'){
    const cardId=next.players[actor].hand[payload.handIndex],targets=Theft.targets(next,actor,cards);
    if(theftContinue||cardId!==payload.id||cards[cardId]?.extensionKey!=='corruption-theft'||next.players[actor].gold<5||!targets.length)return fail('Corruption indisponible.');
@@ -157,10 +181,12 @@ function mergeProposals(room,incoming){
  if(deals.some(d=>d.status==='done'&&previous.find(x=>x.id===d.id)?.status!=='done'))return false;
  rule.commerceDeals=deals;rule.commerceSeq=incoming.rule.commerceSeq;return true;
 }
-function golemActive(room){return ['golem','alliance'].includes(room.legacySnapshot?.g?.allianceLoss?.plan.kind)}
+function golemActive(room){return ['golem','alliance','ogre'].includes(room.legacySnapshot?.g?.allianceLoss?.plan.kind)}
 function acceptGolemResolution(room,actor,incoming){
  const state=room.legacySnapshot?.g?.allianceLoss;
- return ['golem','alliance'].includes(state?.plan.kind)&&state.stage==='authorized'&&actor===(state.plan.resolver??state.plan.player)&&incoming.g?.[state.plan.kind==='golem'?'golemResolved':'allianceResolved']===state.plan.onlineId;
+ return ['golem','alliance','ogre'].includes(state?.plan.kind)&&state.stage==='authorized'&&actor===(state.plan.resolver??state.plan.player)&&incoming.g?.[state.plan.kind==='golem'?'golemResolved':'allianceResolved']===state.plan.onlineId;
 }
-module.exports={action,active,mergeProposals,golemActive,acceptGolemResolution};
+function elfAuthorized(room){return room.legacySnapshot?.rule?.battle?.elfChoice?.stage==='authorized'}
+function acceptElfResolution(room,actor,incoming){const state=room.legacySnapshot?.rule?.battle?.elfChoice;return elfAuthorized(room)&&actor===state.player&&incoming.g?.elfResolved===state.onlineId}
+module.exports={action,active,mergeProposals,golemActive,acceptGolemResolution,elfAuthorized,acceptElfResolution};
 

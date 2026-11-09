@@ -660,6 +660,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 <script src="assets/corruption-heroes.js?v=1"></script>
 <script src="assets/corruption-theft.js?v=1"></script>
 <script src="assets/corruption-golem.js?v=1"></script>
+<script src="assets/corruption-battle-alliances.js?v=1"></script>
 <script src="assets/corruption-guide.js?v=1"></script>
 <script src="assets/gold-reaction-state.js?v=1"></script>
 <script src="assets/corruption-guild.js?v=1"></script>
@@ -2498,7 +2499,7 @@ async function onlineHeroAction(payload){
  try{
   if(onlineLegacyPendingPush)await onlineLegacyPendingPush;
   const digest=onlineLegacyDigest();
-  if(digest!==onlineLegacyLastDigest&&!guideDivinationActive()&&!['golem','alliance'].includes(G.allianceLoss?.plan.kind)){
+  if(digest!==onlineLegacyLastDigest&&!guideDivinationActive()&&!['golem','alliance','ogre'].includes(G.allianceLoss?.plan.kind)){
    const res=await onlineAck('legacyCommit',{baseRevision:onlineLegacyRevision,actorIndex:localViewer(),snapshot:onlineLegacySnapshot()});
    onlineLegacyRevision=res.revision;G.online.revision=res.revision;onlineLegacyLastDigest=digest;
   }
@@ -3355,7 +3356,9 @@ function beginRevoltSelection(actor,target,pauseContext=null){
 }
 function startMandatoryLossPlan(plan,pauseContext=null,queue=[]){
  const player=plan.player;
+ if(G.online?.legacySync&&plan.kind==='ogre'&&!p(player).bot)plan.onlineId='ogre:'+(G.lossSequence=(G.lossSequence||0)+1);
  G.allianceLoss={plan,queue,...(pauseContext||{goldWasPaused:!!goldReaction?.pausedByCard,paidWasPaused:!!paidDrawState?.pausedByCard})};
+ if(G.online?.legacySync&&plan.kind==='ogre')G.allianceLoss.stage=p(player).bot?'authorized':'selection';
  pauseGameForPriorityCard();pauseGoldReactionForCard();pausePaidDrawForCard();
  render();
  if(G.players[player].bot){
@@ -3387,12 +3390,12 @@ function confirmAllianceLossSelection(actor=localViewer(),bot=false){
    {title:'Révolte !',text:'Le royaume de '+p(state.plan.target).name+' est en proie à de violentes rébellions !'});
   return true;
  }
- if(G.online?.legacySync&&state.plan.kind==='alliance'&&state.stage!=='authorized')return onlineHeroAction({kind:'allianceConfirm'});
+ if(G.online?.legacySync&&['alliance','ogre'].includes(state.plan.kind)&&state.stage!=='authorized')return onlineHeroAction({kind:'allianceConfirm'});
  if(!applyAllianceLossPlan(state.plan)){
   state.plan=state.plan.kind==='ogre'?TribuAlliances.createOgreLossPlan(G,actor,state.plan.eligibleRegions,engagedBattles()):TribuAlliances.createLossPlan(G,actor,state.plan.tribe,engagedBattles());
   render();return false;
  }
- if(G.online?.legacySync&&state.plan.kind==='alliance')G.allianceResolved=state.plan.onlineId;
+ if(G.online?.legacySync&&['alliance','ogre'].includes(state.plan.kind)&&state.plan.onlineId)G.allianceResolved=state.plan.onlineId;
  return finishMandatoryLossSelection(state);
 }
 function finishMandatoryLossSelection(state){
@@ -3401,7 +3404,7 @@ function finishMandatoryLossSelection(state){
  if(state.queue?.length){
   const next=state.queue.shift(),plan=TribuAlliances.createOgreLossPlan(G,next.player,next.regions,engagedBattles());
   if(isHotseatMode()&&!p(next.player).bot)hotseatViewerOverride=next.player;
-  startMandatoryLossPlan(plan,{goldWasPaused:state.goldWasPaused,paidWasPaused:state.paidWasPaused},state.queue);return true;
+  startMandatoryLossPlan(plan,{goldWasPaused:state.goldWasPaused,paidWasPaused:state.paidWasPaused},state.queue);if(G.online?.legacySync)onlineLegacyPushPriorityTerminalNow(state.plan.resolver??state.plan.player);return true;
  }
  checkDecimations();
  if(isDecimated(G.active))G.allianceLossTurnEnd={player:G.active,epoch:turnEpoch};
@@ -3411,7 +3414,7 @@ function finishMandatoryLossSelection(state){
   if(next.length!==b.priorityOrder.length){b.priorityOrder=next;b.priorityIndex=Math.max(0,next.indexOf(current));b.consecutivePasses=0}
  }
  finishDestroyedBattle();
- if(drainOgreLosses({goldWasPaused:state.goldWasPaused,paidWasPaused:state.paidWasPaused}))return true;
+ if(drainOgreLosses({goldWasPaused:state.goldWasPaused,paidWasPaused:state.paidWasPaused})){if(G.online?.legacySync)onlineLegacyPushPriorityTerminalNow(state.plan.resolver??state.plan.player);return true;}
  if(drainNoblesseRevolts())return true;
  if(battle)resumeBattleTimer();
  if(goldReaction&&!state.goldWasPaused&&!battle&&!priorityCardResolutionActive())resumeGoldReactionAfterCard();
@@ -3453,8 +3456,8 @@ function renderAllianceLossSelection(){
  const revolt=plan.kind==='revolts',golem=plan.kind==='golem';
  if(revolt&&state.stage!=='selection'){host.textContent='Révolte en cours — résolution en attente.';return}
  allianceLossView=TribuAllianceLossUI.mount({map,panel:host,plan,mode:golem?'golem':revolt?'revolts':'alliance',actor:plan.player,viewer:localViewer(),playerName:p(plan.player).name,dieImage:golem?(group=>factionDieImage(group.player)):factionDieImage(revolt?plan.target:plan.player),
-  onChoose:(region,key)=>{if(localViewer()!==plan.player)return;if((golem||plan.kind==='alliance')&&G.online?.legacySync){onlineHeroAction({kind:golem?'golemChoose':'allianceChoose',region,group:key});return}(golem?TribuGolem:revolt?TribuRevolts:TribuAlliances).choose(plan,region,key);renderAllianceLossSelection()},
-  onReset:()=>{if(localViewer()!==plan.player)return;if((golem||plan.kind==='alliance')&&G.online?.legacySync){onlineHeroAction({kind:golem?'golemReset':'allianceReset'});return}if(golem)TribuGolem.reset(plan);else if(revolt)TribuRevolts.reset(plan);else plan.regions.forEach(r=>TribuAlliances.reset(plan,r.region));renderAllianceLossSelection()},
+  onChoose:(region,key)=>{if(localViewer()!==plan.player)return;if((golem||['alliance','ogre'].includes(plan.kind))&&G.online?.legacySync){onlineHeroAction({kind:golem?'golemChoose':'allianceChoose',region,group:key});return}(golem?TribuGolem:revolt?TribuRevolts:TribuAlliances).choose(plan,region,key);renderAllianceLossSelection()},
+  onReset:()=>{if(localViewer()!==plan.player)return;if((golem||['alliance','ogre'].includes(plan.kind))&&G.online?.legacySync){onlineHeroAction({kind:golem?'golemReset':'allianceReset'});return}if(golem)TribuGolem.reset(plan);else if(revolt)TribuRevolts.reset(plan);else plan.regions.forEach(r=>TribuAlliances.reset(plan,r.region));renderAllianceLossSelection()},
   onConfirm:()=>confirmAllianceLossSelection()
  });
  ['draw','harvest','recruit','endRecruit','resetRecruit','toOracle','roll','buyDraw'].forEach(id=>{const b=$(id);if(b)b.disabled=true});
@@ -3860,10 +3863,11 @@ function battleBonusFor(card,side){
   return 0;
 }
 function canUseOgres(actor){
- return !!battle&&!G.online&&TribuCorruption.enabled(G)&&battle.attacker===actor&&!battle.environmentResolved&&!battle.elfChoice&&!priorityCardResolutionActive()&&!goldReaction&&!morcattAuctionActive()&&p(actor).ogreUsedEpoch!==turnEpoch&&TribuAlliances.bonus(G,actor,CARDS,'ogres',1)>0;
+ return !!battle&&(!G.online||G.online.legacySync)&&TribuCorruption.enabled(G)&&battle.attacker===actor&&!battle.environmentResolved&&!battle.elfChoice&&!priorityCardResolutionActive()&&!goldReaction&&!morcattAuctionActive()&&p(actor).ogreUsedEpoch!==turnEpoch&&TribuAlliances.bonus(G,actor,CARDS,'ogres',1)>0;
 }
 function useOgres(actor){
  if(actor!==localViewer()||p(actor).bot||!canUseOgres(actor))return false;
+ if(G.online?.legacySync)return onlineHeroAction({kind:'ogreRoll'});
  const roll=1+Math.floor(Math.random()*6),revoltToken=captureRevoltRoll(actor,roll);
  p(actor).ogreUsedEpoch=turnEpoch;battle.ogrePower={actor,roll,cancelled:false,settled:false};
  log(p(actor).name+' invoque les Ogres : dé '+roll+', +'+roll+' Attaque pour cette bataille.');resolveRevoltAfterAction(revoltToken);render();return true;
@@ -3879,9 +3883,11 @@ function prepareOgreBlast(b){
  return {regions:[...new Set(neighbors(b.target).filter(r=>!isSea(r)))],actor:b.ogrePower.actor};
 }
 function beginOgreLosses(blast){
- if(!blast||G.online)return false;
+ if(!blast||(G.online&&!G.online.legacySync))return false;
  (G.ogreBlastQueue||(G.ogreBlastQueue=[])).push(blast);
- return drainOgreLosses();
+ const result=drainOgreLosses();
+ if(result&&G.online?.legacySync)onlineLegacyPushPriorityTerminalNow(localViewer());
+ return result;
 }
 function drainOgreLosses(pauseContext=null){
  if(allianceLossActive())return true;
@@ -3925,16 +3931,15 @@ function buildPriorityOrder(){
   G.players.forEach((pl,i)=>{if(!order.includes(i)&&!isDecimated(i))order.push(i)});
   return order;
 }
-function elfFleeDestinations(b=battle){
- if(!b||b.environmentResolved||b.defender===null||!Number.isInteger(b.defender)||!['land','sea'].includes(b.kind))return [];
- if(!TribuAlliances.bonus(G,b.defender,CARDS,'elves',1)||units(b.target,b.defender)<=0)return [];
- return neighbors(b.target).filter(r=>{
-  if(isSea(r))return true;
-  const c=G.b[r];return c.owner===b.defender||(c.owner===null&&(!effectiveHostile(r)||TribuAlliances.peaceful(G,b.defender,r,CARDS)));
- });
+function elfFleeDestinations(b=battle){return TribuBattleAlliances.elfDestinations(G,b,CARDS,DATA)}
+function drainOnlineElfChoice(){
+ const state=battle?.elfChoice;
+ if(!G?.online?.legacySync||onlineLegacyApplying||onlineHeroPending||state?.stage!=='authorized'||state.player!==localViewer())return false;
+ if(state.action==='flee')return fleeElfTo(state.destination);
+ G.elfResolved=state.onlineId;delete battle.elfChoice;startReactionWindow();render();onlineLegacyPushPriorityTerminalNow(state.player);return true;
 }
 function maybeBeginElfFlee(){
- if(!battle||battle.elfChecked||G.online||!TribuCorruption.enabled(G))return false;
+ if(!battle||battle.elfChecked||(G.online&&!G.online.legacySync)||!TribuCorruption.enabled(G))return false;
  battle.elfChecked=true;
  if(!elfFleeDestinations().length||p(battle.defender).bot)return false;
  battle.elfChoice={player:battle.defender,stage:'choice'};
@@ -3955,9 +3960,9 @@ function renderElfFlee(){
  const title=document.createElement('p');title.textContent=localViewer()===state.player?'Cohabitation elfique — fuir ou défendre cette région ?':'En attente du choix de '+p(state.player).name;host.appendChild(title);
  if(localViewer()===state.player&&!priorityCardResolutionActive()){
   const add=(text,fn)=>{const b=document.createElement('button');b.textContent=text;b.onclick=fn;host.appendChild(b)};
-  if(state.stage==='choice')add('Fuir',()=>{state.stage='destination';render()});
+  if(state.stage==='choice')add('Fuir',()=>{if(G.online?.legacySync){onlineHeroAction({kind:'elfChoose'});return}state.stage='destination';render()});
   else{const text=document.createElement('p');text.textContent='Choisissez une destination verte sur la carte.';host.appendChild(text);}
-  add('Défendre cette région',()=>{delete battle.elfChoice;startReactionWindow();render()});
+  add('Défendre cette région',()=>{if(G.online?.legacySync){onlineHeroAction({kind:'elfDefend'});return}delete battle.elfChoice;startReactionWindow();render()});
  }
  $('status').after(host);
  if(state.stage==='destination'&&localViewer()===state.player&&!priorityCardResolutionActive())options.forEach(r=>map.querySelector('[data-region="'+r+'"]')?.classList.add('shadowTarget'));
@@ -3965,7 +3970,8 @@ function renderElfFlee(){
 }
 function fleeElfTo(destination){
  const b=battle,state=b?.elfChoice;
- if(!state||state.stage!=='destination'||localViewer()!==state.player||priorityCardResolutionActive()||!elfFleeDestinations().includes(destination))return false;
+ if(!state||!['destination','authorized'].includes(state.stage)||localViewer()!==state.player||priorityCardResolutionActive()||!elfFleeDestinations().includes(destination))return false;
+ if(G.online?.legacySync&&state.stage!=='authorized')return onlineHeroAction({kind:'elfFlee',destination});
  const defender=b.defender,n=units(b.target,defender),carried=defender===G.active?(movable[b.target]||[]).slice(0,n):[];
  if(isSea(b.target))G.sea[b.target].fleets[defender]=0;
  else G.b[b.target].units=0;
@@ -3989,9 +3995,9 @@ function fleeElfTo(destination){
    pending.defenseBase=defendingUnits(defender,pending.defOriginalUnits);
   }
  }
- finishBattleCards();b.stack=[];b.environmentResolved=true;delete b.elfChoice;
+ finishBattleCards();b.stack=[];b.environmentResolved=true;if(G.online?.legacySync)G.elfResolved=state.onlineId;delete b.elfChoice;
  log(p(defender).name+' fuit vers '+destination+' avec '+n+' unité(s). '+p(b.attacker).name+' conquiert '+b.target+'.');
- finishDestroyedBattle();render();queueBot('après fuite elfique');return true;
+ finishDestroyedBattle();render();if(G.online?.legacySync)onlineLegacyPushPriorityTerminalNow(defender);queueBot('après fuite elfique');return true;
 }
 function startReactionWindow(){
  if(allianceLossActive()||battle?.elfChoice)return;
@@ -5789,7 +5795,8 @@ function commerceClock(){if(!G)return;let changed=false;const now=Date.now();com
 setInterval(commerceClock,1000);
 
 function render(){
- if(G?.online?.legacySync&&!onlineLegacyApplying&&!onlineHeroPending&&['golem','alliance'].includes(G.allianceLoss?.plan.kind)&&G.allianceLoss.stage==='authorized'&&(G.allianceLoss.plan.resolver??G.allianceLoss.plan.player)===localViewer()){if(confirmAllianceLossSelection(G.allianceLoss.plan.player,!!p(G.allianceLoss.plan.player).bot))return}
+ if(drainOnlineElfChoice())return;
+ if(G?.online?.legacySync&&!onlineLegacyApplying&&!onlineHeroPending&&G.allianceLoss?.plan.onlineId&&['golem','alliance','ogre'].includes(G.allianceLoss?.plan.kind)&&G.allianceLoss.stage==='authorized'&&(G.allianceLoss.plan.resolver??G.allianceLoss.plan.player)===localViewer()){if(confirmAllianceLossSelection(G.allianceLoss.plan.player,!!p(G.allianceLoss.plan.player).bot))return}
  if(drainGuildCompletion())return;
  if(G?.pendingGuildFury&&!priorityCardResolutionActive()&&!oracleNoticeState&&!oracleState){agentModalState=G.pendingGuildFury;showGuildFury()}
  if(G)refreshColonyRecruitment();
@@ -6342,13 +6349,15 @@ function onlineLegacyApply(packet){
  onlineLegacyEnsureBotProgress();
  if(G.noblesseRevolts?.[0]?.actor===localViewer()||G.guildCompletion?.actor===localViewer())setTimeout(()=>render(),0);
  if(G.pendingGuildFury?.actor===localViewer())setTimeout(()=>showGuildFury(),0);
- if(['golem','alliance'].includes(G.allianceLoss?.plan.kind)&&G.allianceLoss.stage==='authorized'&&(G.allianceLoss.plan.resolver??G.allianceLoss.plan.player)===localViewer())setTimeout(()=>render(),0);
+ if(battle?.elfChoice?.stage==='authorized'&&battle.elfChoice.player===localViewer())setTimeout(()=>render(),0);
+ if(['golem','alliance','ogre'].includes(G.allianceLoss?.plan.kind)&&G.allianceLoss.stage==='authorized'&&(G.allianceLoss.plan.resolver??G.allianceLoss.plan.player)===localViewer())setTimeout(()=>render(),0);
  if(colonyInvalidated&&localViewer()===G.active){onlineLegacyLastDigest='';setTimeout(()=>onlineLegacyMaybePush(),0)}
  // Le dernier sacrifice peut être validé par n'importe quel joueur. Seul le
  // propriétaire canonique du tour ferme ensuite l'Oracle et publie le passage de tour.
  if(oracleSacrificeAllDone()&&onlineLegacyCanPublish())setTimeout(()=>{if(oracleSacrificeAllDone()&&onlineLegacyCanPublish())finishSimultaneousOracleSacrifice()},0);
 }
 function onlineLegacyResumeBattleView(){
+ if(battle?.elfChoice||G?.noblesseRevolts?.length){clearInterval(battleTick);clearTimeout(botReactionTimer);return;}
  if(commerceBattlePaused){clearInterval(battleTick);clearTimeout(botReactionTimer);onlineLegacyBattleViewSeconds=null;if($('priorityTimer'))$('priorityTimer').textContent='En pause — commerce';return;}
  clearInterval(battleTick);clearTimeout(botReactionTimer);
  if(!battle){onlineLegacyBattleViewSeconds=null;hideBattle();return;}
