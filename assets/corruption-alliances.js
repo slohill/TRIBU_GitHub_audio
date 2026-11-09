@@ -18,6 +18,15 @@ function alliance(player,cards){
  if(held.length>1)throw new Error('Un seul accord d’alliance peut être en jeu.');
  return held[0]||null;
 }
+function place(game,actor,handIndex,id,cards){
+ const p=game.players[actor];
+ if(game.gameVersion!=='corruption'||game.active!==actor||game.phase!=='play'||!p||p.bot||p.decimated||!Number.isInteger(handIndex)||p.hand[handIndex]!==id||!cards[id]?.allianceTribe)return null;
+ if(!Array.isArray(p.inPlayUID)||p.inPlayUID.length!==p.inPlay.length)return null;
+ const old=alliance(p,cards);p.hand.splice(handIndex,1);
+ if(old){const at=p.inPlay.indexOf(old.id);p.inPlay.splice(at,1);p.inPlayUID.splice(at,1);game.discard.push(old.id)}
+ game.allianceSequence=(game.allianceSequence||0)+1;p.inPlay.push(id);p.inPlayUID.push('alliance:'+game.allianceSequence);
+ return {id,oldTribe:old?.card.allianceTribe||null};
+}
 function peaceful(game,player,region,cards){
  if(game.gameVersion!=='corruption')return false;
  const c=game.b[region],a=alliance(game.players[player],cards);
@@ -88,6 +97,6 @@ function validate(plan,game,battles){
  });
 }
 
-const api=Object.freeze({definitions,install,alliance,peaceful,ownedTribe,bonus,createLossPlan,createOgreLossPlan,choose,reset,ready,commands,validate});
+const api=Object.freeze({definitions,install,alliance,place,peaceful,ownedTribe,bonus,createLossPlan,createOgreLossPlan,choose,reset,ready,commands,validate});
 root.TribuAlliances=api;if(typeof module==='object'&&module.exports)module.exports=api;
 })(typeof globalThis==='object'?globalThis:this);

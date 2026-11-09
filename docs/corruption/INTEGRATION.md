@@ -245,3 +245,9 @@ Main/public unchanged. Remaining work is global Corruption integration audit, es
 
 ## Checkpoint 40 — Global audit and real online Oracle activation (2026-11-06)
 See AUDIT-2026-11-06.md for scope, evidence and remaining online gates. 47 unit tests plus seven integration scenarios pass. Fixed actual Oracle activation/replacement not updating Revolts online; new two-browser test activates the Oracle through activateOracle rather than injecting active state, then verifies hero/Embuscade/Revolts and replacement. Alliances, Corruption theft, Elf/Ogre powers, legacy roll capture and bot hero placement remain gated online and block release. Main unchanged.
+
+
+## Checkpoint 41 — Online alliances and replacement losses (2026-11-09)
+Shared alliance placement now maintains inPlay UID alignment in local and online paths. Server validates actor/phase/card/revision, discards the previous alliance once, opens a per-origin five-unit loss plan and persists every manual choice/reset. Existing Golem authorization/legacy casualty handoff extended to alliance plans; unrelated snapshots cannot overwrite pending selections, Commerce proposals remain possible. Empty regions, NPC buildings, battles and decimation use unchanged legacy loss resolution.
+Checks PASS: corruption-alliance-sync.test.js (replacement, one stationed plus four committed losses, independent automatic region loss, stale/actor/base rejection), alliance and Golem unit suites (13 total); check-alliances-online-browser.cjs (two browsers, first placement/replacement, single discard, five manual plus three automatic losses, partial reload, NPC fortress recovery, UID alignment), check-alliance-cards.cjs local UI regression, check-golem-online-browser.cjs regression.
+Alliances can now be placed/replaced online. Corruption theft, Elf fleeing and Ogre active ability remain gated; no claim of complete extension readiness. Main/public unchanged.

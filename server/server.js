@@ -772,7 +772,7 @@ io.on('connection', socket => {
     }
     if(!payload.snapshot||typeof payload.snapshot!=='object'||!payload.snapshot.g||!Array.isArray(payload.snapshot.g.players)||!payload.snapshot.rule||typeof payload.snapshot.rule!=='object')return rejectGameAction(ack,'État de jeu invalide.');
     if(heroSync.golemActive(room)&&!heroSync.acceptGolemResolution(room,index,payload.snapshot)){
-      if(!heroSync.mergeProposals(room,payload.snapshot))return ack({ok:false,error:'Violence aveugle en cours : échange indisponible.'});
+      if(!heroSync.mergeProposals(room,payload.snapshot))return ack({ok:false,error:'Résolution de pertes en cours : échange indisponible.'});
       room.legacyRevision=current+1;ack({ok:true,revision:room.legacyRevision,recovery:roomRecoveryCapsule(room)});emitLegacy(room);return;
     }
     if(heroSync.active(room)){
