@@ -32,7 +32,7 @@ function interactionContextValid(startAction=false){
  return ()=>G===game&&!gameOverState&&G.active===active&&G.turn===turn&&G.phase===phase&&turnEpoch===epoch&&
    (startAction?canUseStartAction():localViewer()===viewer&&JSON.stringify(G.players[viewer].hand)===hand)&&
    battle===fight&&goldReaction===gold&&paidDrawState===paid&&
-   (!battle||(currentPriorityPlayer()===priority&&(isHotseatMode()||battle.seconds>0)));
+   (!battle||(currentPriorityPlayer()===priority&&(isHotseatMode()||battle.elfChoice||battle.seconds>0)));
 }
 function canUseStartAction(){
  return G&&G.phase==='start'&&!gameOverState&&!isBot()&&!isDecimated(G.active)&&!paidDrawState&&!goldReaction&&
@@ -52,8 +52,8 @@ function bindActionGesture(el,key,title,text,run,available=()=>true,startAction=
    }
    closeActionPreview();actionPreviewState={key:spec.key,valid:interactionContextValid(spec.startAction)};
    const h=document.createElement('h3');h.textContent=spec.title;
-   const body=document.createElement('div');body.className='previewEffect';body.textContent=spec.text;
-   const hint=document.createElement('div');hint.className='previewHint';hint.textContent='Recliquez sur le même élément pour l’utiliser · appui long = utilisation directe';
+   const body=document.createElement('div');body.className='previewEffect';body.textContent=spec.text.replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]*>/g,'');
+   const hint=document.createElement('div');hint.className='previewHint';hint.textContent=el.closest('#hand')?'Recliquez pour utiliser la carte · loupe ou appui long = agrandir':'Recliquez sur le même élément pour l’utiliser · appui long = utilisation directe';
    actionPreview.replaceChildren(h,body,hint);actionPreview.classList.remove('hidden');el.classList.add('actionPreviewSelected');
    const r=el.getBoundingClientRect(),width=actionPreview.offsetWidth,height=actionPreview.offsetHeight;
    const left=r.left>=width+20?r.left-width-12:Math.max(8,Math.min(innerWidth-width-8,r.left));
@@ -63,7 +63,9 @@ function bindActionGesture(el,key,title,text,run,available=()=>true,startAction=
  el.onclick=el._gestureClick;
  el.onpointerdown=e=>{
    if(e.button!==0||e.target.closest('.cardArtHint'))return;
-   cancel();origin={x:e.clientX,y:e.clientY};const spec=el._actionSpec;if(!spec.available())return;
+   cancel();origin={x:e.clientX,y:e.clientY};const spec=el._actionSpec;
+   if(el.closest('#hand')){timer=setTimeout(()=>{timer=null;suppressActionClick=true;closeActionPreview();openOfficialCard(spec.title,CARDS.find(c=>c.name===spec.title)?.type||'',CARDS.find(c=>c.name===spec.title)?.effect||spec.text)},520);return}
+   if(!spec.available())return;
    const valid=interactionContextValid(spec.startAction);
    timer=setTimeout(()=>{timer=null;if(!valid()||!spec.available())return;suppressActionClick=true;execute(spec,e,valid)},520);
  };
@@ -101,7 +103,7 @@ function wireCardConfirmations(){
  [...$('hand').children].forEach((el,index)=>{
    const id=G.players[owner].hand[index],c=CARDS[id];if(!c)return;
    const key='card:'+owner+':'+index+':'+id;
-   if((c.allianceTribe||c.extensionKey==='corruption-theft')&&el.onclick){
+   if((c.heroKey||c.allianceTribe||c.extensionKey==='corruption-theft')&&el.onclick){
      const action=el.onclick;
      const old=c.allianceTribe?TribuAlliances.alliance(G.players[owner],CARDS):null;
      const text=c.effect+(old?' Votre alliance actuelle sera défaussée et vous perdrez 5 unités par région de son peuple que vous contrôlez.':'');

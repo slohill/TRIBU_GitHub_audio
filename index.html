@@ -5561,6 +5561,7 @@ function renderHandBattleState(){
  const battleExpired=!!battle&&!isHotseatMode()&&battle.seconds<=0;
  cards.forEach((d,idx)=>{
    d.classList.remove('battlePlayable','battleBlocked');
+   if(viewer===localViewer()&&!p(viewer).bot&&!isDecimated(viewer)&&(!G.online||G.online.legacySync)&&CARDS[G.players[viewer].hand[idx]]?.extensionKey==='corruption-theft'&&(!battleExpired||battle.elfChoice)){d.onclick=()=>startCorruption(idx);if(battle)d.classList.add('battlePlayable');return}
    if(battleExpired){d.onclick=null;d.classList.add('battleBlocked');d.title='Fenêtre de réaction expirée';return}
    const sid=G.players[viewer].hand[idx];
    if(battle&&sid!==undefined&&CARDS[sid].name==='Section de l’ombre'&&!shadowState&&!egnoState){d.classList.add('battlePlayable');d.title='Jouer Section de l’ombre maintenant';d.onclick=()=>startShadow(idx);return}
@@ -5939,7 +5940,7 @@ function render(){
  const isViewerHand=handPlayer===localViewer()&&!G.players[handPlayer].bot&&!isDecimated(handPlayer);
  if(isViewerHand&&c.heroKey&&heroManagementAllowed(handPlayer)){d.classList.add('playablePermanent');d.onclick=()=>playHeroFromHand(handIndex)}
  if(isViewerHand&&c.allianceTribe&&(!G.online||G.online.legacySync)&&G.phase==='play'&&G.active===handPlayer&&!priorityCardResolutionActive()){d.classList.add('playablePermanent');d.onclick=()=>playAllianceFromHand(handIndex)}
- if(isViewerHand&&c.extensionKey==='corruption-theft'&&!G.online){d.classList.add('playablePermanent');d.onclick=()=>startCorruption(handIndex)}
+ if(isViewerHand&&c.extensionKey==='corruption-theft'&&(!G.online||G.online.legacySync)){d.classList.add('playablePermanent');d.onclick=()=>startCorruption(handIndex)}
  if(isViewerHand&&!choiceState&&c.name==='Taxe'){d.classList.add('playablePermanent');d.title='Jouer Taxe maintenant';d.onclick=()=>playTax(handIndex)}
  if(isViewerHand&&!choiceState&&c.name==='Conseil de guerre'){d.classList.add('playablePermanent');d.title='Jouer Conseil de guerre maintenant';d.onclick=()=>playCouncil(handIndex)}
  if(isViewerHand&&!choiceState&&c.name==='Portails'){d.classList.add('playablePermanent');d.title='Poser les Portails maintenant';d.onclick=()=>beginPortals(handIndex)}
@@ -5975,7 +5976,7 @@ function render(){
  // Divination et Section de l'ombre possèdent déjà leur remise à zéro au moment où
  // elles sont effectivement engagées ; pour toutes les autres cartes jouables depuis
  // la main, on applique exactement le même snapshot AVANT leur résolution.
- if(d.onclick&&c.name!=='Divination de l’Oracle'&&c.name!=='Section de l’ombre'){
+ if(d.onclick&&c.extensionKey!=='corruption-theft'&&c.name!=='Divination de l’Oracle'&&c.name!=='Section de l’ombre'){
    const cardAction=d.onclick;
    d.onclick=(ev)=>{
      if(paidDrawState&&paidDrawState.player===handPlayer)pausePaidDrawForCard();
@@ -6961,7 +6962,7 @@ $('commerceOverlay').onclick=e=>{if(e.target===$('commerceOverlay'))commerceClos
 $('commerceClose').onclick=commerceClose;$('commerceNewOffer').onclick=()=>commerceStart('offer');$('commerceNewAsk').onclick=()=>commerceStart('ask');$('commerceShowCard').onclick=()=>commerceStart('show');
 $('hotseatReveal').onclick=revealHotseatHand;$('oracleNoticePass').onclick=finishOracleNotice;$('dragonSixPass').onclick=finishDragonSixNotice;$('dragonPublicPass').onclick=passDragonPublic;$('dragonCurseContinue').onclick=continueDragonCurse;$('discardPile').onclick=openDiscard;$('deckPile').onclick=()=>{};$('discardClose').onclick=closeDiscard;$('restart').onclick=init;$('resyncGame').onclick=onlineResynchroniseGame;$('victoryRestart').onclick=()=>{audioResetVictory();location.reload()};$('agentClose').onclick=closeAgentModal;$('draw').onclick=doDraw;$('harvest').onclick=doHarvest;$('recruit').onclick=doRecruit;$('resetRecruit').onclick=resetRecruitment;$('endRecruit').onclick=beginPlay;$('toOracle').onclick=toOracle;$('choiceConfirm').onclick=confirmCouncil;$('roll').onclick=roll;
 </script><script src="assets/tutorial.js?v=7"></script>
-<script src="assets/interaction-safety.js?v=3"></script>
+<script src="assets/interaction-safety.js?v=20261109"></script>
 <script src="assets/party-options.js?v=3"></script>
 <script src="assets/spectator.js?v=4"></script>
 <script src="assets/corruption-auction-ui.js?v=1"></script>
