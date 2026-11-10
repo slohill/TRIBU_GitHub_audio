@@ -682,7 +682,8 @@ OFFICIAL_CARD_ART.Corruption='assets/images/cards/corruption.webp';
 OFFICIAL_CARD_ART['Révoltes']=TribuRevolts.definition.image;
 for(const d of TribuHeroes.definitions){OFFICIAL_CARD_ART[d.name]=d.image;CARD_ZOOM_RULES[d.name]=d.effect}
 CARD_ZOOM_RULES.Corruption=CARDS.find(c=>c.extensionKey==='corruption-theft').effect;
-function openOfficialCard(name,type,effect){
+function openOfficialCard(name,type,effect,fromHold=false){
+ if(fromHold&&typeof suppressActionClick!=='undefined')suppressActionClick=true;
  const src=OFFICIAL_CARD_ART[name];if(!src)return;
  const ov=$('cardZoomOverlay'),patch=ov.querySelector('.cardRulePatch');
  $('cardZoomImg').src=src;
@@ -709,7 +710,7 @@ function applyOfficialCardArt(el,c){
  el.addEventListener('pointerdown',(ev)=>{
    if(el.dataset.actionGesture||ev.target.closest('.cardArtHint'))return;
    artLong=false;clearTimeout(artHold);
-   artHold=setTimeout(()=>{artLong=true;openOfficialCard(c.name,c.type,c.effect)},520);
+   artHold=setTimeout(()=>{artLong=true;openOfficialCard(c.name,c.type,c.effect,true)},520);
  });
  ['pointerup','pointercancel','pointerleave'].forEach(t=>el.addEventListener(t,cancelHold));
  // Capture le clic généré après un appui long afin de ne pas jouer la carte derrière le zoom.
@@ -718,8 +719,9 @@ function applyOfficialCardArt(el,c){
    ev.preventDefault();ev.stopImmediatePropagation();artLong=false;
  },true);
  hint.onpointerdown=(ev)=>{ev.stopPropagation();cancelHold()};
- hint.onpointerup=(ev)=>{ev.preventDefault();ev.stopPropagation();openOfficialCard(c.name,c.type,c.effect)};
- hint.onclick=(ev)=>{ev.preventDefault();ev.stopPropagation()};
+ hint.onpointerup=(ev)=>{ev.stopPropagation()};
+ // Open on click: opening during touch pointerup can retarget the synthesized click to the new backdrop.
+ hint.onclick=(ev)=>{ev.preventDefault();ev.stopPropagation();openOfficialCard(c.name,c.type,c.effect)};
 }
 
 function preloadOfficialCardArt(){
@@ -5537,7 +5539,7 @@ function renderInPlay(i){
        holdOrigin={x:e.clientX,y:e.clientY};
        inPlayLongTriggered=false;clearTimeout(inPlayHoldTimer);
        inPlayHoldTimer=setTimeout(()=>{
-         inPlayLongTriggered=true;hideInPlayPreview();openOfficialCard(c.name,c.type,c.effect);
+         inPlayLongTriggered=true;hideInPlayPreview();openOfficialCard(c.name,c.type,c.effect,true);
        },520);
      };
      b.onpointermove=e=>{if(holdOrigin&&Math.hypot(e.clientX-holdOrigin.x,e.clientY-holdOrigin.y)>10)clearTimeout(inPlayHoldTimer)};
@@ -5684,7 +5686,7 @@ function bindCardPreviewElements(root){
  (root||document).querySelectorAll('[data-commerce-card-id],[data-peek-card-id]').forEach(el=>{
    const id=+(el.dataset.commerceCardId??el.dataset.peekCardId);if(!CARDS[id])return;
    let timer=null,long=false;
-   el.addEventListener('pointerdown',ev=>{if(ev.target.closest('[data-commerce-zoom],[data-peek-zoom]'))return;long=false;clearTimeout(timer);timer=setTimeout(()=>{long=true;openOfficialCard(CARDS[id].name,CARDS[id].type,CARDS[id].effect)},520)});
+   el.addEventListener('pointerdown',ev=>{if(ev.target.closest('[data-commerce-zoom],[data-peek-zoom]'))return;long=false;clearTimeout(timer);timer=setTimeout(()=>{long=true;openOfficialCard(CARDS[id].name,CARDS[id].type,CARDS[id].effect,true)},520)});
    ['pointerup','pointercancel','pointerleave'].forEach(t=>el.addEventListener(t,()=>clearTimeout(timer)));
    el.addEventListener('click',ev=>{if(long){ev.preventDefault();ev.stopPropagation();long=false;return}});
  });
@@ -6313,6 +6315,8 @@ function onlineApplyPrivatePresentations(me){
 function onlineLegacyApply(packet){
  if(!packet||!packet.snapshot)return;
  if(!G||!G.online||!G.online.legacySync)return;
+ // A delayed broadcast or recovery response cannot rewind an acknowledged revision.
+ if(Number.isInteger(packet.revision)&&packet.revision<onlineLegacyRevision)return;
  // Pendant son propre recrutement, plusieurs clics rapides peuvent déjà avoir produit
  // un état local plus récent qu'un snapshot serveur venant juste d'être confirmé.
  // Ne pas réappliquer visuellement cet état intermédiaire : on avance seulement la
@@ -6962,7 +6966,7 @@ $('commerceOverlay').onclick=e=>{if(e.target===$('commerceOverlay'))commerceClos
 $('commerceClose').onclick=commerceClose;$('commerceNewOffer').onclick=()=>commerceStart('offer');$('commerceNewAsk').onclick=()=>commerceStart('ask');$('commerceShowCard').onclick=()=>commerceStart('show');
 $('hotseatReveal').onclick=revealHotseatHand;$('oracleNoticePass').onclick=finishOracleNotice;$('dragonSixPass').onclick=finishDragonSixNotice;$('dragonPublicPass').onclick=passDragonPublic;$('dragonCurseContinue').onclick=continueDragonCurse;$('discardPile').onclick=openDiscard;$('deckPile').onclick=()=>{};$('discardClose').onclick=closeDiscard;$('restart').onclick=init;$('resyncGame').onclick=onlineResynchroniseGame;$('victoryRestart').onclick=()=>{audioResetVictory();location.reload()};$('agentClose').onclick=closeAgentModal;$('draw').onclick=doDraw;$('harvest').onclick=doHarvest;$('recruit').onclick=doRecruit;$('resetRecruit').onclick=resetRecruitment;$('endRecruit').onclick=beginPlay;$('toOracle').onclick=toOracle;$('choiceConfirm').onclick=confirmCouncil;$('roll').onclick=roll;
 </script><script src="assets/tutorial.js?v=7"></script>
-<script src="assets/interaction-safety.js?v=20261109"></script>
+<script src="assets/interaction-safety.js?v=20261110"></script>
 <script src="assets/party-options.js?v=3"></script>
 <script src="assets/spectator.js?v=4"></script>
 <script src="assets/corruption-auction-ui.js?v=1"></script>

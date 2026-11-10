@@ -15,7 +15,10 @@ document.addEventListener('click',e=>{
  if(suppressActionClick){suppressActionClick=false;e.preventDefault();e.stopImmediatePropagation();return}
  if(!e.target.closest('[data-action-gesture],#actionInfoPreview'))closeActionPreview();
 },true);
-document.addEventListener('pointerup',()=>{if(suppressActionClick)setTimeout(()=>suppressActionClick=false,0)},true);
+let actionClickSuppressionTimer=null;
+// Mobile compatibility clicks can arrive after pointerup on the newly opened backdrop.
+document.addEventListener('pointerdown',()=>{clearTimeout(actionClickSuppressionTimer);suppressActionClick=false},true);
+document.addEventListener('pointerup',()=>{if(suppressActionClick){clearTimeout(actionClickSuppressionTimer);actionClickSuppressionTimer=setTimeout(()=>suppressActionClick=false,800)}},true);
 function requestActionConfirmation(title,text,actions,valid){
  closeActionConfirmation();pendingActionConfirmation={valid};
  $('actionConfirmTitle').textContent=title;$('actionConfirmText').textContent=text;
