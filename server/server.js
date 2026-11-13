@@ -24,7 +24,12 @@ app.use('/assets', express.static(path.join(CLIENT_ROOT, 'assets'), {
     res.setHeader('Cache-Control', 'public, max-age=604800');
   }
 }));
-app.get('/', (_req, res) => res.sendFile(path.join(CLIENT_ROOT, 'index.html')));
+app.get('/', (_req, res) => {
+ const enabled=process.env.TRIBU_CORRUPTION_PREVIEW==='1'&&process.env.TRIBU_CORRUPTION_SETUP_PREVIEW==='1';
+ if(!enabled)return res.sendFile(path.join(CLIENT_ROOT,'index.html'));
+ const html=require('fs').readFileSync(path.join(CLIENT_ROOT,'index.html'),'utf8');
+ res.set('Cache-Control','no-store').type('html').send(require('./preview-html').previewHtml(html,true));
+});
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'TRIBU Online beta', rooms: rooms.size }));
 
 const server = http.createServer(app);

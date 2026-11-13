@@ -6910,6 +6910,8 @@ $('startBtn').onclick=()=>launchLegacyMode($('gameMode').value,+$('victoryMode')
 $('onlineCreate').onclick=()=>{onlinePseudo();showOnlineScreen('onlineConfigScreen')};
 $('onlineJoin').onclick=()=>{onlinePseudo();onlineResumeRefresh();showOnlineScreen('onlineJoinScreen')};
 let onlineCreatingRoom=false;
+const corruptionTrialEnabled=window.TRIBU_CORRUPTION_PREVIEW===true;
+if(corruptionTrialEnabled){const option=$('onlineGameVersion').querySelector('[value="corruption"]');option.disabled=false;option.textContent='Extension 1 : Corruption — version d’essai';}
 function showOnlinePlayerChoices(){
  const version=$('onlineGameVersion').value;
  document.querySelector('[data-online-mode="6h"]').classList.toggle('hidden',version!=='corruption');
@@ -6920,10 +6922,10 @@ $('onlineCreateRoom').onclick=showOnlinePlayerChoices;
 $('onlineConfigBack').onclick=()=>{if(!onlineCreatingRoom)showOnlineScreen('onlineConfigScreen')};
 document.querySelectorAll('[data-online-mode]').forEach(b=>b.onclick=async()=>{
  if(onlineCreatingRoom||b.disabled)return;
- if($('onlineGameVersion').value!=='base'){onlineError(new Error('Cette extension n’est pas encore disponible.'));return}
+ if($('onlineGameVersion').value!=='base'&&!($('onlineGameVersion').value==='corruption'&&corruptionTrialEnabled)){onlineError(new Error('Cette extension n’est pas encore disponible.'));return}
  onlineSelectedMode=b.dataset.onlineMode;
  if(onlineSelectedMode==='1v4'){
-   launchLegacyMode('1v4',+$('onlineVictory').value||3);
+   launchLegacyMode('1v4',+$('onlineVictory').value||3,$('onlineGameVersion').value);
    G.battleReactionSeconds=+$('onlineBattleReaction').value||15;
    return;
  }
