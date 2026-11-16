@@ -311,3 +311,7 @@ Section de l'ombre targets land/sea, reinforces own attack or defense (including
 Gold media is preserved when only the snapshot timer is rebuilt; actual pause/end stops it and actual resume restarts it. Fixes repeated opening seconds during resynchronization.
 
 PASS check-nov16.cjs local rule/UI/audio spy scenarios; check-shadow-online-nov16.cjs two-browser sea reinforcement with canonical server/source/card assertions; check-battle-alliances-online-browser.cjs Elf/Ogre/reload regression; check-tablet-gestures.cjs emulated14 hand lenses/holds; check-foundations.cjs base/portals/NPC regression; all58 server tests including storm authorization/replay and sea flee refusal. These are targeted checks, not full real-device/audio acceptance.
+
+
+## Checkpoint 51 — City selection halos and NPC size (2026-11-16)
+Selection rings now render on a pointer-transparent pseudo-element at z-index6, above city terrain discs (0/1) and below unit stacks (8). Covers sacrifice/Shadow/Egnobombe eligibility and other region selection highlights; mandatory Golem/Revolts/alliance layers already render above the city. NPC display explicitly set to48x48px (+20% from intended40px), as clarified by user; selector specificity overrides the generic map image width. No rule changes. Local visual check passed for white/orange city discs,48px token and pointer-transparent overlay; screenshot halo-city-preview.png. Applies to trial branch only; stable main unchanged.
