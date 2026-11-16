@@ -9,7 +9,7 @@ function mount({map,panel,plan,viewer,playerName,dieImage,onChoose,onReset,onCon
  layer.style.cssText='position:absolute;inset:0;pointer-events:none;z-index:25';
  const box=document.createElement('section');box.className='allianceLossPanel';
  const heading=document.createElement('h3');heading.textContent=golem?'Violence aveugle — dé '+plan.roll:revolt?'Révolte !':plan.kind==='ogre'?'Ogres — pertes adjacentes':'Perte de votre alliance';box.appendChild(heading);
- const message=document.createElement('p');message.textContent=mine&&golem?'Choisissez une Région puis les unités à supprimer. Le nombre requis est indiqué pour chaque Région.':mine&&revolt?'Choisissez une ou deux unités d’une même Région. Cliquez sur OK pour confirmer, ou changez votre choix.':mine?'Choisissez les unités à retirer. Les pertes ne seront appliquées qu’après OK.':'En attente de '+playerName+' pour le choix des unités à retirer.';box.appendChild(message);
+ const message=document.createElement('p');message.textContent=mine&&golem?'Choisissez une Région puis les unités à supprimer. Cliquez sur OK pour confirmer, ou changez votre choix.':mine&&revolt?'Choisissez une ou deux unités d’une même Région. Cliquez sur OK pour confirmer, ou changez votre choix.':mine?'Choisissez les unités à retirer. Les pertes ne seront appliquées qu’après OK.':'En attente de '+playerName+' pour le choix des unités à retirer.';box.appendChild(message);
  const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');
  svg.style.cssText='position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:19';
  const endpoints=[],placed=new Map();
@@ -17,7 +17,7 @@ function mount({map,panel,plan,viewer,playerName,dieImage,onChoose,onReset,onCon
  for(const row of plan.regions){
   const choices=revolt?(plan.origin===row.region?plan.chosen:{}):row.chosen;
   const selected=Object.values(choices).reduce((a,b)=>a+b,0);
-  const label=document.createElement('p');label.textContent=row.region+' : '+selected+' / '+(golem?row.required:revolt?2:row.required)+' unité(s) choisie(s)';box.appendChild(label);
+  if(!golem){const label=document.createElement('p');label.textContent=row.region+' : '+selected+' / '+(golem?row.required:revolt?2:row.required)+' unité(s) choisie(s)';box.appendChild(label);}
   for(const group of row.groups){
    const target=group.kind==='attacking'?group.target:row.region;
    const anchor=Array.from(map.querySelectorAll('[data-region]')).find(e=>e.dataset.region===target);if(!anchor)continue;
