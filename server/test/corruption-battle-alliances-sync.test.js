@@ -4,6 +4,19 @@ const cards=[];A.install(cards);const elf=cards.findIndex(c=>c.allianceTribe==='
 const data={R:{A:[0,0,0,['B','C'],[]],B:[0,0,0,['A'],[]],C:[0,0,0,['A'],[]],D:[0,0,0,[],[]]},SEA:{},PORTS:{}};
 function fixture(){return {gameVersion:'corruption',legacyMode:true,game:{status:'playing'},legacyRevision:0,legacySnapshot:{g:{gameVersion:'corruption',active:0,phase:'play',players:[{name:'A',hand:[],inPlay:[ogre],inPlayUID:['ogre']},{name:'B',hand:[],inPlay:[elf],inPlayUID:['elf']}],b:{A:{owner:1,units:4,npcTribe:'elves'},B:{owner:null,units:0,hostile:true,npcTribe:'elves'},C:{owner:0,units:2,npcTribe:'ogres'},D:{owner:null,units:0,hostile:false}},sea:{},discard:[]},rule:{turnEpoch:2,battle:{kind:'land',attacker:0,defender:1,target:'A',attackUnits:3,attackOrigins:[{region:'C',moves:[1,1,1]}],elfChoice:{player:1,stage:'choice'}}}}}}
 const send=(r,actor,kind,extra={})=>S.action(r,actor,{kind,revision:r.legacyRevision,...extra},cards,data);
+
+test('Elf flee is land-only; storm roll is authorized once and survives replay',()=>{
+ const r=fixture(),map=JSON.parse(JSON.stringify(data));map.R.A[4]=['U'];map.SEA.U=[];map.PORTS.U=['A'];
+ r.legacySnapshot.g.sea.U={fleets:{1:2,0:1}};r.legacySnapshot.g.oracleActive=6;
+ const act=(kind,extra={})=>S.action(r,1,{kind,revision:r.legacyRevision,...extra},cards,map);
+ assert(act('elfChoose').ok);assert(act('elfFlee',{destination:'U'}).ok);
+ const roll=r.legacySnapshot.rule.battle.elfChoice.stormRoll;
+ assert(Number.isInteger(roll)&&roll>=1&&roll<=6);
+ assert.equal(act('elfFlee',{destination:'U'}).ok,false);
+ assert.equal(r.legacySnapshot.rule.battle.elfChoice.stormRoll,roll);
+ const battle={kind:'sea',target:'U',defender:1,attacker:0};
+ assert.deepEqual(B.elfDestinations(r.legacySnapshot.g,battle,cards,map),[]);
+});
 test('Elf defender outside own turn: persisted choice, destination revalidation, replay blocked',()=>{
  const r=fixture();assert.equal(send(r,0,'elfChoose').ok,false);assert(send(r,1,'elfChoose').ok);
  assert.equal(r.legacySnapshot.rule.battle.elfChoice.stage,'destination');

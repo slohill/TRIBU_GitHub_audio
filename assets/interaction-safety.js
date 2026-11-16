@@ -65,9 +65,9 @@ function bindActionGesture(el,key,title,text,run,available=()=>true,startAction=
  };
  el.onclick=el._gestureClick;
  el.onpointerdown=e=>{
-   if(e.button!==0||e.target.closest('.cardArtHint'))return;
+   if((e.pointerType==='mouse'&&e.button!==0)||e.target.closest('.cardArtHint'))return;
    cancel();origin={x:e.clientX,y:e.clientY};const spec=el._actionSpec;
-   if(el.closest('#hand')){timer=setTimeout(()=>{timer=null;suppressActionClick=true;closeActionPreview();openOfficialCard(spec.title,CARDS.find(c=>c.name===spec.title)?.type||'',CARDS.find(c=>c.name===spec.title)?.effect||spec.text)},520);return}
+   if(el.closest('#hand')){timer=setTimeout(()=>{timer=null;suppressActionClick=true;closeActionPreview();openOfficialCard(spec.title,CARDS.find(c=>c.name===spec.title)?.type||'',CARDS.find(c=>c.name===spec.title)?.effect||spec.text,true)},520);return}
    if(!spec.available())return;
    const valid=interactionContextValid(spec.startAction);
    timer=setTimeout(()=>{timer=null;if(!valid()||!spec.available())return;suppressActionClick=true;execute(spec,e,valid)},520);

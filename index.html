@@ -123,6 +123,8 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 .agentOverlay.hidden{display:none}
 .agentModal{width:min(620px,94vw);max-height:80vh;overflow:auto;background:#19201d;border:2px solid #69766f;border-radius:12px;padding:14px}
 .agentChoices{display:grid;gap:7px;margin:10px 0}.agentChoices button{text-align:left}
+.guideCardRow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.guideCardRow button{min-width:0;padding:5px;text-align:center;background:#29251e;color:#fff}.guideCardRow img{display:block;width:100%;max-height:210px;object-fit:contain;margin:0 auto 6px}.guideCardRow button:disabled{opacity:.7}
+#hand .card{-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}#hand .officialCardThumb{pointer-events:none;-webkit-user-drag:none}
 .inPlayPeekItem.agentReady{border:2px solid #46e37a;box-shadow:0 0 7px #46e37a55;cursor:pointer}
 .richDragonTarget{outline:5px solid #ffb52e!important;box-shadow:0 0 0 8px #ffb52e33!important}
 
@@ -132,7 +134,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 .inPlayTitleList{display:flex;flex-direction:column;gap:4px}
 .inPlayTitleBtn{font-size:10px;line-height:1.15;background:#26302b;border:1px solid #46514c;border-radius:5px;padding:5px 4px;cursor:pointer;text-align:left;position:relative}
 .inPlayTitleBtn.usable{border:2px solid #46e37a;box-shadow:0 0 6px #46e37a55}
-.inPlayZoom{float:right;margin:0 0 2px 4px;padding:1px 5px;min-width:24px;min-height:24px;font-size:17px;line-height:1;cursor:zoom-in}.discardMini{cursor:zoom-in}
+.inPlayTitleBtn .inPlayZoom{float:right;flex:none;margin:0 0 2px 4px;padding:0;width:22px!important;height:22px;min-width:22px;min-height:22px;font-size:13px;line-height:1;cursor:zoom-in}.discardMini{cursor:zoom-in}
 .inPlayTitleBtn.selected{outline:2px solid #f2d35c}
 .inPlayPreview{position:absolute;left:50%;top:18%;transform:translateX(-50%);z-index:72;width:min(390px,78%);background:#111b18ee;border:3px solid #69766f;border-radius:12px;padding:12px 14px;box-shadow:0 10px 30px #000c;text-align:left;line-height:1.35}
 .inPlayPreview.hidden{display:none}
@@ -412,6 +414,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 .spot .buildingPreview{pointer-events:auto!important;cursor:pointer}.buildingPreview:focus-visible{outline:2px solid #fff;outline-offset:3px}
 .die.walledDie,.battleDie.walledDie{position:relative;overflow:visible;isolation:isolate}
 .walledDie::before{content:"";position:absolute;pointer-events:none;z-index:-2;left:-25%;top:-5%;width:150%;height:150%;background:url("assets/images/tokens/murs_frontaliers.webp") center/contain no-repeat}
+.walledDie[data-faction="Morcatt"]::before{top:-20%}
 .walledDie::after{content:"";position:absolute;pointer-events:none;z-index:-1;inset:0;background-image:inherit;background-size:contain;background-position:center;background-repeat:no-repeat}
 /* Permanent NPC identity stays behind the legacy units, buildings and Dragon. */
 .corruptionNpcToken{position:absolute;width:40px;height:40px;object-fit:contain;left:50%;top:50%;transform:translate(-50%,-50%);z-index:0;pointer-events:none}
@@ -660,7 +663,7 @@ aside{background:#19201d;padding:13px;border-radius:9px;height:max-content}.sect
 <script src="assets/corruption-heroes.js?v=1"></script>
 <script src="assets/corruption-theft.js?v=1"></script>
 <script src="assets/corruption-golem.js?v=1"></script>
-<script src="assets/corruption-battle-alliances.js?v=1"></script>
+<script src="assets/corruption-battle-alliances.js?v=20261116"></script>
 <script src="assets/corruption-guide.js?v=1"></script>
 <script src="assets/gold-reaction-state.js?v=1"></script>
 <script src="assets/corruption-guild.js?v=1"></script>
@@ -702,6 +705,7 @@ function applyOfficialCardArt(el,c){
  const src=OFFICIAL_CARD_ART[c.name];if(!src)return;
  el.classList.add('hasOfficialArt');
  el.innerHTML='<img class="officialCardThumb" src="'+src+'" alt="'+c.name.replace(/"/g,'&quot;')+'"><span class="cardArtHint" role="button" aria-label="Voir la carte en détail">⌕</span><div class="officialCardCaption">'+c.name+'</div>';
+ el.querySelector('.officialCardThumb').draggable=false;el.oncontextmenu=e=>e.preventDefault();
  const hint=el.querySelector('.cardArtHint');
  let artHold=null,artLong=false;
  // Clic normal = comportement historique de la carte (jouer / sélectionner).
@@ -741,7 +745,7 @@ const FACTIONS=[{name:'Griffes-Blanches',cap:3,def:1},{name:'Reptones',cap:3,def
 
 FACTIONS.push({name:'Egnorax',cap:Infinity,def:0.5},{name:'Morcatt',cap:3,def:1});
 Object.assign(FACTION_PORTRAIT_META,{E_A:{faction:5,label:'Egnorax A',extension:'corruption'},E_B:{faction:5,label:'Egnorax B',extension:'corruption'},M_A:{faction:6,label:'Morcatt A',extension:'corruption'},M_B:{faction:6,label:'Morcatt B',extension:'corruption'}});
-Object.assign(FACTION_PORTRAITS,{E_A:'assets/images/factions/egnorax_a.webp',E_B:'assets/images/factions/egnorax_b.webp',M_A:'assets/images/factions/morcatt_a.webp',M_B:'assets/images/factions/morcatt_b.webp'});
+Object.assign(FACTION_PORTRAITS,{E_A:'assets/images/factions/egnorax_a.webp?v=20261116',E_B:'assets/images/factions/egnorax_b.webp',M_A:'assets/images/factions/morcatt_a.webp',M_B:'assets/images/factions/morcatt_b.webp?v=20261116'});
 const ORACLES=[
  {name:'Canicule',kind:'climate'},
  {name:'En quête de destruction',kind:'dragon'},
@@ -1049,9 +1053,10 @@ function goldReactionAudio(){
 function startGoldReactionSfx(){
  if(!audioSfxEnabled||!goldReaction||goldReaction.pausedByCard||commerceBattlePaused||isHotseatMode())return;
  const a=goldReactionAudio();
+ if(goldReactionSfxActive&&!a.paused)return;
  try{a.pause();a.currentTime=0}catch(e){}
  a.volume=.78;goldReactionSfxActive=true;
- try{const pr=a.play();if(pr&&pr.catch)pr.catch(error=>audioReportPlayError('gaindor',error))}catch(e){audioReportPlayError('gaindor',e)}
+ try{const pr=a.play();if(pr&&pr.catch)pr.catch(error=>{goldReactionSfxActive=false;audioReportPlayError('gaindor',error)})}catch(e){goldReactionSfxActive=false;audioReportPlayError('gaindor',e)}
 }
 function stopGoldReactionSfx(){
  if(!goldReactionSfx)return;
@@ -1266,9 +1271,9 @@ function eligibleAmbushers(receiver){
  if(noblesseImmune(receiver))return [];
  return G.players.map((pl,i)=>i).filter(i=>i!==receiver&&embuscadeIndex(i)>=0);
 }
-function clearGoldReactionTimer(){
+function clearGoldReactionTimer(keepSound=false){
  if(goldReactionTick){clearInterval(goldReactionTick);goldReactionTick=null}
- stopGoldReactionSfx();
+ if(!keepSound)stopGoldReactionSfx();
 }
 function pauseGoldReactionForCard(){if(!goldReaction)return false;clearGoldReactionTimer();goldReaction.pausedByCard=true;return true}
 function resumeGoldReactionAfterCard(){if(G?.noblesseRevolts?.length||allianceLossActive()||guideDivinationActive())return false;if(!goldReaction||!goldReaction.pausedByCard)return;goldReaction.seconds=10;delete goldReaction.pausedByCard;startGoldReactionTimer();render();if(G&&G.online&&G.online.legacySync)onlineLegacyPushGoldReactionNow()}
@@ -1285,8 +1290,8 @@ function continueAfterGold(after){
 }
 
 function startGoldReactionTimer(){
- clearGoldReactionTimer();
- if(!goldReaction||commerceClocksPaused())return;
+ clearGoldReactionTimer(true);
+ if(!goldReaction||goldReaction.pausedByCard||commerceClocksPaused()){stopGoldReactionSfx();return;}
  if(G&&G.online&&G.online.legacySync&&!onlineLegacyOwnsGoldTimer()){onlineLegacyStartGoldViewTimer();return}
  if(G&&G.online&&G.online.legacySync)onlineLegacyGoldViewSeconds=null;
  if(isHotseatMode()){
@@ -1513,6 +1518,7 @@ function offerGoldGain(receiver,amount,source,after,details={}){
  }
  const pausedBattle=!!battle;
  if(pausedBattle){clearInterval(battleTick);clearTimeout(botReactionTimer)}
+ stopGoldReactionSfx();
  goldReaction=TribuGoldReactionState.create(receiver,amount,source,after,G.active,turnEpoch,pausedBattle,details);
  log(p(receiver).name+' doit recevoir '+amount+' Or : '+(isHotseatMode()?'réactions hot-seat sans chrono.':'fenêtre de réaction de 10 secondes.')+(pausedBattle?' La bataille est mise en pause.':''));
  startGoldReactionTimer();
@@ -1543,7 +1549,7 @@ function assassinTargets(actor){
 function showAssassinMapMessage(targetOwner,targetName,actor,killed){
  const el=$('assassinMapMessage');if(!el)return;
  clearTimeout(assassinMessageTick);
- const role=targetName==='Voleur'?'maître des voleurs':'maître espion';
+ const role=targetName==='Voleur'?'maître des voleurs':targetName==='Espion'?'maître espion':targetName;
  const actorName=p(actor).name;
  const msg=killed
    ? 'Votre '+role+' a périt mystérieusement. Tout porte à croire que '+actorName+' est derrière ce méfait'
@@ -1995,16 +2001,15 @@ function validateShadowUnits(){
  clearInterval(shadowTick);shadowState.stage='target';shadowState.units=shadowTotal();
  render();
 }
+function shadowBattleAt(r){
+ if(!shadowState)return null;
+ return engagedBattles().find(b=>!b.environmentResolved&&b.target===r&&(b.attacker===shadowState.player||b.defender===shadowState.player))||null;
+}
 function shadowTargetLegal(r){
- if(!shadowState||shadowState.stage!=='target'||isSea(r))return false;
- const s=shadowState,c=G.b[r];
- // Pendant une bataille, la région attaquée est une cible légale uniquement pour
- // son défenseur : Section de l'ombre peut alors y amener jusqu'à 6 unités en défense.
- if(s.parentBattle&&s.parentBattle.target===r){
-   return s.parentBattle.kind==='land'&&s.parentBattle.defender===s.player&&c.owner===s.player;
- }
- if(c.owner===s.player)return false;
- return true;
+ if(!shadowState||shadowState.stage!=='target'||!POS[r])return false;
+ const actor=shadowState.player;
+ const fights=engagedBattles().filter(b=>!b.environmentResolved&&b.target===r);
+ return !fights.length||fights.every(b=>['land','sea'].includes(b.kind)&&(b.attacker===actor||b.defender===actor));
 }
 function consumeShadowUnits(){
  const s=shadowState,actor=s.player;
@@ -2050,44 +2055,51 @@ function restoreShadowMovementAt(r,n){
  const carried=(shadowState.carriedMove||[]).slice(0,n);
  movable[r]=(movable[r]||[]).concat(carried);
 }
-function chooseShadowTarget(r){
+function chooseShadowTarget(r,seaDefender=undefined){
  if(!shadowTargetLegal(r))return;
- const s=shadowState,actor=s.player,n=s.units,c=G.b[r],parent=s.parentBattle;
+ const s=shadowState,actor=s.player,n=s.units,c=G.b[r],parent=s.parentBattle,existing=shadowBattleAt(r);
+ const enemies=isSea(r)?Object.entries(G.sea[r].fleets).filter(([i,n])=>Number(i)!==actor&&n>0):[];
+ if(isSea(r)&&!existing&&enemies.length&&seaDefender===undefined){s.seaTarget=r;render();return;}
+ if(seaDefender!==undefined&&seaDefender!==null&&!enemies.some(([i])=>Number(i)===seaDefender))return;
  consumeShadowUnits();
- if(parent&&parent.kind==='land'&&parent.target===r&&parent.attacker===actor){
-   parent.attackUnits+=n;
-   parent.attackOrigins=(parent.attackOrigins||[]).concat(s.attackOrigins.map(o=>({region:o.region,moves:o.moves.map(()=>0)})));
-   if(Array.isArray(parent.attackMove))for(let k=0;k<n;k++)parent.attackMove.push(0);
-   shadowState=null;battle=parent;battle.seconds=s.parentBattleSeconds??battleReactionSeconds();
-   log('Section de l’ombre renforce l’attaque en '+r+' avec '+n+' unité(s).');
-   resumeBattleTimer();render();return;
+ const finish=(message)=>{
+  shadowState=null;log(message);
+  if(parent){battle=parent;battle.seconds=s.parentBattleSeconds??battleReactionSeconds();resumeBattleTimer();}
+  render();queueBot('reprise après Section');
+ };
+ if(existing&&existing.attacker===actor){
+   existing.attackUnits+=n;
+   existing.attackOrigins=(existing.attackOrigins||[]).concat(s.attackOrigins);
+   const key=existing.fromShadow?'shadowMove':'attackMove';
+   existing[key]=(existing[key]||[]).concat(s.carriedMove);
+   finish('Section de l’ombre renforce l’attaque en '+r+' avec '+n+' unité(s).');return;
  }
- if(c.owner===actor&&parent&&parent.target===r&&parent.defender===actor){
-   const defenseGain=defendingUnits(actor,parent.defOriginalUnits+n)-defendingUnits(actor,parent.defOriginalUnits);
-   c.units+=n;parent.defOriginalUnits+=n;parent.defenseBase+=defenseGain;
+ if(existing&&existing.defender===actor){
+   const before=existing.defOriginalUnits;
+   if(isSea(r))G.sea[r].fleets[actor]=(G.sea[r].fleets[actor]||0)+n;else c.units+=n;
+   existing.defOriginalUnits=units(r,actor);existing.epicDefenderUnits=existing.defOriginalUnits;
+   const defenseGain=defendingUnits(actor,existing.defOriginalUnits)-defendingUnits(actor,before);
+   existing.defenseBase+=defenseGain;
    restoreShadowMovementAt(r,n);
-   shadowState=null;battle=parent;battle.seconds=s.parentBattleSeconds??battleReactionSeconds();
-   log('Section de l’ombre renforce '+r+' avec '+n+' unité(s) : +'+defenseGain+' Défense au siège.');
-   resumeBattleTimer();render();return;
+   finish('Section de l’ombre renforce '+r+' avec '+n+' unité(s) : +'+defenseGain+' Défense.');return;
  }
- // Empty / neutral peaceful conquest.
- if(c.owner===null&&(!c.hostile||TribuAlliances.peaceful(G,actor,r,CARDS))){
-   c.owner=actor;c.units=n;c.hostile=false;
-   restoreShadowMovementAt(r,n);
-   if(c.building&&c.building.owner!==actor&&['Forteresse','Icenia, la cité blanche','Sundo, cité du soleil'].includes(c.building.type)){
-     const label=c.building.type;transferBuildingCard(c.building,actor);log(p(actor).name+' capture '+label+' grâce à Section de l’ombre en '+r+'.');
-   }
-   shadowState=null;log('Section de l’ombre conquiert '+r+' avec '+n+' unité(s), sans bataille.');
-   if(parent){battle=parent;battle.seconds=s.parentBattleSeconds??battleReactionSeconds();resumeBattleTimer()}render();queueBot('reprise après Section');return;
+ if(isSea(r)&&(seaDefender===null||!enemies.length)){
+   G.sea[r].fleets[actor]=(G.sea[r].fleets[actor]||0)+n;restoreShadowMovementAt(r,n);
+   finish('Section de l’ombre envoie '+n+' unité(s) en '+r+'.');return;
  }
- // Battle B: pause A until B resolves.
+ if(!isSea(r)&&(c.owner===actor||(c.owner===null&&(!c.hostile||TribuAlliances.peaceful(G,actor,r,CARDS))))){
+   c.owner=actor;c.units+=n;c.hostile=false;restoreShadowMovementAt(r,n);
+   if(c.building&&c.building.owner!==actor&&['Forteresse','Icenia, la cité blanche','Sundo, cité du soleil'].includes(c.building.type))transferBuildingCard(c.building,actor);
+   finish('Section de l’ombre rejoint '+r+' avec '+n+' unité(s), sans bataille.');return;
+ }
  shadowState=null;
- if(parent)battleStack.push({battle:parent,seconds:s.parentBattleSeconds||15});
- const hostile=effectiveHostile(r),db=defensiveBuildingAt(r);
- const defender=hostile?null:(c.owner!==null?c.owner:(db&&db.owner!==null?db.owner:null));
- const defBase=(hostile?5:(defender===null?0:defendingUnits(defender,c.units)))+buildingDefense(r);
- battle={kind:'land',target:r,attacker:actor,defender,attackUnits:n,defenseBase:defBase,defOriginalUnits:c.units,epicDefenderUnits:c.units,hostile:hostile,stack:[],seconds:15,reactionSide:'defender',fromShadow:true,attackOrigins:s.attackOrigins,shadowMove:(s.carriedMove||[]).slice()};
- log('Section de l’ombre ouvre une nouvelle bataille en '+r+' : '+n+' Att contre '+defBase+' Déf.');startReactionWindow();render();
+ if(parent)battleStack.push({battle:parent,seconds:s.parentBattleSeconds??battleReactionSeconds()});
+ const sea=isSea(r),hostile=sea?false:effectiveHostile(r),db=sea?null:defensiveBuildingAt(r);
+ const defender=sea?seaDefender:hostile?null:(c.owner!==null?c.owner:(db&&db.owner!==null?db.owner:null));
+ const defUnits=sea?(G.sea[r].fleets[defender]||0):c.units;
+ const defBase=(hostile?5:(defender===null?0:defendingUnits(defender,defUnits)))+(sea?0:buildingDefense(r));
+ battle={kind:sea?'sea':'land',target:r,attacker:actor,defender,attackUnits:n,defenseBase:defBase,defOriginalUnits:defUnits,epicDefenderUnits:defUnits,hostile,stack:[],seconds:battleReactionSeconds(),reactionSide:'defender',fromShadow:true,attackOrigins:s.attackOrigins,shadowMove:s.carriedMove.slice()};
+ log('Section de l’ombre ouvre une nouvelle bataille en '+r+' : '+n+' Att contre '+defBase+' Déf.');audioBattleBegin();startReactionWindow();render();
 }
 function resumeBattleTimer(){if(allianceLossActive()||guideDivinationActive())return false;
  if(battle?.elfChoice){renderElfFlee();if(battle?.elfChoice)return false;}
@@ -2109,7 +2121,15 @@ function renderShadowBanner(){
  if(s.stage==='gather'){
    if(viewer===s.player){el.innerHTML='<h3>SECTION DE L’OMBRE <span class="shadowDie">'+shadowTotal()+'</span></h3><div class="battleDetail">Préparation : '+(isHotseatMode()?'Sans chrono':s.seconds+' s')+' — choisissez 1 à 6 unités sur vos régions ou aires maritimes.</div><div class="shadowControls"><button id="shadowCancel">Annuler</button><button id="shadowValidate">Valider '+shadowTotal()+'/6</button></div>';setTimeout(()=>{const a=$('shadowCancel'),v=$('shadowValidate');if(a)a.onclick=()=>cancelShadow(false);if(v){v.disabled=shadowTotal()<1;v.onclick=validateShadowUnits}},0)}
    else el.innerHTML='<h3>RÉACTION EN COURS</h3><div class="battleDetail">15 s</div>';
- }else el.innerHTML='<h3>SECTION DE L’OMBRE <span class="shadowDie">'+s.units+'</span></h3><div class="battleDetail">Choisissez une région à conquérir, ou votre région actuellement attaquée pour la renforcer.</div>';
+ }else{
+  el.innerHTML='<h3>SECTION DE L’OMBRE <span class="shadowDie">'+s.units+'</span></h3><div class="battleDetail">Choisissez une case à rejoindre ou une bataille où renforcer votre attaque ou votre défense.</div>';
+  if(s.seaTarget&&viewer===s.player){
+   const box=document.createElement('div');box.className='shadowControls';el.appendChild(box);
+   const choice=(label,target)=>{const b=document.createElement('button');b.textContent=label;b.onclick=()=>chooseShadowTarget(s.seaTarget,target);box.appendChild(b)};
+   choice('Naviguer / renforcer ma flotte',null);
+   Object.entries(G.sea[s.seaTarget].fleets).filter(([i,n])=>Number(i)!==s.player&&n>0).forEach(([i,n])=>choice('Attaquer '+p(Number(i)).name+' ('+n+')',Number(i)));
+  }
+ }
  return true;
 }
 function occupiedCaseCount(i){let n=0;Object.keys(G.b).forEach(r=>{if(G.b[r].owner===i&&G.b[r].units>0)n++});Object.keys(G.sea).forEach(s=>{if((G.sea[s].fleets[i]||0)>0)n++});return n}
@@ -2385,7 +2405,7 @@ function showGuildFury(){
  const targets=s.roll===6?assassinTargets(s.actor):(s.roll>=4?opponentIndexes(s.actor).filter(i=>p(i).hand.length):[]);
  if(!targets.length){if(G.online?.legacySync){if(!onlineHeroPending&&!onlineLegacyApplying)onlineHeroAction({kind:'guildResolve'});return}finishGuildFury(false);return}
  openAgentModal('Furie Nocturne — '+s.roll,s.roll===6?'Choisissez un Agent ou un Héros à éliminer.':'Choisissez un adversaire : une carte sera volée au hasard dans sa main.');
- targets.forEach(t=>addAgentChoice(s.roll===6?p(t.owner).name+' — '+t.name:p(t).name,()=>resolveGuildFury(t)));
+ targets.forEach(t=>addAgentChoice(s.roll===6?p(t.owner).name+' — '+t.name:p(t).name+' — '+p(t).hand.length+' carte(s) en main',()=>resolveGuildFury(t)));
 }
 function resolveGuildFury(target){
  const s=agentModalState;if(s?.kind!=='guildFury'||s.actor!==localViewer())return false;
@@ -2469,11 +2489,12 @@ function startGuideDivination(){
 function showGuideDivination(){
  const state=agentModalState;if(state?.kind!=='guideDivination'||state.actor!==localViewer())return;
  openAgentModal('Divination — Guide Ancestrale','Choisissez les positions 1, 2 et 3. La position 1 sera la prochaine carte Oracle.');
+ const row=document.createElement('div');row.className='guideCardRow';$('agentChoices').appendChild(row);
  state.cards.forEach((id,index)=>{
   const rank=state.order.indexOf(index),button=document.createElement('button');button.type='button';button.dataset.guideIndex=index;
   button.textContent=(rank>=0?(rank+1)+' — ':'')+ORACLES[id].name;button.disabled=rank>=0;
-  const img=document.createElement('img');img.src=ORACLE_CARD_ART[ORACLES[id].name];img.alt=ORACLES[id].name;img.style.cssText='display:block;max-width:100px;max-height:140px';button.prepend(img);
-  button.onclick=()=>{if(agentModalState!==state||localViewer()!==state.actor)return;if(G.online?.legacySync){onlineHeroAction({kind:'guideSelect',index});return}TribuGuide.select(state,index);showGuideDivination()};$('agentChoices').appendChild(button);
+  const img=document.createElement('img');img.src=ORACLE_CARD_ART[ORACLES[id].name];img.alt=ORACLES[id].name;button.prepend(img);
+  button.onclick=()=>{if(agentModalState!==state||localViewer()!==state.actor)return;if(G.online?.legacySync){onlineHeroAction({kind:'guideSelect',index});return}TribuGuide.select(state,index);showGuideDivination()};row.appendChild(button);
  });
  addAgentChoice('Recommencer mon ordre',()=>{if(G.online?.legacySync){onlineHeroAction({kind:'guideReset'});return}state.order=[];showGuideDivination()});
  addAgentChoice('Garder cet ordre',()=>{if(G.online?.legacySync){onlineHeroAction({kind:'guideConfirm',keep:true});return}state.order=[0,1,2];confirmGuideDivination()});
@@ -3981,9 +4002,15 @@ function fleeElfTo(destination){
  if(isSea(b.target))G.sea[b.target].fleets[defender]=0;
  else G.b[b.target].units=0;
  if(defender===G.active)movable[b.target]=[];
- if(isSea(destination))G.sea[destination].fleets[defender]=(G.sea[destination].fleets[defender]||0)+n;
+ let survivors=n;
+ if(isSea(destination)&&G.oracleActive!==null&&ORACLES[G.oracleActive].kind==='seaStorm'){
+  const roll=state.stormRoll||1+Math.floor(Math.random()*6);
+  log('🌊 Tempête en mer — fuite vers '+destination+' : dé '+roll+'.');
+  if(roll%2){survivors=0;log(n+' unité(s) sont perdues dans la Tempête en mer.');}
+ }
+ if(isSea(destination))G.sea[destination].fleets[defender]=(G.sea[destination].fleets[defender]||0)+survivors;
  else{const c=G.b[destination];c.owner=defender;c.units+=n;c.hostile=false;const building=defensiveBuildingAt(destination);if(building&&building.owner!==defender)transferBuildingCard(building,defender)}
- if(defender===G.active)movable[destination]=(movable[destination]||[]).concat(carried);
+ if(defender===G.active)movable[destination]=(movable[destination]||[]).concat(carried.slice(0,survivors));
  if(isSea(b.target))G.sea[b.target].fleets[b.attacker]=(G.sea[b.target].fleets[b.attacker]||0)+b.attackUnits;
  else{const c=G.b[b.target];c.owner=b.attacker;c.units=b.attackUnits;c.hostile=false;const building=defensiveBuildingAt(b.target);if(building)transferBuildingCard(building,b.attacker)}
  if(b.attacker===G.active)movable[b.target]=(movable[b.target]||[]).concat(b.fromShadow?(b.shadowMove||[]):(b.attackMove||[]));
@@ -4001,7 +4028,7 @@ function fleeElfTo(destination){
   }
  }
  finishBattleCards();b.stack=[];b.environmentResolved=true;if(G.online?.legacySync)G.elfResolved=state.onlineId;delete b.elfChoice;
- log(p(defender).name+' fuit vers '+destination+' avec '+n+' unité(s). '+p(b.attacker).name+' conquiert '+b.target+'.');
+ log(p(defender).name+' fuit vers '+destination+' avec '+survivors+' unité(s) survivante(s). '+p(b.attacker).name+' conquiert '+b.target+'.');
  finishDestroyedBattle();render();if(G.online?.legacySync)onlineLegacyPushPriorityTerminalNow(defender);queueBot('après fuite elfique');return true;
 }
 function startReactionWindow(){
@@ -5097,7 +5124,7 @@ function factionDieImage(owner){
 }
 
 function die(owner,count,region=null){
- const d=document.createElement('span');d.className='die';d.dataset.owner=owner;
+ const d=document.createElement('span');d.className='die';d.dataset.owner=owner;d.dataset.faction=FACTIONS[p(owner).faction].name;
  if(G.revolts?.active&&!G.revolts.active.suppressed&&G.revolts.active.target===owner)d.classList.add('revoltDie');
  d.style.backgroundImage='url("'+factionDieImage(owner)+'")';
  d.style.backgroundColor='transparent';
@@ -5105,7 +5132,7 @@ function die(owner,count,region=null){
  d.style.filter='none';
  const defending=region!==null&&owner!==G.active;
  const y=FACTIONS[G.players[owner].faction].name==='Yonkaïs'&&defending;
- const walls=(region!==null&&owner!==G.active)?wallCount(owner):0;
+ const walls=(region!==null&&!isSea(region))?wallCount(owner):0;
  if(walls>0)d.classList.add('walledDie');
  const shown=defending?defendingUnits(owner,count):count;
  d.textContent=shown;
@@ -5247,6 +5274,7 @@ function renderMap(){
    previewDefenders.forEach(e=>{
      const dd=document.createElement('span');dd.className='battleDie defenderDie';dd.style.backgroundImage='url("'+factionDieImage(e.owner)+'")';
      const defUnitValue=defendingUnits(e.owner,e.units);
+     dd.dataset.faction=FACTIONS[p(e.owner).faction].name;
      if(!isSea(id)&&wallCount(e.owner)>0)dd.classList.add('walledDie');
      dd.textContent=defUnitValue;dd.title=p(e.owner).name+' : '+defUnitValue+' Défense affichée';pair.appendChild(dd);
    });
@@ -5257,7 +5285,8 @@ function renderMap(){
    const ad=document.createElement('span');ad.className='battleDie attackerDie';ad.style.backgroundImage='url("'+factionDieImage(battle.attacker)+'")';ad.textContent=battle.attackUnits;ad.title=p(battle.attacker).name+' : '+battle.attackUnits+' unité(s) attaquante(s)';
    const dd=document.createElement('span');dd.className='battleDie defenderDie';dd.style.backgroundImage='url("'+factionDieImage(battle.defender)+'")';
    const defUnitValue=defendingUnits(battle.defender,battle.defOriginalUnits);
-   if(wallCount(battle.defender)>0)dd.classList.add('walledDie');
+   dd.dataset.faction=FACTIONS[p(battle.defender).faction].name;
+   if(!isSea(id)&&wallCount(battle.defender)>0)dd.classList.add('walledDie');
    dd.textContent=defUnitValue;dd.title=p(battle.defender).name+' : '+defUnitValue+' Défense affichée';
    pair.appendChild(ad);pair.appendChild(dd);b.appendChild(pair);
  }
@@ -6147,10 +6176,10 @@ function onlineLegacyOwnsGoldTimer(){
  return G.active===me;
 }
 function onlineLegacyStartGoldViewTimer(){
- clearGoldReactionTimer();
- if(!goldReaction){onlineLegacyGoldViewSeconds=null;return}
+ clearGoldReactionTimer(true);
+ if(!goldReaction){stopGoldReactionSfx();onlineLegacyGoldViewSeconds=null;return}
  onlineLegacyGoldViewSeconds=Math.max(0,Number(goldReaction.seconds)||0);
- if(goldReaction.pausedByCard||commerceBattlePaused)return;
+ if(goldReaction.pausedByCard||commerceBattlePaused){stopGoldReactionSfx();return;}
  startGoldReactionSfx();
  goldReactionTick=setInterval(()=>{
    if(!goldReaction){clearGoldReactionTimer();onlineLegacyGoldViewSeconds=null;return}
@@ -6161,8 +6190,8 @@ function onlineLegacyStartGoldViewTimer(){
  },1000);
 }
 function onlineLegacyResumeGoldView(){
- clearGoldReactionTimer();
- if(!goldReaction){onlineLegacyGoldViewSeconds=null;return}
+ clearGoldReactionTimer(true);
+ if(!goldReaction){stopGoldReactionSfx();onlineLegacyGoldViewSeconds=null;return}
  if(onlineLegacyOwnsGoldTimer()){onlineLegacyGoldViewSeconds=null;startGoldReactionTimer()}
  else onlineLegacyStartGoldViewTimer();
 }
@@ -6968,7 +6997,7 @@ $('commerceOverlay').onclick=e=>{if(e.target===$('commerceOverlay'))commerceClos
 $('commerceClose').onclick=commerceClose;$('commerceNewOffer').onclick=()=>commerceStart('offer');$('commerceNewAsk').onclick=()=>commerceStart('ask');$('commerceShowCard').onclick=()=>commerceStart('show');
 $('hotseatReveal').onclick=revealHotseatHand;$('oracleNoticePass').onclick=finishOracleNotice;$('dragonSixPass').onclick=finishDragonSixNotice;$('dragonPublicPass').onclick=passDragonPublic;$('dragonCurseContinue').onclick=continueDragonCurse;$('discardPile').onclick=openDiscard;$('deckPile').onclick=()=>{};$('discardClose').onclick=closeDiscard;$('restart').onclick=init;$('resyncGame').onclick=onlineResynchroniseGame;$('victoryRestart').onclick=()=>{audioResetVictory();location.reload()};$('agentClose').onclick=closeAgentModal;$('draw').onclick=doDraw;$('harvest').onclick=doHarvest;$('recruit').onclick=doRecruit;$('resetRecruit').onclick=resetRecruitment;$('endRecruit').onclick=beginPlay;$('toOracle').onclick=toOracle;$('choiceConfirm').onclick=confirmCouncil;$('roll').onclick=roll;
 </script><script src="assets/tutorial.js?v=7"></script>
-<script src="assets/interaction-safety.js?v=20261110"></script>
+<script src="assets/interaction-safety.js?v=20261116"></script>
 <script src="assets/party-options.js?v=3"></script>
 <script src="assets/spectator.js?v=4"></script>
 <script src="assets/corruption-auction-ui.js?v=1"></script>

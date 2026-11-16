@@ -31,6 +31,8 @@ function action(room,actor,payload,cards,mapData){
   else if(payload.kind==='elfDefend'){state.stage='authorized';state.action='defend';}
   else if(payload.kind==='elfFlee'){
    if(state.stage!=='destination'||!BattleAlliances.elfDestinations(next,b,cards,mapData).includes(payload.destination))return fail('Destination interdite.');state.stage='authorized';state.action='flee';state.destination=payload.destination;
+   // Tempête en mer is legacy Oracle slot 6; expansion cards append after the base slots.
+   if(next.sea[payload.destination]&&next.oracleActive===6)state.stormRoll=require('crypto').randomInt(1,7);
   }else return fail('Action inconnue.');
   if(state.stage==='authorized')state.onlineId='elf:'+(room.legacyRevision+1)+':'+actor;
   room.legacyRevision=(room.legacyRevision||0)+1;return {ok:true};
