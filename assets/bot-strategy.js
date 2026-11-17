@@ -1,4 +1,54 @@
 /* Decisions only: all mutations use the existing game actions. No opponent hands. */
+function botCanActFor(actor){
+ return !!G?.players[actor]?.bot&&actor===G.active&&G.phase==='play'&&!gameOverState&&!battle&&!goldReaction&&
+  !priorityCardResolutionActive()&&!oracleState&&!oracleNoticeState&&!morcattAuctionActive()&&
+  (!G.online||G.online.legacySync&&onlineLegacyCanExecuteBot());
+}
+function botKnownCardValue(id,actor=G.active){
+ const c=CARDS[id];if(!c)return 0;
+ if(c.heroKey)return TribuHeroes.current(G,actor,CARDS)?3:10;
+ if(c.allianceTribe)return 7;
+ if(c.name==='Plan des trébuchets')return playerHasTrebuchets(actor)?1:6;
+ if(c.name==='Espion'||c.name==='Voleur')return p(actor).inPlay.some(x=>CARDS[x].name===c.name)?3:7;
+ if(c.name==='Taxe')return p(actor).gold+occupiedCaseCount(actor)>=40?1:7;
+ if(c.name==='Conseil de guerre')return 2;
+ if(['Catapultes','Pluie de flèches','Montures','Balistes','Mur de pique','Pyrodontes de guerre'].includes(c.name))return 6;
+ if(['Assassin','Embuscade','Corruption'].includes(c.name))return 8;
+ if(c.name==='Forteresse')return Object.keys(G.b).some(r=>G.b[r].owner===actor&&!hasBuilding(r))?7:2;
+ if(c.name==='Icenia, la cité blanche'||c.name==='Sundo, cité du soleil'){
+  const terrain=c.name.startsWith('Icenia')?'e':'d';
+  return Object.keys(G.b).some(r=>G.b[r].owner===actor&&!hasBuilding(r)&&currentTerrain(r)===terrain)?10:2;
+ }
+ return 7;
+}
+function botCouncilDiscards(actor){
+ return p(actor).hand.map((id,index)=>({index,value:botKnownCardValue(id,actor)}))
+  .sort((a,b)=>a.value-b.value||a.index-b.index).slice(0,2).map(x=>x.index);
+}
+function botPlayEconomyCard(){
+ const actor=G.active;if(!botCanActFor(actor))return false;
+ const tax=p(actor).hand.findIndex(id=>CARDS[id].name==='Taxe'),gain=occupiedCaseCount(actor);
+ if(tax>=0&&gain>0&&p(actor).gold+gain<40){playTax(tax,actor);return true}
+ const council=p(actor).hand.findIndex(id=>CARDS[id].name==='Conseil de guerre');
+ if(council>=0&&p(actor).botCouncilEpoch!==turnEpoch&&p(actor).hand.some((id,i)=>i!==council&&botKnownCardValue(id,actor)<=3)){
+  p(actor).botCouncilEpoch=turnEpoch;playCouncil(council,actor);return true;
+ }
+ return false;
+}
+function botOpponentPriority(actor,target){
+ // Public score and army only; card identities in opponents' hands stay unknown.
+ return victoryPoints(target)*8+ownRegs(target)*2;
+}
+function botChooseAgentTarget(actor,targets){
+ return [...targets].sort((a,b)=>
+  (botOpponentPriority(actor,b)+p(b).hand.length)-(botOpponentPriority(actor,a)+p(a).hand.length))[0];
+}
+function botChooseAssassinTarget(actor,targets){
+ return [...targets].sort((a,b)=>{
+  const score=t=>botOpponentPriority(actor,t.owner)+(CARDS[t.id]?.heroKey?20:CARDS[t.id]?.name==='Voleur'?8:4);
+  return score(b)-score(a);
+ })[0];
+}
 function botAvailableAttackBonus(actor,target){
  let bonus=(p(actor).attackTurnBonus||0)+TribuAlliances.bonus(G,actor,CARDS,'humans',1);
  for(const id of p(actor).hand){

@@ -1533,8 +1533,9 @@ function offerGoldGain(receiver,amount,source,after,details={}){
  render();
  maybeBotAmbush();
 }
-function cardFromViewerHand(handIndex,name){if(morcattAuctionActive()||allianceLossActive()||guideDivinationActive())return false;
- const v=localViewer(),id=G.players[v].hand[handIndex];
+function cardFromViewerHand(handIndex,name,actor=localViewer()){if(morcattAuctionActive()||allianceLossActive()||guideDivinationActive())return false;
+ if(actor!==localViewer()&&!botCanActFor(actor))return null;
+ const v=actor,id=G.players[v]?.hand[handIndex];
  return id!==undefined&&CARDS[id].name===name?{viewer:v,id}:null;
 }
 function discardHandCard(actor,handIndex){
@@ -1842,7 +1843,8 @@ function divinationSetVisible(oracleId){
 }
 
 function noteComplexAnytimeCard(handIndex){
- const v=localViewer(),id=G.players[v].hand[handIndex];if(id===undefined)return;
+ if(actor!==localViewer()&&!botCanActFor(actor))return null;
+ const v=actor,id=G.players[v]?.hand[handIndex];if(id===undefined)return;
  const c=CARDS[id];
  
  render();
@@ -2209,9 +2211,9 @@ function spendDraw(){if(morcattAuctionActive()||allianceLossActive()||guideDivin
  }
 }
 
-function playTax(handIndex){if(morcattAuctionActive()||allianceLossActive()||guideDivinationActive())return false;
+function playTax(handIndex,actor=localViewer()){if(morcattAuctionActive()||allianceLossActive()||guideDivinationActive())return false;
  if(choiceState)return;
- const found=cardFromViewerHand(handIndex,'Taxe');if(!found)return;
+ const found=cardFromViewerHand(handIndex,'Taxe',actor);if(!found)return;
  const nestedGold=!!goldReaction;
  if(nestedGold){
    clearGoldReactionTimer();goldReaction.seconds=10;goldReaction.pausedByCard=true;
@@ -2224,9 +2226,9 @@ function playTax(handIndex){if(morcattAuctionActive()||allianceLossActive()||gui
  if(G&&G.online&&G.online.legacySync)onlineLegacyPushGoldReactionNow();
 }
 function closeChoice(){choiceState=null;$('choiceOverlay').classList.add('hidden');$('choiceCards').innerHTML=''}
-function playCouncil(handIndex){if(morcattAuctionActive()||allianceLossActive()||guideDivinationActive())return false;
+function playCouncil(handIndex,requestedActor=localViewer()){if(morcattAuctionActive()||allianceLossActive()||guideDivinationActive())return false;
  if(choiceState)return;
- const found=cardFromViewerHand(handIndex,'Conseil de guerre');if(!found)return;
+ const found=cardFromViewerHand(handIndex,'Conseil de guerre',requestedActor);if(!found)return;
  const actor=found.viewer;
  const battleCouncil=!!battle;
  if(battleCouncil&&currentPriorityPlayer()!==actor)return;
@@ -2237,6 +2239,7 @@ function playCouncil(handIndex){if(morcattAuctionActive()||allianceLossActive()|
  }
  G.players[actor].hand.splice(handIndex,1);G.discard.push(found.id);draw(actor,2);
  choiceState={kind:'council',selected:[],player:actor,battleCouncil,battleRef:battle,battleSeconds:battle?battle.seconds:null,pausedGold};
+ if(p(actor).bot&&!tutorial.active){choiceState.selected=botCouncilDiscards(actor);confirmCouncil();return}
  $('choiceTitle').textContent='Conseil de guerre';
  $('choiceText').textContent='Vous avez pioché 2 cartes. Choisissez exactement 2 cartes de votre main à défausser.';
  $('choiceOverlay').classList.remove('hidden');renderCouncilChoices();render();
@@ -3179,7 +3182,7 @@ function botUseAgentOrAssassin(){
  if(ai>=0){
    const targets=opponentIndexes(actor).filter(j=>G.players[j].hand.length);
    if(targets.length){
-     const t=targets[Math.floor(Math.random()*targets.length)],hand=G.players[t].hand;
+     const t=tutorial.active?targets[Math.floor(Math.random()*targets.length)]:botChooseAgentTarget(actor,targets),hand=G.players[t].hand;
      const seen=validSeenCards(actor).filter(s=>s.target===t).map(s=>s.cardId);
      const unseen=hand.filter(id=>!seen.includes(id)),pool=unseen.length?unseen:hand;
      const id=pool[Math.floor(Math.random()*pool.length)];
@@ -3193,9 +3196,9 @@ function botUseAgentOrAssassin(){
  // Voleur : tente un vol aléatoire.
  ai=availableAgentIndex(actor,'Voleur');
  if(ai>=0){
-   const targets=opponentIndexes(actor).filter(j=>G.players[j].hand.length||objectCardsInPlay(j).length);
+   const targets=opponentIndexes(actor).filter(j=>G.players[j].hand.length||(tutorial.active&&objectCardsInPlay(j).length));
    if(targets.length){
-     const t=targets[Math.floor(Math.random()*targets.length)];
+     const t=tutorial.active?targets[Math.floor(Math.random()*targets.length)]:botChooseAgentTarget(actor,targets);
      markAgentUsed(actor,ai);
      const roll=1+Math.floor(Math.random()*6),revoltToken=captureRevoltRoll(actor,roll);
      if(roll===1){
@@ -3216,8 +3219,9 @@ function botUseAgentOrAssassin(){
  // Assassin : cible un Agent adverse s'il en existe un.
  const assassinIdx=G.players[actor].hand.findIndex(id=>CARDS[id].name==='Assassin');
  const targets=assassinTargets(actor);
- if(assassinIdx>=0&&targets.length){
-   const target=targets[Math.floor(Math.random()*targets.length)];
+ if(assassinIdx>=0&&targets.length&&(tutorial.active||p(actor).botAssassinEpoch!==turnEpoch)){
+   const target=tutorial.active?targets[Math.floor(Math.random()*targets.length)]:botChooseAssassinTarget(actor,targets);
+   if(!tutorial.active)p(actor).botAssassinEpoch=turnEpoch;
    const aid=G.players[actor].hand.splice(assassinIdx,1)[0];G.discard.push(aid);
    const roll=1+Math.floor(Math.random()*6),revoltToken=captureRevoltRoll(actor,roll);
    if(roll>=4){
@@ -3274,12 +3278,16 @@ function botAdvance(){
  if(G.phase==='play'){
    if(!tutorial.active&&botBuyUsefulVictoryPoint()){if(gameOverState)return;}
    if(botActionsThisTurn===0)setMovable();
-   if(botActionsThisTurn===0&&(!TribuCorruption.enabled(G)||p().botOpeningDoneEpoch!==turnEpoch)){
-     if(TribuCorruption.enabled(G))p().botOpeningDoneEpoch=turnEpoch;
+   if(botActionsThisTurn===0&&(tutorial.active||p().botOpeningDoneEpoch!==turnEpoch)){
+     if(!tutorial.active)p().botOpeningDoneEpoch=turnEpoch;
      if(tutorial.active)botRecruitSome();
      // Peut poser plusieurs cartes utiles au lieu de s'arrêter au premier permanent.
      for(let k=0;k<3;k++){if(!botPlayUsefulCard())break}
-     botUseAgentOrAssassin();
+     if(tutorial.active)botUseAgentOrAssassin();
+   }
+   if(!tutorial.active&&botCanActFor(G.active)){
+     if(botPlayEconomyCard()){render();queueBot('après carte économique');return}
+     if(botUseAgentOrAssassin()){render();queueBot('après agent');return}
    }
    if(priorityCardResolutionActive()||oracleNoticeState)return;
    const {attacks,moves}=botCandidates();
@@ -7039,6 +7047,6 @@ $('hotseatReveal').onclick=revealHotseatHand;$('oracleNoticePass').onclick=finis
 <script src="assets/party-options.js?v=3"></script>
 <script src="assets/spectator.js?v=4"></script>
 <script src="assets/corruption-auction-ui.js?v=20261117b"></script>
-<script src="assets/bot-strategy.js?v=20261117"></script>
+<script src="assets/bot-strategy.js?v=20261117b"></script>
 </body></html>
 
