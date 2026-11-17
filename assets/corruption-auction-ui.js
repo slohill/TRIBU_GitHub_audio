@@ -114,10 +114,6 @@ setInterval(()=>{
  const s=G.morcattAuction;
  if(s.stage!=='bidding')return;
  if(TribuAuction.tick(s,G.players,G.discard)){morcattAuctionChanged();return}
- for(let i=0;i<G.players.length;i++){
-  if(!p(i).bot)continue;const action=TribuAuction.botAction(s,i,G.players,CARDS);if(!action)continue;
-  const changed=TribuAuction.bid(s,i,action.amount,G.players,G.discard,s.revision,Date.now(),action.index);
-  if(changed){morcattAuctionChanged();break}
- }
+ if(TribuAuction.botTick(s,G.players,CARDS,G.discard))morcattAuctionChanged();
  updateMorcattAuctionTimer();
 },500);

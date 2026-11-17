@@ -65,14 +65,31 @@ function singleton(cardId,cards,version='corruption'){
  return cards.filter(x=>x.name===c.name&&(!x.extension||x.extension===version)).reduce((sum,x)=>sum+x.count,0)===1;
 }
 function botPrice(cardId,cards){return singleton(cardId,cards)?5:1}
-function botAction(s,actor,players,cards){
+function botAction(s,actor,players,cards,order=s.cards.map((_,i)=>i)){
  if(s.stage!=='bidding'||actor===s.seller||players[actor].decimated)return null;
- for(let index=0;index<s.cards.length;index++){
+ for(const index of order){
   if(s.bids[index]?.player===actor)continue;
   const amount=minimum(s,index),cap=Math.min(available(s,actor,players,index),singleton(s.cards[index],cards)?10:3);
   if(amount<=cap)return {kind:'bid',amount,index};
  }return null;
 }
-const api=Object.freeze({upgrade,create,price,start,bid,cancel,extend,tick,total,minimum,available,eligible,botPrice,botAction,seconds:SECONDS});
+function botTick(s,players,cards,discard,now=Date.now(),random=Math.random){
+ if(s.stage!=='bidding'||now>=s.deadline)return false;
+ s.botNextAt=s.botNextAt||{};
+ const delay=()=>2000+Math.floor(random()*3001);
+ for(let actor=0;actor<players.length;actor++){
+  if(!players[actor].bot||players[actor].decimated||actor===s.seller)continue;
+  if(!Number.isFinite(s.botNextAt[actor])){s.botNextAt[actor]=now+delay();continue}
+  if(now<s.botNextAt[actor])continue;
+  s.botNextAt[actor]=now+delay();
+  const order=s.cards.map((_,i)=>i);
+  for(let i=order.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[order[i],order[j]]=[order[j],order[i]]}
+  // Recompute against current offers and the joint budget, never a stale plan.
+  const action=botAction(s,actor,players,cards,order);
+  if(action&&bid(s,actor,action.amount,players,discard,s.revision,now,action.index))return true;
+ }
+ return false;
+}
+const api=Object.freeze({upgrade,create,price,start,bid,cancel,extend,tick,total,minimum,available,eligible,botPrice,botAction,botTick,seconds:SECONDS});
 root.TribuAuction=api;if(typeof module==='object'&&module.exports)module.exports=api;
 })(typeof globalThis==='object'?globalThis:this);

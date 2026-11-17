@@ -25,12 +25,7 @@ function createAuctionSync({publish,now=Date.now}){
    updated=A.start(s,s.seller,g.players,g.discard,time);
   }else if(s.stage==='bidding'){
    updated=A.tick(s,g.players,g.discard,time);
-   if(!updated)for(let i=0;i<g.players.length;i++){
-    if(!g.players[i].bot)continue;
-    const act=A.botAction(s,i,g.players,cards);if(!act)continue;
-    updated=A.bid(s,i,act.amount,g.players,g.discard,s.revision,time,act.index);
-    if(updated)break;
-   }
+   if(!updated)updated=A.botTick(s,g.players,cards,g.discard,time);
   }
   if(updated)changed(room);return updated;
  }

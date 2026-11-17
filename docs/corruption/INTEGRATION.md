@@ -320,3 +320,7 @@ Selection rings now render on a pointer-transparent pseudo-element at z-index6, 
 ## 2026-11-17 — Simultaneous Morcatt auctions
 Reveal exactly three cards regardless of player count. Public untimed preparation, then a shared 60-second deadline with no bid resets. Non-sellers may repeatedly add 15 seconds before expiry. Card click bids displayed price +1; only magnifier zooms. Editable per-card bids, leader color border, last-leading-bid undo restoring latest affordable history entry. Leading offers share one gold budget; cards and payments settle once at expiry, unsold cards cost one harvest gold. Faction help updated. Five-second map notice scrolls to existing commerce placement. Bots retain 3/10 caps and 1/5 starting prices. Old sequential saved states migrate without charging sold cards again.
 Validation: 59 server tests; real concurrent sockets; two-browser preparation, reconnect, bidding/undo/extension, timeout settlement, single harvest and Embuscade payout; local card click/zoom/input persistence and screenshot. Trial branch only, stable main unchanged.
+
+
+### Auction bot pacing — 2026-11-17
+Shared local/server botTick waits a random 2–5 seconds per bot attempt, shuffles card inspection, recalculates current minimum and combined available gold, and preserves the 3/10 caps and seller 1/5 prices. No self-outbidding, undo or extension. Waiting timestamps serialize with auction state. Eleven auction tests passed, including server bot seller/buyer integration and delay bounds.
