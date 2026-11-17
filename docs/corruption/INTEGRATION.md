@@ -324,3 +324,7 @@ Validation: 59 server tests; real concurrent sockets; two-browser preparation, r
 
 ### Auction bot pacing — 2026-11-17
 Shared local/server botTick waits a random 2–5 seconds per bot attempt, shuffles card inspection, recalculates current minimum and combined available gold, and preserves the 3/10 caps and seller 1/5 prices. No self-outbidding, undo or extension. Waiting timestamps serialize with auction state. Eleven auction tests passed, including server bot seller/buyer integration and delay bounds.
+
+
+### Bot decision improvements — 2026-11-17
+Base and Corruption modes on trial branch: need-based draw/harvest/recruit choice; recruitment through existing phase and recruitAt, weighted toward weak threatened/frontier regions; no extra opening recruitment after drawing/harvesting. Purchase VP through shared legacy action, prioritize complete provinces and winning conquests. Battle cards use minimum winning total, fewer cards on equal totals, no waste while winning or unable to win. Combines cards via existing priority/hotseat actions, uses public bonuses and own hand only. Tutorial retains old decision paths; hero active powers remain disabled. Validation: 28 browser scenarios across both versions, actual two-card hotseat combination, foundations, online bot-loss resolution, six-player match with reconnect, complete turn cycle and shared purchase victory. Stable main unchanged.

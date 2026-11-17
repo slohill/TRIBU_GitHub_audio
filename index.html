@@ -2985,6 +2985,7 @@ function ensureBotOracleProgress(){
  queueBot('sécurité Oracle');
 }
 function botAttackBonus(i,target){
+ if(!tutorial.active)return botAvailableAttackBonus(i,target);
  let best=0;
  G.players[i].hand.forEach(id=>{
    const c=CARDS[id];if(!c)return;
@@ -2997,6 +2998,7 @@ function botAttackBonus(i,target){
  return best;
 }
 function botTargetDefense(target){
+ if(!tutorial.active)return botVisibleTargetDefense(target);
  if(isSea(target)){
    const enemies=seaEnemies(target);
    if(!enemies.length)return 0;
@@ -3038,6 +3040,7 @@ function botExpansionScore(x){
    if(c.units===0&&c.building&&c.building.owner!==G.active&&
       ['Forteresse','Icenia, la cité blanche','Sundo, cité du soleil'].includes(c.building.type))score+=500;
  }
+ if(!tutorial.active)score+=botProvinceOpportunity(x.target);
  score+=Math.min(10,x.available);
  return score;
 }
@@ -3241,11 +3244,18 @@ function botHandleReturn(){
  return true;
 }
 function botAdvance(){
- if(!G || !isBot() || battle || goldReaction || priorityCardResolutionActive())return;
+ if(!G || gameOverState || !isBot() || battle || goldReaction || priorityCardResolutionActive())return;
 
  if(G.phase==='returnChoice'){botHandleReturn();return}
 
+ if(G.phase==='recruit'&&!tutorial.active){botStrategicRecruit();return}
  if(G.phase==='start'){
+   if(!tutorial.active){
+     const decision=botStartDecision();
+     if(decision==='harvest'){doHarvest();return}
+     if(decision==='recruit'){doRecruit();queueBot('recrutement');return}
+     doDraw();queueBot('après pioche');return;
+   }
    let harvestGain=ownRegs(G.active)*2;
    Object.keys(G.b).forEach(r=>{const b=cityAt(r);if(b&&b.owner===G.active)harvestGain+=5});
    const chooseHarvest=(p().gold+harvestGain<40)&&harvestGain>=6&&(p().gold<8||Math.random()<0.55);
@@ -3262,17 +3272,18 @@ function botAdvance(){
  }
 
  if(G.phase==='play'){
+   if(!tutorial.active&&botBuyUsefulVictoryPoint()){if(gameOverState)return;}
    if(botActionsThisTurn===0)setMovable();
    if(botActionsThisTurn===0&&(!TribuCorruption.enabled(G)||p().botOpeningDoneEpoch!==turnEpoch)){
      if(TribuCorruption.enabled(G))p().botOpeningDoneEpoch=turnEpoch;
-     botRecruitSome();
+     if(tutorial.active)botRecruitSome();
      // Peut poser plusieurs cartes utiles au lieu de s'arrêter au premier permanent.
      for(let k=0;k<3;k++){if(!botPlayUsefulCard())break}
      botUseAgentOrAssassin();
    }
    if(priorityCardResolutionActive()||oracleNoticeState)return;
    const {attacks,moves}=botCandidates();
-   const choice=attacks[0] || moves[0] || null;
+   const choice=tutorial.active?(attacks[0]||moves[0]||null):[...attacks,...moves].sort((a,b)=>botExpansionScore(b)-botExpansionScore(a))[0]||null;
 
    if(choice){
      dest=choice.target;picks={};
@@ -3291,7 +3302,7 @@ function botAdvance(){
      }else{
        validate();
      }
-     if(battle)return;
+     if(battle||gameOverState)return;
      botActionsThisTurn++;
      if(botActionsThisTurn<3){
        dest=null;picks={};render();queueBot('expansion suivante');return;
@@ -4087,16 +4098,18 @@ function prepareCurrentBattleReaction(){
 }
 function hotseatBotBattleReactions(){
  if(commerceBattlePaused||!battle||!isHotseatMode())return;
+ const reactionBattle=battle,reactionEpoch=(battle.botDecisionEpoch||0)+1;battle.botDecisionEpoch=reactionEpoch;
  // Les bots peuvent réagir automatiquement sans imposer de passage Joueur 1/Joueur 2.
  const bots=G.players.map((pl,i)=>pl.bot&&!isDecimated(i)?i:null).filter(i=>i!==null);
  bots.forEach((i,k)=>setTimeout(()=>{
-   if(commerceBattlePaused||!battle||!isHotseatMode())return;
+   if(commerceBattlePaused||!battle||battle!==reactionBattle||battle.botDecisionEpoch!==reactionEpoch||priorityCardResolutionActive()||!isHotseatMode())return;
    const legal=tacticalIndexes(i).filter(x=>battleCardLegality(x.id,i).ok)
      .filter(x=>['Catapultes','Mur de pique','Pluie de flèches','Pyrodontes de guerre','Montures','Balistes'].includes(CARDS[x.id].name));
    const participant=i===battle.attacker||i===battle.defender;
    if(!participant||!legal.length)return;
    const side=i===battle.attacker?'attacker':'defender';
    const mine=battlePower(side),other=battlePower(side==='attacker'?'defender':'attacker');
+   if(!tutorial.active){const card=botStrategicBattleCard(i,legal);if(card)playBattleCardForOwner(i,card.index);return}
    if(mine<=other+2||Math.random()<.25){
      legal.sort((a,b)=>battleBonusFor(CARDS[b.id],side)-battleBonusFor(CARDS[a.id],side));
      playBattleCardForOwner(i,legal[0].index);
@@ -4177,6 +4190,7 @@ function playBattleCardForOwner(owner,handIndex){if(morcattAuctionActive()||alli
   if(isHotseatMode()){
     battle.consecutivePasses=0;
     renderBattle();render();
+    if(!tutorial.active)hotseatBotBattleReactions();
   }else{
     advancePriority(true);
     renderBattle();render();
@@ -4256,6 +4270,7 @@ function queueBotReaction(){
    // Third-party bots never donate direct military bonuses.
    if(mine===null || other===null){passPriority();return}
 
+   if(!tutorial.active){const card=botStrategicBattleCard(priorityRef,legal);if(card)playBattleCard( card.index);else passPriority();return}
    if(legal.length && (mine<=other+2 || Math.random()<0.28)){
      // Prefer the largest immediately useful military bonus.
      legal.sort((a,b)=>battleBonusFor(CARDS[b.id],priorityRef===battle.attacker?'attacker':'defender')-
@@ -5427,6 +5442,10 @@ function victoryPoints(i){return (G.players[i].pvPermanent||0)+provinceVictoryPo
 function buyVictoryPoint(){
  const i=localViewer();
  if(i!==G.active||G.phase!=='play'||G.players[i].bot||isDecimated(i)||G.players[i].gold<35)return;
+ purchaseVictoryPoint(i);
+}
+function purchaseVictoryPoint(i){
+ if(i!==G.active||G.phase!=='play'||isDecimated(i)||p(i).gold<35||battle||priorityCardResolutionActive()||goldReaction)return false;
  G.players[i].gold-=35;G.players[i].pvPermanent=(G.players[i].pvPermanent||0)+1;
  log(p(i).name+' paie 35 Or et gagne 1 Point de victoire permanent.');render();
 }
@@ -7020,5 +7039,6 @@ $('hotseatReveal').onclick=revealHotseatHand;$('oracleNoticePass').onclick=finis
 <script src="assets/party-options.js?v=3"></script>
 <script src="assets/spectator.js?v=4"></script>
 <script src="assets/corruption-auction-ui.js?v=20261117b"></script>
+<script src="assets/bot-strategy.js?v=20261117"></script>
 </body></html>
 
