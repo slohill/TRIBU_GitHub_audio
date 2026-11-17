@@ -1,6 +1,6 @@
 {
-  "status": "specified_not_integrated",
-  "harvest": "Reveal one TRIBU card per player including bots and Morcatt; refill from discard normally",
+  "status": "integrated",
+  "harvest": "Reveal exactly 3 TRIBU cards, regardless of player count; refill from discard normally",
   "preparation": {
     "allCardsPublic": true,
     "pricesLive": true,
@@ -11,17 +11,18 @@
     "lockPricesOnStart": true
   },
   "auction": {
-    "order": "Draw order, one card at a time",
+    "order": "All three cards simultaneously",
     "sellerMayBid": false,
-    "seconds": 30,
-    "restartOnBid": true,
-    "passResetsOnNewBid": true,
+    "seconds": 60,
+    "restartOnBid": false,
+    "extension": "Any non-seller human may add 15 seconds repeatedly before expiry",
     "incrementMinimum": 1,
-    "limit": "Current gold",
-    "finish": "Timer expires or all other eligible bidders pass",
-    "unaffordableStartingPrice": "Immediately unsold",
-    "payment": "Immediately once per sale",
-    "award": "Immediately into hand",
+    "cardClick": "Current displayed amount plus 1",
+    "limit": "Sum of leading bids cannot exceed current gold",
+    "cancel": "Only current leader can undo last bid; restore latest affordable earlier offer, otherwise no offer",
+    "finish": "Common deadline expires",
+    "payment": "All sales paid once at expiry",
+    "award": "All cards awarded at expiry",
     "unsold": "Discard; subtract 1 from harvest"
   },
   "harvestTotal": "max(0, normal harvest including dwarf bonuses + sales - unsold); start normal gold reaction after final sale; Embuscade redirects all; Corruption may remove pending dwarf bonuses",
@@ -35,6 +36,7 @@
     "bid": "Minimum needed, bounded by available gold",
     "singleton": "Copies in selected version deck, not remaining draw pile"
   },
-  "mapMessage": "Enchères Morcatt en cours : Faites un tour dans Commerce ↓",
-  "location": "Morcatt Commerce row"
+  "mapMessage": "Des enchères Morcatts sont disponibles ! — cliquez pour aller voir —",
+  "location": "Morcatt Commerce row",
+  "mapMessageDurationSeconds": 5
 }

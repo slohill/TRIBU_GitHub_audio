@@ -24,15 +24,16 @@ const hook=[
  const [one,two]=await Promise.all([ack(b,'morcattAuctionAction',{kind:'bid',amount:2,revision:rev}),ack(c,'morcattAuctionAction',{kind:'bid',amount:3,revision:rev})]);
  assert.equal([one,two].filter(x=>x.ok).length,1);
  const latest=two.current.snapshot.g.morcattAuction.revision>=one.current.snapshot.g.morcattAuction.revision?two:one;
- const auction=latest.current.snapshot.g.morcattAuction,winner=auction.bid.player,amount=auction.bid.amount,loser=winner===1?c:b;
- const passed=await ack(loser,'morcattAuctionAction',{kind:'pass',revision:auction.revision});assert(passed.ok);
- const snap=passed.current.snapshot;assert.equal(snap.g.morcattAuction.round,1);
- assert.equal(snap.g.players[winner].gold,10-amount);assert.deepEqual(snap.g.players[winner].hand,[0]);
- const forged=JSON.parse(JSON.stringify(snap));forged.g.players[winner].gold=999;forged.g.morcattAuction.round=0;
- const commit=await ack(a,'legacyCommit',{actorIndex:0,baseRevision:passed.current.revision,snapshot:forged});assert(commit.ok);
+ const auction=latest.current.snapshot.g.morcattAuction,winner=auction.bids[0].player,amount=auction.bids[0].amount,loser=winner===1?c:b;
+ const leading=winner===1?b:c;
+ const undone=await ack(leading,'morcattAuctionAction',{kind:'cancel',index:0,revision:auction.revision});assert(undone.ok);
+ const snap=undone.current.snapshot;assert.equal(snap.g.morcattAuction.bids[0],null);
+ assert.equal(snap.g.players[winner].gold,10);assert.deepEqual(snap.g.players[winner].hand,[]);
+ const forged=JSON.parse(JSON.stringify(snap));forged.g.players[winner].gold=999;forged.g.morcattAuction.stage='finished';
+ const commit=await ack(a,'legacyCommit',{actorIndex:0,baseRevision:undone.current.revision,snapshot:forged});assert(commit.ok);
  const noAction=await ack(a,'morcattAuctionAction',{kind:'price',revision:-1});
- assert.equal(noAction.current.snapshot.g.players[winner].gold,10-amount);assert.equal(noAction.current.snapshot.g.morcattAuction.round,1);
- assert.equal((await ack(loser,'morcattAuctionAction',{kind:'pass',revision:auction.revision})).ok,false);
- console.log('PASS real sockets: concurrent bids serialized, payment once, stale snapshot cannot restore balances or round.');
+ assert.equal(noAction.current.snapshot.g.players[winner].gold,10);assert.equal(noAction.current.snapshot.g.morcattAuction.stage,'bidding');
+ assert.equal((await ack(loser,'morcattAuctionAction',{kind:'extend',revision:auction.revision})).ok,false);
+ console.log('PASS real sockets: concurrent bids serialized, undo verified, stale snapshot cannot change balances or finish auction.');
  }finally{sockets.forEach(s=>s.disconnect());child.kill();await new Promise(r=>child.once('exit',r));fs.unlinkSync(fixture)}
 })().catch(e=>{console.error(e);process.exitCode=1});

@@ -4,20 +4,21 @@ function active(room){const s=room.legacySnapshot?.g?.morcattAuction;return s&&s
 function createAuctionSync({publish,now=Date.now}){
  function changed(room){room.legacyRevision=(room.legacyRevision||0)+1;publish(room)}
  function action(room,actor,payload){
-  const snap=room.legacySnapshot,g=snap?.g,s=g?.morcattAuction;
+  const snap=room.legacySnapshot,g=snap?.g,s=A.upgrade(g?.morcattAuction);
   if(room.gameVersion!=='corruption'||!s||!g.players[actor]||g.players[actor].bot)return {ok:false,error:'Enchères indisponibles.'};
   if(payload.revision!==s.revision)return {ok:false,error:'Une autre offre est arrivée. Vérifiez le prix actuel.'};
   let ok=false;const time=now();
   if(payload.kind==='price')ok=A.price(s,actor,payload.index,payload.amount);
   if(payload.kind==='start')ok=A.start(s,actor,g.players,g.discard,time);
-  if(payload.kind==='bid')ok=A.bid(s,actor,payload.amount,g.players,g.discard,payload.revision,time);
-  if(payload.kind==='pass')ok=A.pass(s,actor,g.players,g.discard,payload.revision,time);
+  if(payload.kind==='bid')ok=A.bid(s,actor,payload.amount,g.players,g.discard,payload.revision,time,payload.index);
+  if(payload.kind==='cancel')ok=A.cancel(s,actor,g.players,payload.revision,time,payload.index);
+  if(payload.kind==='extend')ok=A.extend(s,actor,g.players,payload.revision,time);
   if(ok)changed(room);
   return ok?{ok:true}:{ok:false,error:'Cette action n’est plus disponible.'};
  }
  function tick(room,cards){
   if(!active(room))return false;
-  const g=room.legacySnapshot.g,s=g.morcattAuction,time=now();
+  const g=room.legacySnapshot.g,s=A.upgrade(g.morcattAuction),time=now();
   let updated=false;
   if(s.stage==='prepare'&&g.players[s.seller].bot){
    s.cards.forEach((id,i)=>A.price(s,s.seller,i,A.botPrice(id,cards)));
@@ -27,7 +28,7 @@ function createAuctionSync({publish,now=Date.now}){
    if(!updated)for(let i=0;i<g.players.length;i++){
     if(!g.players[i].bot)continue;
     const act=A.botAction(s,i,g.players,cards);if(!act)continue;
-    updated=act.kind==='bid'?A.bid(s,i,act.amount,g.players,g.discard,s.revision,time):A.pass(s,i,g.players,g.discard,s.revision,time);
+    updated=A.bid(s,i,act.amount,g.players,g.discard,s.revision,time,act.index);
     if(updated)break;
    }
   }
