@@ -3249,6 +3249,9 @@ function botHandleReturn(){
 }
 function botAdvance(){
  if(!G || gameOverState || !isBot() || battle || goldReaction || priorityCardResolutionActive())return;
+ // Oracle resolution can be waiting for other humans' sacrifices. This is
+ // a valid waiting phase, never an unknown phase for the bot failsafe.
+ if(G.phase==='oracleResolving'||oracleState||oracleNoticeState)return;
 
  if(G.phase==='returnChoice'){botHandleReturn();return}
 
@@ -6271,6 +6274,7 @@ function onlineLegacyRuleState(){
    dragonPublicState,agentModalState,caravanState,oraclePassArmed,oracleState,seaStormState,oracleClimateVisual,
    oraclePendingNormalMap,turnEpoch,divinationState,recruitSnapshot,gameOverState,commerceDeals,commerceSeq,
    commercePaused:commerceBattlePaused,onlineSfxSeq,onlineSfxEvents,
+   battleTimeoutResolved:typeof onlineLegacyBattleTimeoutResolved==='undefined'?null:onlineLegacyBattleTimeoutResolved,
    onlineBotDriverIndex:onlineLegacyBotDriverIndex
  };
 }
@@ -6939,10 +6943,18 @@ async function onlineResynchroniseGame(){
  const bounded=promise=>new Promise((resolve,reject)=>{const timeout=setTimeout(()=>reject(new Error('Le serveur ne répond pas. Réessayez dans quelques instants.')),8000);Promise.resolve(promise).then(resolve,reject).finally(()=>clearTimeout(timeout))});
  try{
    // Let an already sent action finish before requesting its accepted state.
-   if(onlineLegacyPendingPush)await bounded(onlineLegacyPendingPush);
+   if(onlineLegacyPendingPush){try{await bounded(onlineLegacyPendingPush)}catch(_){onlineLegacyPendingPush=null;}}
+   // Rebuild the transport and resume membership, as refresh + rejoin does.
+   if(onlineSocket){onlineSocket.removeAllListeners();onlineSocket.disconnect();onlineSocket=null;}
+   await bounded(connectOnline());
+   const saved=onlineResumeRead();
+   if(!saved)throw new Error('Aucune reprise de partie disponible.');
+   const resumed=await bounded(onlineAck('resumeRoom',saved));
+   onlineResumeSave(resumed.resume);onlineRoom=resumed.room;onlineGameState=resumed.game;
    const full=await bounded(onlineAck('requestLegacyState',{}));
    if(!full?.snapshot)throw new Error('La partie enregistrée est indisponible.');
    if(Number(full.revision)>=onlineLegacyRevision)onlineLegacyApply({snapshot:full.snapshot,revision:full.revision,youIndex:full.youIndex});
+   $('start').classList.add('hidden');$('game').classList.remove('hidden');
    status.textContent='Partie resynchronisée.';
  }catch(error){status.textContent=error.message||'Resynchronisation impossible. Réessayez.'}
  finally{
@@ -7048,5 +7060,6 @@ $('hotseatReveal').onclick=revealHotseatHand;$('oracleNoticePass').onclick=finis
 <script src="assets/spectator.js?v=4"></script>
 <script src="assets/corruption-auction-ui.js?v=20261117b"></script>
 <script src="assets/bot-strategy.js?v=20261117b"></script>
+<script src="assets/battle-timeout-client.js?v=20261119"></script>
 </body></html>
 

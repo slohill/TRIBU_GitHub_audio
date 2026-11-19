@@ -7,6 +7,7 @@ const { Server } = require('socket.io');
 const { createPublicActivity } = require('./public-activity');
 const { createPostgresHistory } = require('./history-store');
 const {createCommercePause}=require('./commerce-pause');
+const {createBattleTimeout}=require('./battle-timeout');
 
 const corruptionOptions=require('./corruption-options');
 const {createAuctionSync}=require('./corruption-auction-sync');
@@ -48,6 +49,8 @@ const auctionSync=createAuctionSync({publish:room=>emitLegacy(room)});
 setInterval(()=>{for(const room of rooms.values())auctionSync.tick(room,auctionCardCatalog)},500).unref();
 
 const commercePause=createCommercePause({emit:(room,event,payload)=>io.to(room.code).emit(event,payload),changed:room=>emitLegacy(room)});
+const battleTimeout=createBattleTimeout({publish:room=>emitLegacy(room),connected:room=>room.players.filter(p=>io.sockets.sockets.has(p.id)).map(p=>legacyYouIndex(room,p.id)).filter(i=>i>=0)});
+setInterval(()=>{for(const room of rooms.values())battleTimeout.tick(room)},500).unref();
 const historyDatabase=process.env.TRIBU_HISTORY_DATABASE_URL;
 const publicActivity=createPublicActivity({remote:historyDatabase?createPostgresHistory(historyDatabase):null,onChange:()=>publishPublicActivity()});
 let activityPublishTimer=null;
@@ -331,6 +334,7 @@ function legacyBootstrapView(room,socketId){
 function emitLegacy(room,exceptSocketId=null){
   publishPublicActivity();
   if(!room||!room.legacySnapshot)return;
+  battleTimeout.sync(room);
   room.players.forEach(p=>{
     if(p.id===exceptSocketId)return;
     const socket=io.sockets.sockets.get(p.id);if(!socket)return;
@@ -701,6 +705,7 @@ io.on('connection', socket => {
     const room=roomForSocket(socket);
     if(!room||!room.game||room.game.status!=='playing')return rejectGameAction(ack,'La partie complète n’est pas disponible.');
     const youIndex=humanGameIndex(room,socket.id);if(youIndex<0)return rejectGameAction(ack,'Joueur introuvable.');
+    battleTimeout.sync(room);
     ack({ok:true,serverTime:Date.now(),revision:room.legacyRevision||0,youIndex,bootstrap:legacyBootstrapView(room,socket.id),snapshot:room.legacySnapshot||null,recovery:roomRecoveryCapsule(room)});
   });
 
@@ -796,6 +801,7 @@ io.on('connection', socket => {
       emitLegacy(room);return;
     }
     if(!commercePause.accept(room,payload.snapshot))return ack({ok:false,error:'Commerce en cours : bataille en pause.',current:{snapshot:room.legacySnapshot,revision:current,youIndex:index}});
+    if(!battleTimeout.accept(room,index,payload.snapshot))return ack({ok:false,error:'Expiration de bataille en cours de synchronisation.',current:{snapshot:room.legacySnapshot,revision:current,youIndex:index}});
     payload.snapshot.g.gameVersion=corruptionOptions.version(room.gameVersion);
     payload.snapshot.g.battleReactionSeconds=room.battleReactionSeconds||15;
     room.legacySnapshot=payload.snapshot;room.legacyRevision=current+1;commercePause.committed(room);
