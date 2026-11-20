@@ -9,7 +9,7 @@ function mount({map,panel,plan,viewer,playerName,dieImage,onChoose,onReset,onCon
  layer.style.cssText='position:absolute;inset:0;pointer-events:none;z-index:25';
  const box=document.createElement('section');box.className='allianceLossPanel';
  const heading=document.createElement('h3');heading.textContent=golem?'Violence aveugle — dé '+plan.roll:revolt?'Révolte !':plan.kind==='ogre'?'Ogres — pertes adjacentes':'Perte de votre alliance';box.appendChild(heading);
- const message=document.createElement('p');message.textContent=mine&&golem?'Choisissez une Région puis les unités à supprimer. Cliquez sur OK pour confirmer, ou changez votre choix.':mine&&revolt?'Choisissez une ou deux unités d’une même Région. Cliquez sur OK pour confirmer, ou changez votre choix.':mine?'Choisissez les unités à retirer. Les pertes ne seront appliquées qu’après OK.':'En attente de '+playerName+' pour le choix des unités à retirer.';box.appendChild(message);
+ const message=document.createElement('p');message.textContent=mine&&golem?'Chaque clic sélectionne le maximum d’unités dans ce groupe, jusqu’au résultat du dé. Si nécessaire, cliquez sur un autre groupe de la même Région, puis sur OK.':mine&&revolt?'Choisissez une ou deux unités d’une même Région. Cliquez sur OK pour confirmer, ou changez votre choix.':mine?'Choisissez les unités à retirer. Les pertes ne seront appliquées qu’après OK.':'En attente de '+playerName+' pour le choix des unités à retirer.';box.appendChild(message);
  const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');
  svg.style.cssText='position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:19';
  const endpoints=[],placed=new Map();

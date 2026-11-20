@@ -26,7 +26,8 @@ function plan(game,actor,roll,battles,neighbors){
 function choose(p,region,key){
  const row=p.regions.find(r=>r.region===region),g=row?.groups.find(g=>g.key===key);
  if(p.confirmed||!g||p.origin!==null&&p.origin!==region||Object.values(p.chosen).reduce((a,b)=>a+b,0)>=row.required||(p.chosen[key]||0)>=g.available)return false;
- p.origin=region;p.chosen[key]=(p.chosen[key]||0)+1;return true;
+ const selected=Object.values(p.chosen).reduce((a,b)=>a+b,0),previous=p.chosen[key]||0;
+ p.origin=region;p.chosen[key]=previous+Math.min(g.available-previous,row.required-selected);return true;
 }
 function reset(p){if(p.confirmed)return false;p.origin=null;p.chosen={};return true}
 function commands(p){

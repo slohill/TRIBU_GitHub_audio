@@ -18,7 +18,7 @@ const connect=()=>new Promise((r,j)=>{const s=io('http://127.0.0.1:8791',{transp
  const sock=state.youIndex===i?a:b,g=(await ack(sock,'requestGameState')).game;
  assert((await ack(sock,'setupComplete',{color:i?'#ffd92f':'#ff4fc3',portrait:i?'R_A':'GB_A',regions:Object.keys(g.board).filter(k=>k[0]===g.players[i].province&&!g.board[k].hostile).slice(0,2)})).ok);
  }
- const legacy=await ack(a,'requestLegacyState');assert.equal(legacy.bootstrap.gameVersion,'base');assert.equal(legacy.recovery.gameVersion,'base');
+ const legacy=await ack(a,'requestLegacyState');assert.equal(legacy.bootstrap.gameVersion,'base');assert.deepEqual([...legacy.bootstrap.oracleDeck].sort(),[0,1,2,3,4,5,6,7]);assert.equal(legacy.recovery.gameVersion,'base');
  const participants=[];for(let i=0;i<7;i++)participants.push(await connect());
  const room=await ack(participants[0],'createRoom',{code:'CORR',gameVersion:'corruption',maxHumans:6,bots:0,mode:'6h',pseudo:'C0'});
  assert(room.ok);assert.equal(room.room.maxHumans,6);assert.equal(room.room.gameVersion,'corruption');
@@ -42,7 +42,7 @@ const connect=()=>new Promise((r,j)=>{const s=io('http://127.0.0.1:8791',{transp
  let canonical;
  for(const sock of playerSockets){
   const r=await ack(sock,'requestLegacyState'),g=r.bootstrap;
-  assert.equal(g.gameVersion,'corruption');assert.equal(g.players.length,6);assert(g.corruptionNpcAssigned);
+  assert.equal(g.gameVersion,'corruption');assert.deepEqual([...g.oracleDeck].sort(),[0,1,2,3,4,5,6,7,8]);assert.equal(g.players.length,6);assert(g.corruptionNpcAssigned);
   assert.equal(g.players[0].faction,5);assert.equal(g.players[1].faction,6);
   assert.equal(new Set(g.players.map(p=>p.color)).size,6);
   const tags=Object.values(g.board).filter(c=>c.npcTribe).map(c=>c.npcTribe);

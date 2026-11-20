@@ -20,7 +20,9 @@ function alliance(player,cards){
 }
 function place(game,actor,handIndex,id,cards){
  const p=game.players[actor];
- if(game.gameVersion!=='corruption'||game.active!==actor||game.phase!=='play'||!p||p.bot||p.decimated||!Number.isInteger(handIndex)||p.hand[handIndex]!==id||!cards[id]?.allianceTribe)return null;
+ if(game.gameVersion!=='corruption'||game.active!==actor||game.phase!=='play'||!p||p.decimated||!Number.isInteger(handIndex)||p.hand[handIndex]!==id||!cards[id]?.allianceTribe)return null;
+ // Bots retain their first alliance; replacing it would sacrifice their units.
+ if(p.bot&&alliance(p,cards))return null;
  if(!Array.isArray(p.inPlayUID)||p.inPlayUID.length!==p.inPlay.length)return null;
  const old=alliance(p,cards);p.hand.splice(handIndex,1);
  if(old){const at=p.inPlay.indexOf(old.id);p.inPlay.splice(at,1);p.inPlayUID.splice(at,1);game.discard.push(old.id)}

@@ -21,6 +21,25 @@ function botKnownCardValue(id,actor=G.active){
  }
  return 7;
 }
+function botAllianceConquest(){
+ const actor=G.active;
+ if(tutorial.active||!botCanActFor(actor)||!TribuCorruption.enabled(G)||TribuAlliances.alliance(p(actor),CARDS))return null;
+ const options=[];
+ p(actor).hand.forEach((id,handIndex)=>{
+  const tribe=CARDS[id]?.allianceTribe;if(!tribe)return;
+  Object.keys(G.b).forEach(target=>{
+   const c=G.b[target];
+   if(c.owner!==null||!c.hostile||c.npcTribe!==tribe||attacked.has(target)||!destinationAvailable(target))return;
+   legalSources(target).forEach(source=>{const available=botMovableAvailable(source);if(available>0)options.push({source,target,available,seaEnemy:false,id,handIndex})});
+  });
+ });
+ const choice=options.sort((a,b)=>botExpansionScore(b)-botExpansionScore(a))[0];
+ if(!choice)return null;
+ agentDefaults(actor);
+ const placed=TribuAlliances.place(G,actor,choice.handIndex,choice.id,CARDS);if(!placed)return null;
+ audioCardMove();log(p(actor).name+' met '+CARDS[choice.id].name+' en jeu.');
+ return choice;
+}
 function botCouncilDiscards(actor){
  return p(actor).hand.map((id,index)=>({index,value:botKnownCardValue(id,actor)}))
   .sort((a,b)=>a.value-b.value||a.index-b.index).slice(0,2).map(x=>x.index);

@@ -13,6 +13,7 @@ function createAuctionSync({publish,now=Date.now}){
   if(payload.kind==='bid')ok=A.bid(s,actor,payload.amount,g.players,g.discard,payload.revision,time,payload.index);
   if(payload.kind==='cancel')ok=A.cancel(s,actor,g.players,payload.revision,time,payload.index);
   if(payload.kind==='extend')ok=A.extend(s,actor,g.players,payload.revision,time);
+  if(payload.kind==='ready')ok=A.ready(s,actor,g.players,payload.revision,time);
   if(ok)changed(room);
   return ok?{ok:true}:{ok:false,error:'Cette action n’est plus disponible.'};
  }
@@ -25,6 +26,7 @@ function createAuctionSync({publish,now=Date.now}){
    updated=A.start(s,s.seller,g.players,g.discard,time);
   }else if(s.stage==='bidding'){
    updated=A.tick(s,g.players,g.discard,time);
+   if(!updated)updated=A.finishReady(s,g.players,cards,g.discard);
    if(!updated)updated=A.botTick(s,g.players,cards,g.discard,time);
   }
   if(updated)changed(room);return updated;

@@ -87,7 +87,8 @@ const ALL_REGIONS = Array.from({ length: 9 }, (_, p) => {
   return Array.from({ length: 5 }, (_, n) => `${letter}${n + 1}`);
 }).flat();
 const CARD_COUNTS = [4,4,2,3,3,1,2,3,4,3,1,4,2,3,4,1,4,3,1,2,1,3];
-const ORACLE_IDS = [0,1,2,2,3,3,4,5];
+// Physical card IDs match the legacy client: two distinct Frost and Sand cards.
+const ORACLE_IDS = [0,1,2,3,4,5,6,7];
 const FACTION_CAP = [3,3,2];
 const FACTION_DEF = [1,1,3];
 const LAND_NEIGHBORS = {
@@ -168,7 +169,7 @@ function gameRand(game){
   let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return ((t^(t>>>14))>>>0)/4294967296;
 }
 function gameDie(game){return 1+Math.floor(gameRand(game)*6)}
-function currentOracleName(game){return game.oracleActive===null?null:['Canicule','En quête de destruction','Givre mortel','Tempête de sable','Tempête en mer','Vague de froid'][game.oracleActive]||null}
+function currentOracleName(game){return game.oracleActive===null?null:['Canicule','En quête de destruction','Givre mortel','Givre mortel','Tempête de sable','Tempête de sable','Tempête en mer','Vague de froid','Révoltes'][game.oracleActive]||null}
 function refillOracle(game){if(game.oracleDeck.length)return;if(!game.oracleDiscard.length)return;game.oracleDeck=shuffle(game.oracleDiscard.splice(0),()=>gameRand(game))}
 function activateNextOracle(game){
   if(game.oracleActive!==null)game.oracleDiscard.push(game.oracleActive);refillOracle(game);
@@ -457,7 +458,7 @@ function buildAuthoritativeGame(room) {
     sea: Object.fromEntries(Object.keys(SEA_NEIGHBORS).map(id=>[id,{fleets:{}}])),
     deck: makeDeck(random,room.gameVersion),
     discard: [],
-    oracleDeck: shuffle(ORACLE_IDS.slice(), random),
+    oracleDeck: shuffle(room.gameVersion==='corruption'?[...ORACLE_IDS,8]:ORACLE_IDS.slice(), random),
     oracleDiscard: [],
     oracleActive: null,
     rngState: (room.seed ^ 0x9e3779b9) >>> 0,

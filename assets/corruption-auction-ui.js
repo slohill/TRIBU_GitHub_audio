@@ -40,6 +40,7 @@ function morcattAuctionAction(kind,value,index){
  if(kind==='bid')changed=TribuAuction.bid(s,actor,value,G.players,G.discard,s.revision,Date.now(),index);
  if(kind==='cancel')changed=TribuAuction.cancel(s,actor,G.players,s.revision,Date.now(),index);
  if(kind==='extend')changed=TribuAuction.extend(s,actor,G.players,s.revision);
+ if(kind==='ready')changed=TribuAuction.ready(s,actor,G.players,s.revision);
  if(changed)morcattAuctionChanged();
 }
 let morcattNoticeKey=null,morcattNoticeUntil=0,morcattNoticeTimer=null;
@@ -100,6 +101,7 @@ function renderMorcattAuction(){
  else{
   const timer=document.createElement('strong');timer.id='morcattAuctionTimer';panel.appendChild(timer);
   if(canBid)button(panel,'⏳ ajouter 15 secondes ⏳',()=>morcattAuctionAction('extend'));
+  if(canBid){const done=button(panel,(s.ready||[]).includes(viewer)?'✓ Vous avez terminé':'J’ai terminé',()=>morcattAuctionAction('ready'));done.disabled=(s.ready||[]).includes(viewer);done.dataset.auctionReady='true'}
  }
  root.appendChild(panel);updateMorcattAuctionTimer();
  if(focusKey){const input=[...panel.querySelectorAll('[data-auction-draft]')].find(x=>x.dataset.auctionDraft===focusKey);input?.focus({preventScroll:true})}
@@ -114,6 +116,7 @@ setInterval(()=>{
  const s=G.morcattAuction;
  if(s.stage!=='bidding')return;
  if(TribuAuction.tick(s,G.players,G.discard)){morcattAuctionChanged();return}
+ if(TribuAuction.finishReady(s,G.players,CARDS,G.discard)){morcattAuctionChanged();return}
  if(TribuAuction.botTick(s,G.players,CARDS,G.discard))morcattAuctionChanged();
  updateMorcattAuctionTimer();
 },500);

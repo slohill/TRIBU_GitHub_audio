@@ -43,17 +43,27 @@ function settle(s,players,discard){
 function live(s,actor,players,revision,now){return s.stage==='bidding'&&s.revision===revision&&now<s.deadline&&players[actor]&&!players[actor].decimated&&actor!==s.seller}
 function bid(s,actor,amount,players,discard,expectedRevision,now=Date.now(),index=0){
  if(!live(s,actor,players,expectedRevision,now)||!Number.isInteger(index)||index<0||index>=s.cards.length||!Number.isSafeInteger(amount)||amount<minimum(s,index)||amount>available(s,actor,players,index))return false;
- const offer={player:actor,amount};s.history[index].push(offer);s.bids[index]=offer;s.revision++;return true;
+ const offer={player:actor,amount};s.history[index].push(offer);s.bids[index]=offer;s.ready=[];s.revision++;return true;
 }
 function cancel(s,actor,players,revision,now=Date.now(),index=0){
  if(!live(s,actor,players,revision,now)||!Number.isInteger(index)||s.bids[index]?.player!==actor)return false;
  const history=s.history[index];history.pop();s.bids[index]=null;
  while(history.length){const previous=history.at(-1);if(!players[previous.player].decimated&&previous.amount<=available(s,previous.player,players,index)){s.bids[index]=previous;break}history.pop()}
- s.revision++;return true;
+ s.ready=[];s.revision++;return true;
 }
 function extend(s,actor,players,revision,now=Date.now()){
  if(!live(s,actor,players,revision,now))return false;
- s.deadline+=15000;s.revision++;return true;
+ s.deadline+=15000;s.ready=(s.ready||[]).filter(i=>i!==actor);s.revision++;return true;
+}
+function ready(s,actor,players,revision,now=Date.now()){
+ if(!live(s,actor,players,revision,now)||players[actor].bot||(s.ready||[]).includes(actor))return false;
+ s.ready=[...(s.ready||[]),actor];s.revision++;return true;
+}
+function finishReady(s,players,cards,discard){
+ if(s.stage!=='bidding')return false;
+ const buyers=players.map((p,i)=>({p,i})).filter(({p,i})=>i!==s.seller&&!p.decimated);
+ if(!buyers.every(({p,i})=>p.bot?!botAction(s,i,players,cards):(s.ready||[]).includes(i)))return false;
+ return settle(s,players,discard);
 }
 function tick(s,players,discard,now=Date.now()){
  if(s.stage!=='bidding'||now<s.deadline)return false;
@@ -90,6 +100,6 @@ function botTick(s,players,cards,discard,now=Date.now(),random=Math.random){
  }
  return false;
 }
-const api=Object.freeze({upgrade,create,price,start,bid,cancel,extend,tick,total,minimum,available,eligible,botPrice,botAction,botTick,seconds:SECONDS});
+const api=Object.freeze({upgrade,create,price,start,bid,cancel,extend,ready,finishReady,tick,total,minimum,available,eligible,botPrice,botAction,botTick,seconds:SECONDS});
 root.TribuAuction=api;if(typeof module==='object'&&module.exports)module.exports=api;
 })(typeof globalThis==='object'?globalThis:this);
